@@ -1,8 +1,6 @@
-#include "graphics.h"
 #include "text_editor.h"
-#include "text.h"
-#include <stdio.h>
 #include <stdlib.h>
+#include <ncurses.h>
 #include <string.h>
 #include <math.h>
 
@@ -20,13 +18,13 @@
 
 enum {
 
-    COLOR1 = 1,
-    COLOR2, // keywords 
-    COLOR3, // wildcard token
-    COLOR4, // functios
-    COLOR5, // number 
-    COLOR6, // comment
-    COLOR7, // string
+    COLOR1 = 0,
+    COLOR2,
+    COLOR3,
+    COLOR4,
+    COLOR5,
+    COLOR6,
+    COLOR7,
     COLOR_SELECTED,
     COLOR_CURSOR,
     COLOR_SIDE_NUMBERS,
@@ -38,12 +36,10 @@ static void SearchingAddText(TextEditor *t, char *str);
 static void FindCommand(TextEditor *t, TextEditorCommand *command);
 static void AddSavedText(TextEditorCommand *command, char *str, int len, int index);
 static void EraseAllSelectedText(TextEditor *t, int index, TextEditorCommand *command);
-static void AutoComplete(TextEditor *t, TextEditorCursor *c);
-// static void DrawSearchBar(TextEditor *t);
-static int IsToken(char c);
-static int IsDigit(char c);
-static void AddColoredText(TextEditor *t, u8 pair, int offset);
-static void SyntaxHighlight(TextEditor *t);
+static void DrawSearchBar(TextEditor *t);
+static char IsToken(char c);
+static void AddCharToString(char **string, char character, int *strLen);
+static void SyntaxHighlight(TextEditor *tEditor);
 static int GetStartOfNextLine(char *text, int cPos);
 static int GetNumLinesToPos(char *text, int cPos);
 static int GetCharsIntoLine(char *text, int cPos);
@@ -65,7 +61,7 @@ static void MoveCursorUpLine(TextEditor *t, TextEditorCursor *cursor);
 static void MoveCursorDownLine(TextEditor *t, TextEditorCursor *cursor);
 static void GetSelectionStartEnd(TextEditorSelection selection, int *s, int *e);
 static void MoveLines(TextEditor *t, TextEditorCommand *c);
-// static void ExpandSelectionChars(TextEditor *t,TextEditorCommand *c);
+static void ExpandSelectionChars(TextEditor *t,TextEditorCommand *c);
 static void ExpandSelectionWords(TextEditor *t,TextEditorCommand *c);
 static void AddCursorCommand(TextEditor *t, TextEditorCommand *c);
 static TextEditorCursor *AddCursor(TextEditor *t);
@@ -103,16 +99,7 @@ const char *keywords[] = {
     "auto", "bool", "char", "class", "double", "float", "int", "enum", "const", "static", "include", "define", "ifndef", "endif"
 };
 
-static int IsDigit(char c){
-    if((c == '0' || c == '1' || c == '2' || c == '3' || 
-        c == '4' || c == '5' || c == '6' || c == '7' || 
-        c == '8' || c == '9')) return 1;
-
-    return 0;
-
-}
-
-static int IsToken(char c){
+static char IsToken(char c){
     if(c == '(' || c == ' ' || c == '\n'|| c == ',' || c == '+' || c == '=' || c == '~' || c == '<' || 
         c == '>' || c == '*' || c == ')' || c == '/' || c == '{' || c == '}' || c == '%' || c == '^' || 
         c == ':' || c == '.' || c == ';' || c == ']' || c == '[' || c == '-' || c == ']' || c == '"' ||
@@ -121,198 +108,159 @@ static int IsToken(char c){
     return 0;
 }
 
-static void AddColoredText(TextEditor *t, u8 pair, int offset){
-    t->coloredTextLen++;
-    t->coloredText = (ColoredTextOffset *)realloc(t->coloredText, t->coloredTextLen*sizeof(ColoredTextOffset));
-    t->coloredText[t->coloredTextLen-1].pair = pair;
-    t->coloredText[t->coloredTextLen-1].offset = offset;
+static void AddCharToString(char **string, char character, int *strLen){
+    
+    *string = (char *)realloc(*string, ++(*strLen));
+    
+    (*string)[(*strLen)-1] = character;
 }
 
-static void GetCursorPos(char *text, int cPos, int *x, int *y){
+static void SyntaxHighlight(TextEditor *tEditor){
+    
+    if(tEditor->text == NULL){
 
-    *x = 0;
-    *y = 0;
+        if(tEditor->coloredText) free(tEditor->coloredText);
+        tEditor->coloredText = NULL;
 
-    int k;
-    for(k = 0; k < cPos; k++){
-
-        (*x)++;
-
-        if(text[k] == '\n'){
-            (*y)++;
-            *x = 0;
-        }
+        return;
     }
-}
 
-static void SyntaxHighlight(TextEditor *t){
-    
-    // if(t->coloredText) free(t->coloredText);
-    // t->coloredText = NULL;
+    int len = strlen(tEditor->text);
 
-    // if(t->text == NULL){
+    if(tEditor->coloredText) free(tEditor->coloredText);
 
-    //     return;
-    // }
+    tEditor->coloredText = NULL;
+    int coloredTextLen = 0;
 
-    // t->textLen = strlen(t->text);
-
-    // int ctOffset = 0;
-
-    // int k;
-    // for(k = 0; k < t->textLen; ){
+    for(int k = 0; k < len; k++){
         
-    //     int comment = 0;
-    //     int string = 0;
+        AddCharToString(&tEditor->coloredText, (char)COLOR_CHAR1, &coloredTextLen);
 
-    //     char c = t->text[k];
+        char *temp = NULL;
+        int tempLen = 0;
 
-    //     char token = IsToken(c);
+        int j;
+        for(j = k; j < len; j++){
 
-    //     if(!token){
-
-    //         c = t->text[k];
-    //         // number not like COLOR4 but 23
-    //         if((k - ctOffset) == 1 && (c == '0' || c == '1' || c == '2' || c == '3' || 
-    //                 c == '4' || c == '5' || c == '6' || c == '7' || 
-    //                 c == '8' || c == '9')){
-
-
-    //             AddColoredText(t, COLOR5, ctOffset);
-    //             ctOffset++;
-    //             k++;
-    //             if(k >= t->textLen) continue;
-    //             c = t->text[k];
-
-    //             while(k < t->textLen && (c == '0' || c == '1' || c == '2' || c == '3' || 
-    //                     c == '4' || c == '5' || c == '6' || c == '7' || 
-    //                     c == '8' || c == '9')){
-
-    //                 c = t->text[k++]; // skip num
-    //                 ctOffset++;
-    //             }
-
-    //             continue;
-    //         }
-
-    //         for(int m = 0; m < (int)(sizeof(keywords)/sizeof(char *)); m++){
-    //             if(strlen(keywords[m]) == (k - ctOffset) && 
-    //                 memcmp(&t->text[ctOffset], keywords[m], (k - ctOffset)) == 0) {
-                    
-    //                 AddColoredText(t, COLOR2, ctOffset);
-    //                 ctOffset = k;
-    //             }
-    //         }
-
-    //         k++;
-    //         // add to temp str
-
-
-    //     } else {
-
-    //         if(c == '(' && k - ctOffset > 0){
-    //             AddColoredText(t, COLOR2, ctOffset);
-    //             ctOffset = k;
-    //             AddColoredText(t, COLOR4, ctOffset);
-    //             ctOffset++;
-    //             k++;
-    //             continue;
-    //         }
-
-    //         if(k - ctOffset > 0){
-    //             ctOffset = k;
-    //         }
-
-    //         if(c == '/' && t->text[k+1] == '/') comment = 1;
-    //         else if(c == '-' && t->text[k+1] == '-') comment = 1;
-    //         else if(c == '/' && t->text[k+1] == '*') comment = 2;
-    //         else if(c == '"') string = 1;
-    //         else if(c == '\'') string = 2;
-    
-    
-    //         if(c == ')' || c == '('){
-    //             AddColoredText(t, (char)COLOR4, ctOffset);
-    //             ctOffset++;
-    //             k++;
-    //             continue;
-    //         }
+            char c = tEditor->text[j];
             
-    //         if(c != '\n' && c != ' ' && c != '(' && c != ')' && token && !comment && !string){
-    //             AddColoredText(t, (char)COLOR3, ctOffset);
-    //             ctOffset++;
-    //             k++;
-    //             continue;
-    //         }
-            
+            char token = IsToken(c);
 
-    //         // if(!comment && !string) k++;
+            if(token || j == len-1){
 
-    //         if(comment){
+                int comment = 0, string = 0;
+                if(j != len-1 && c == '/' && tEditor->text[j+1] == '/') comment = 1;
+                else if(j != len-1 && c == '-' && tEditor->text[j+1] == '-') comment = 1;
+                else if(j != len-1 && c == '/' && tEditor->text[j+1] == '*') comment = 2;
+                else if(j != len-1 && c == '"') string = 1;
+                else if(j != len-1 && c == '\'') string = 2;
 
-    //             AddColoredText(t, (char)COLOR6, ctOffset);
+                if(j == len-1 && !token) AddCharToString(&temp, c, &tempLen);
 
-    //             k += 2;
-    //             ctOffset += 2;
+                AddCharToString(&temp, 0, &tempLen);
 
-    //             if(comment == 1){
-    //                 for (; k < t->textLen && t->text[k] != '\n'; k++, ctOffset++);
-
-
-    //             } else { /* comment */
-
-
-    //                 for(;k < t->textLen-1 && t->text[k] != '*' && t->text[k+1] != '/'; k++,ctOffset++);
-
-    //                 if(k < t->textLen-1){
-    //                     ctOffset++;
-    //                     k++; // will run to end of file otherwise. 
-    //                 }
-    //             }
-
-    //             comment = 0;
-    //             continue;
-    //         }
-
-
-    //         if(string){
-
-    //             AddColoredText(t, (char)COLOR7, ctOffset);
-
-    //             k++;
-    //             ctOffset++;
-
-    //             int escaped = 0;
-
-    //             while(k < t->textLen){
-
-    //                 if(t->text[k] == '"' && string == 1 && !escaped) break;
-    //                 if(t->text[k] == '\'' && string == 2 && !escaped) break;
-
-    //                 k++;
-    //                 ctOffset++;
-
-    //                 if(t->text[k] == '\\' && !escaped)
-    //                     escaped = 1;
-    //                 else
-    //                     escaped = 0;
-
-    //             }
+                char keyword = 0;
                 
-    //             if(k < t->textLen){
-    //                 k++;
-    //                 ctOffset++;
-    //             }
-    //             string = 0;
-    //             continue;
-    //         }
+                for(int m = 0; m < (int)(sizeof(keywords)/sizeof(char *)); m++)
+                    if(strcmp(temp, keywords[m]) == 0) {
+                        keyword = 1;
+                        AddCharToString(&tEditor->coloredText, (char)COLOR_CHAR2, &coloredTextLen);
+                        break;
+                    }
 
-    //         k++;
-    //         ctOffset++;
-    //     }
+                if(c == '(' && !keyword) AddCharToString(&tEditor->coloredText, (char)COLOR_CHAR4, &coloredTextLen);
 
-    // }
+                int f, isText = 0;
+                for (f = 0; f < (int)strlen(temp); f++) {
+                    if( !isText && (temp[f] == '0' || temp[f] == '1' || temp[f] == '2' || temp[f] == '3' || 
+                        temp[f] == '4' || temp[f] == '5' || temp[f] == '6' || temp[f] == '7' || 
+                        temp[f] == '8' || temp[f] == '9')){
+                        AddCharToString(&tEditor->coloredText, (char)COLOR_CHAR5, &coloredTextLen);
+                        AddCharToString(&tEditor->coloredText, temp[f], &coloredTextLen);
+                        AddCharToString(&tEditor->coloredText, (char)COLOR_CHAR1, &coloredTextLen);
 
-    // AddColoredText(t, COLOR1, t->textLen);
+                    } else {
+                        isText = 1;
+                        AddCharToString(&tEditor->coloredText, temp[f], &coloredTextLen);
+                    }
+                }
+
+                if(c == ')' || c == '(') AddCharToString(&tEditor->coloredText, (char)COLOR_CHAR4, &coloredTextLen);
+                
+                if(c != '\n' && c != ' ' && c != '(' && c != ')' && token && !comment && !string)
+                    AddCharToString(&tEditor->coloredText, (char)COLOR_CHAR3, &coloredTextLen);
+                
+
+                if(token && !comment && !string) AddCharToString(&tEditor->coloredText, c, &coloredTextLen);
+                
+                k = j;
+
+                if(comment){
+                    AddCharToString(&tEditor->coloredText, (char)COLOR_CHAR6, &coloredTextLen);
+
+                    if(comment == 1){
+                        for (; k < len && tEditor->text[k] != '\n'; k++)
+                            AddCharToString(&tEditor->coloredText, tEditor->text[k], &coloredTextLen);
+                        
+                        if(k < len)
+                            AddCharToString(&tEditor->coloredText, tEditor->text[k], &coloredTextLen);
+
+                    } else {
+                        AddCharToString(&tEditor->coloredText, tEditor->text[k++], &coloredTextLen);
+                        AddCharToString(&tEditor->coloredText, tEditor->text[k++], &coloredTextLen);
+
+                        for(;k < len-1 && tEditor->text[k] != '*' && tEditor->text[k+1] != '/'; k++)
+                            AddCharToString(&tEditor->coloredText, tEditor->text[k], &coloredTextLen);
+
+                        if(k < len-1){
+                            AddCharToString(&tEditor->coloredText, tEditor->text[k++], &coloredTextLen);
+                            AddCharToString(&tEditor->coloredText, tEditor->text[k], &coloredTextLen);
+                        } else if(k < len){
+                            AddCharToString(&tEditor->coloredText, tEditor->text[k++], &coloredTextLen);
+                        }
+                    }
+                }
+
+                if(string){
+
+                    AddCharToString(&tEditor->coloredText, (char)COLOR_CHAR7, &coloredTextLen);
+                    AddCharToString(&tEditor->coloredText, tEditor->text[k++], &coloredTextLen);
+
+                    int escaped = 0;
+
+                    while(k < len){
+
+                        if(tEditor->text[k] == '"' && string == 1 && !escaped) break;
+                        if(tEditor->text[k] == '\'' && string == 2 && !escaped) break;
+
+                        
+                        AddCharToString(&tEditor->coloredText, tEditor->text[k], &coloredTextLen);
+
+                        if(tEditor->text[k] == '\\' && !escaped)
+                            escaped = 1;
+                        else
+                            escaped = 0;
+
+                        k++;
+                    }
+                    
+                    if(k < len)
+                        AddCharToString(&tEditor->coloredText, tEditor->text[k], &coloredTextLen);
+                }
+
+                break;
+
+            } else {
+
+                AddCharToString(&temp, c, &tempLen);
+            }
+        }
+
+        if(temp) free(temp);
+        temp = NULL;
+    }
+
+    AddCharToString(&tEditor->coloredText, 0, &coloredTextLen);
 }
 
 static int GetStartOfNextLine(char *text, int cPos){
@@ -355,6 +303,31 @@ static int GetCharsIntoLine(char *text, int cPos){
     return (cPos - k);
 }
 
+
+static void GetCursorPos(char *text, int cPos, int *x, int *y){
+
+    *x = 0;
+    *y = 0;
+
+    int k;
+    for(k = 0; k < cPos; k++){
+
+        if(text[k] == (char)COLOR_CHAR7) continue;
+        else if(text[k] == (char)COLOR_CHAR6) continue;
+        else if(text[k] == (char)COLOR_CHAR5) continue;
+        else if(text[k] == (char)COLOR_CHAR4) continue;
+        else if(text[k] == (char)COLOR_CHAR3) continue;
+        else if(text[k] == (char)COLOR_CHAR2) continue;
+        else if(text[k] == (char)COLOR_CHAR1) continue;
+
+        (*x)++;
+
+        if(text[k] == '\n'){
+            (*y)++;
+            *x = 0;
+        }
+    }
+}
 
 static void GetWordStartEnd(char *text, int cPos, int *s, int *e){
 
@@ -478,7 +451,7 @@ static void SetCursorToSelection(TextEditorCursor *cursor, int n){
 
 static void MoveByChars(TextEditor *t, TextEditorCommand *c){
 
-    int textLen = t->textLen;
+    int textLen = strlen(t->text);
 
     int k;
     for(k = 0; k < t->nCursors; k++){
@@ -561,7 +534,7 @@ static void MoveByWords(TextEditor *t, TextEditorCommand *c){
         memset(&t->cursors[k].selection, 0, sizeof(TextEditorSelection));
 
 
-        t->cursors[k].pos = MoveByWordsFunc(t->text, t->textLen,t->cursors[k].pos,c->num);
+        t->cursors[k].pos = MoveByWordsFunc(t->text, strlen(t->text),t->cursors[k].pos,c->num);
     }
 
     ResolveCursorCollisions(t);
@@ -590,7 +563,7 @@ static void MoveCursorUpLine(TextEditor *t, TextEditorCursor *cursor){
     int startOfPrevLine = GetStartOfPrevLine(t->text, cursor->pos);
 
     int k;
-    for(k = startOfPrevLine; k < (int)t->textLen; k++)
+    for(k = startOfPrevLine; k < (int)strlen(t->text); k++)
         if(t->text[k] == '\n') break;
 
     int charsOnPrevLine = (k - startOfPrevLine);
@@ -604,10 +577,10 @@ static void MoveCursorDownLine(TextEditor *t, TextEditorCursor *cursor){
     int charsIntoLine = GetCharsIntoLine(t->text, cursor->pos);
     int startOfNextLine = GetStartOfNextLine(t->text, cursor->pos);
 
-    if(startOfNextLine == (int)t->textLen) return;
+    if(startOfNextLine == (int)strlen(t->text)) return;
 
     int k;
-    for(k = startOfNextLine; k < (int)t->textLen; k++)
+    for(k = startOfNextLine; k < (int)strlen(t->text); k++)
         if(t->text[k] == '\n') break;
 
     int charsOnNextLine = (k - startOfNextLine);
@@ -631,7 +604,7 @@ static void MoveLines(TextEditor *t, TextEditorCommand *c){
 
     int k;
 
-    if(t->text == NULL || !t->textLen){
+    if(t->text == NULL || !strlen(t->text)){
         // FreeCursors(t);
         return;
     }
@@ -656,35 +629,35 @@ static void MoveLines(TextEditor *t, TextEditorCommand *c){
     ResolveCursorCollisions(t);
 }
 
-// static void ExpandSelectionChars(TextEditor *t,TextEditorCommand *c){
+static void ExpandSelectionChars(TextEditor *t,TextEditorCommand *c){
 
-    // if(t->text == NULL) return;
+    if(t->text == NULL) return;
 
-    // int f;
-    // for(f = 0; f < t->nCursors; f++){
+    int f;
+    for(f = 0; f < t->nCursors; f++){
 
-    //     TextEditorCursor *cursor = &t->cursors[f];
+        TextEditorCursor *cursor = &t->cursors[f];
 
-    //     if(cursor->selection.len == 0){
-    //         cursor->selection.startCursorPos = cursor->pos;
-    //     }
+        if(cursor->selection.len == 0){
+            cursor->selection.startCursorPos = cursor->pos;
+        }
 
-    //     cursor->pos += c->num;
+        cursor->pos += c->num;
 
-    //     if(cursor->pos < 0) cursor->pos = 0;
-    //     if(cursor->pos > (int)t->textLen) cursor->pos = t->textLen;
+        if(cursor->pos < 0) cursor->pos = 0;
+        if(cursor->pos > (int)strlen(t->text)) cursor->pos = strlen(t->text);
 
-    //     cursor->selection.len += c->num;
+        cursor->selection.len += c->num;
 
-    //     if(cursor->selection.startCursorPos+cursor->selection.len < 0)
-    //         cursor->selection.len -= c->num;
+        if(cursor->selection.startCursorPos+cursor->selection.len < 0)
+            cursor->selection.len -= c->num;
 
-    //     if(cursor->selection.startCursorPos+cursor->selection.len > (int)t->textLen)
-    //         cursor->selection.len -= c->num;
-    // }
+        if(cursor->selection.startCursorPos+cursor->selection.len > (int)strlen(t->text))
+            cursor->selection.len -= c->num;
+    }
 
-    // ResolveCursorCollisions(t);
-// }
+    ResolveCursorCollisions(t);
+}
 
 static void ExpandSelectionWords(TextEditor *t,TextEditorCommand *c){
 
@@ -692,20 +665,31 @@ static void ExpandSelectionWords(TextEditor *t,TextEditorCommand *c){
     for(k = 0; k < t->nCursors; k++){
 
         int prev = t->cursors[k].pos;
-        t->cursors[k].pos = MoveByWordsFunc(t->text, t->textLen, t->cursors[k].pos,c->num);
+        t->cursors[k].pos = MoveByWordsFunc(t->text, strlen(t->text), t->cursors[k].pos,c->num);
         
+
         if(t->cursors[k].selection.len == 0)
             t->cursors[k].selection.startCursorPos = prev;
+        else if((c->num < 0 && prev != t->cursors[k].selection.startCursorPos) || 
+            (c->num > 0 && prev != t->cursors[k].selection.startCursorPos+t->cursors[k].selection.len))
+            continue; // simply move through selection
+
+        if(c->num > 0){
+
+            int len = t->cursors[k].pos - prev;
+            t->cursors[k].selection.len += len;
+            t->cursors[k].pos = t->cursors[k].selection.startCursorPos+t->cursors[k].selection.len;
+
+        } else {
 
 
-        if(t->cursors[k].pos > t->cursors[k].selection.startCursorPos+t->cursors[k].selection.len){
+            if(t->cursors[k].selection.startCursorPos > t->cursors[k].pos)
+                t->cursors[k].selection.startCursorPos = t->cursors[k].pos;
 
-            t->cursors[k].selection.len += t->cursors[k].pos - prev;
+            int len = prev - t->cursors[k].pos;
+            t->cursors[k].selection.len += len;
+            t->cursors[k].pos = t->cursors[k].selection.startCursorPos;
 
-        } else if(t->cursors[k].pos < t->cursors[k].selection.startCursorPos) {
-
-            t->cursors[k].selection.len += t->cursors[k].selection.startCursorPos - t->cursors[k].pos;
-            t->cursors[k].selection.startCursorPos = t->cursors[k].pos;
         }
     }
 
@@ -859,6 +843,7 @@ static void Paste(TextEditor *t, TextEditorCommand *c){
     for(k = 0; k < t->nCursors; k++)
         memset(&t->cursors[k].selection, 0, sizeof(TextEditorSelection));
 
+    SyntaxHighlight(t);
 }
 
 static void UndoPaste(TextEditor *t, TextEditorCommand *c){
@@ -876,6 +861,7 @@ static void UndoPaste(TextEditor *t, TextEditorCommand *c){
 
     SaveCursors(t, c);
 
+    SyntaxHighlight(t);
 }
 
 static void ExpandSelectionLines(TextEditor *t, TextEditorCommand *c){
@@ -899,14 +885,14 @@ static void ExpandSelectionLines(TextEditor *t, TextEditorCommand *c){
             cursor->pos = GetStartOfNextLine(t->text, cursor->pos);         
 
         if(cursor->pos < 0) cursor->pos = 0;
-        if(cursor->pos > (int)t->textLen) cursor->pos = t->textLen;
+        if(cursor->pos > (int)strlen(t->text)) cursor->pos = strlen(t->text);
 
         cursor->selection.len = cursor->pos - cursor->selection.startCursorPos;
 
         if(cursor->selection.startCursorPos+cursor->selection.len < 0)
             cursor->selection.len -= c->num;
 
-        if(cursor->selection.startCursorPos+cursor->selection.len > (int)t->textLen)
+        if(cursor->selection.startCursorPos+cursor->selection.len > (int)strlen(t->text))
             cursor->selection.len -= c->num;
     }
 }
@@ -986,7 +972,7 @@ static void EraseAllSelectedText(TextEditor *t, int index, TextEditorCommand *co
 
     if(t->text == NULL || cursor->selection.len == 0) return;
 
-    int textLen = t->textLen;
+    int textLen = strlen(t->text);
 
     int startCursorPos, endCursorPos;
 
@@ -1062,7 +1048,7 @@ static void AddStrToText(TextEditor *t, int pos, char *text){
     int textLen = 0;
 
     if(t->text != NULL)
-        textLen = t->textLen;
+        textLen = strlen(t->text);
 
     int len = strlen(text);
 
@@ -1075,14 +1061,14 @@ static void AddStrToText(TextEditor *t, int pos, char *text){
     memcpy(&t->text[pos], text, len);
 
     MoveCursorsAndSelection(t, pos-1, len);
-    t->textLen += len;
+
 }
 
 static void RemoveCharactersFromText(TextEditor *t, int pos, int len){
 
     if(t->text == NULL) return;
 
-    int textLen = t->textLen;
+    int textLen = strlen(t->text);
 
     if(pos - len < 0) return;
 
@@ -1092,11 +1078,9 @@ static void RemoveCharactersFromText(TextEditor *t, int pos, int len){
         memmove(&t->text[pos - len], &t->text[pos], textLen - pos);
     }
 
-
     t->text = (char *)realloc(t->text, (textLen - len) + 1);
     
     t->text[textLen - len] = 0;
-    t->textLen -= len;
 
     MoveCursorsAndSelection(t, pos-1, -len);
 }
@@ -1112,37 +1096,8 @@ static void UndoRemoveCharacters(TextEditor *t, TextEditorCommand *c){
             AddStrToText(t, t->cursors[k].pos, c->savedTexts[k]);
     }
 
+    SyntaxHighlight(t);
 
-}
-
-static void AutoComplete(TextEditor *t, TextEditorCursor *c){
-    // if(t->autoComplete){
-    //     if(t->autoComplete > 3 && t->autoComplete < MAX_AUTO_COMPLETE){
-    //         char *findStart = &t->text[c->pos];
-    //         int res;
-    //         int k;
-
-    //         while((res = Find(findStart, &t->text[c->pos-t->autoComplete], t->autoComplete))){
-                
-
-    //             // if(findStart == t->text + c->pos-t->autoComplete)
-    //             //     continue;
-
-
-    //             int j;
-    //             for(j = 0; j < MAX_AUTO_COMPLETE && !IsToken(*(findStart-res+j)); j++);
-
-    //             findStart += res;
-
-    //         printf("here\n");
-    //             // char buffer[MAX_AUTO_COMPLETE];
-    //             // strncpy(buffer, findStart, j);
-    //             // buffer[j] = 0;
-    //             // printf("%s\n", buffer);
-    //         }
-    //     }
-
-    // }
 }
 
 static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
@@ -1155,7 +1110,6 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
     for(k = 0; k < t->nCursors; k++){
 
         if(t->text == NULL) break;
-
         
         if(t->cursors[k].selection.len == 0){
 
@@ -1174,11 +1128,6 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
         if(t->text == NULL) break;
 
         EraseAllSelectedText(t, k, c);
-
-        if(t->autoComplete){
-            t->autoComplete -= t->autoComplete - c->num < 0 ? 0 : c->num;
-            AutoComplete(t,&t->cursors[k]);
-        }
     }
 
     SaveCursors(t, c);
@@ -1186,6 +1135,7 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
     for(k = 0; k < t->nCursors; k++)
         memset(&t->cursors[k].selection, 0, sizeof(TextEditorSelection));
 
+    SyntaxHighlight(t);
 }
 
 static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c){
@@ -1201,10 +1151,9 @@ static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c){
             AddStrToText(t, t->cursors[k].pos, c->savedTexts[k]);
     }
 
-
-
     SaveCursors(t, c);
 
+    SyntaxHighlight(t);
 
 }
 
@@ -1268,20 +1217,9 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
         
         EraseAllSelectedText(t, k, c);
 
-
         AddStrToText(t, t->cursors[k].pos, c->keys);
-        
+    
         c->addedLens[k] = strlen(c->keys);
-
-        if(t->autoComplete == 0){
-            if(t->cursors[k].pos == 0 || IsToken(t->text[t->cursors[k].pos-1])){
-                t->autoComplete = 1;
-            }
-        } else{
-            if(t->autoComplete++ > MAX_AUTO_COMPLETE) t->autoComplete = 0;
-        }
-        AutoComplete(t,&t->cursors[k]);
-
     }
 
     SaveCursors(t, c);
@@ -1289,6 +1227,7 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
     for(k = 0; k < t->nCursors; k++)
         memset(&t->cursors[k].selection, 0, sizeof(TextEditorSelection));
 
+    SyntaxHighlight(t);
 }
 
 static void Undo(TextEditor *t, TextEditorCommand *c){
@@ -1398,7 +1337,7 @@ static TextEditorCommand *CreateCommand(const unsigned int binding[], const char
         int len = 0;
         while(binding[len] != 0) len++;
 
-        res->keyBinding = (unsigned int *)malloc(len+1);
+        res->keyBinding = (int *)malloc(len+1);
         res->keyBinding[len+1] = 0;
         memcpy(res->keyBinding, binding, len * sizeof(unsigned int));
     }
@@ -1481,58 +1420,57 @@ static void AddCommand(TextEditor *t, TextEditorCommand *c){
 
 void TextEditor_Init(TextEditor *t){
     
-
     memset(t, 0, sizeof(TextEditor));
 
-    Graphics_init_pair(COLOR_SIDE_NUMBERS, COLOR_WHITE, COLOR_BLACK);
-    Graphics_init_pair(COLOR1, COLOR_WHITE, COLOR_BLACK);
-    Graphics_init_pair(COLOR2, COLOR_CYAN, COLOR_BLACK);
-    Graphics_init_pair(COLOR6, COLOR_BLUE, COLOR_BLACK);
-    Graphics_init_pair(COLOR3, COLOR_GREEN, COLOR_BLACK);
-    Graphics_init_pair(COLOR5, COLOR_RED, COLOR_BLACK);
-    Graphics_init_pair(COLOR4, COLOR_YELLOW, COLOR_BLACK);
-    Graphics_init_pair(COLOR7, COLOR_MAGENTA, COLOR_BLACK);
+    init_pair(COLOR_SIDE_NUMBERS, -1, -1);
+    init_pair(COLOR1, -1, -1);
+    init_pair(COLOR2, COLOR_CYAN, -1);
+    init_pair(COLOR3, COLOR_BLUE, -1);
+    init_pair(COLOR7, COLOR_GREEN, -1);
+    init_pair(COLOR5, COLOR_RED, -1);
+    init_pair(COLOR4, COLOR_YELLOW, -1);
+    init_pair(COLOR6, COLOR_MAGENTA, -1);
 
-    Graphics_init_pair(COLOR_SELECTED, COLOR_BLACK ,COLOR_YELLOW);
-    Graphics_init_pair(COLOR_CURSOR, COLOR_BLACK ,COLOR_MAGENTA);
+    init_pair(COLOR_SELECTED, COLOR_BLACK ,COLOR_YELLOW);
+    init_pair(COLOR_CURSOR, COLOR_BLACK ,COLOR_MAGENTA);
 
 
 
-    AddCommand(t, CreateCommand((unsigned int[]){'d'|EDIT_CTRL_KEY  , 0}, "", 0, SelectNextWord, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_SHIFT_KEY|EDIT_ARROW_UP|EDIT_CTRL_KEY  , 0}, "", -1, AddCursorCommand, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_SHIFT_KEY|EDIT_ARROW_DOWN|EDIT_CTRL_KEY  , 0}, "", 1, AddCursorCommand, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'d'|EDIT_CTRL_KEY  , 0}, "", 0, SelectNextWord, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){EDIT_SHIFT_KEY|EDIT_ARROW_UP|EDIT_CTRL_KEY  , 0}, "", -1, AddCursorCommand, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){EDIT_SHIFT_KEY|EDIT_ARROW_DOWN|EDIT_CTRL_KEY  , 0}, "", 1, AddCursorCommand, NULL));
 
-    // AddCommand(t, CreateCommand((unsigned int[]){unbound, 0}, "", -1, ExpandSelectionChars, NULL));
-    // AddCommand(t, CreateCommand((unsigned int[]){unbound, 0}, "", 1, ExpandSelectionChars, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'l'|EDIT_SHIFT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, ExpandSelectionLines, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'k'|EDIT_SHIFT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, DeleteLine, NULL));
+    // AddCommand(t, CreateCommand((const unsigned int[]){unbound, 0}, "", -1, ExpandSelectionChars, NULL));
+    // AddCommand(t, CreateCommand((const unsigned int[]){unbound, 0}, "", 1, ExpandSelectionChars, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'l'|EDIT_SHIFT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, ExpandSelectionLines, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'k'|EDIT_SHIFT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, DeleteLine, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){'h'|EDIT_CTRL_KEY  , 0}, "", -1, MoveByChars, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'l'|EDIT_CTRL_KEY  , 0}, "", 1, MoveByChars, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'j'|EDIT_CTRL_KEY  , 0}, "", -1, MoveLines, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'k'|EDIT_CTRL_KEY  , 0}, "", 1, MoveLines, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'h'|EDIT_CTRL_KEY  , 0}, "", -1, MoveByChars, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'l'|EDIT_CTRL_KEY  , 0}, "", 1, MoveByChars, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'j'|EDIT_CTRL_KEY  , 0}, "", -1, MoveLines, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'k'|EDIT_CTRL_KEY  , 0}, "", 1, MoveLines, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){'h'|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", -1, MoveByWords, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'l'|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, MoveByWords, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'h'|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", -1, MoveByWords, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'l'|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, MoveByWords, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){']'|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", -1, IndentLine, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'['|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, IndentLine, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){']'|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", -1, IndentLine, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'['|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, IndentLine, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_LEFT|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", -1, ExpandSelectionWords, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_RIGHT|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, ExpandSelectionWords, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){EDIT_ARROW_LEFT|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", -1, ExpandSelectionWords, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){EDIT_ARROW_RIGHT|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, ExpandSelectionWords, NULL));
     
 
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_LEFT  , 0}, "", -1, MoveByChars, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_RIGHT  , 0}, "", 1, MoveByChars, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_UP  , 0}, "", -1, MoveLines, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_DOWN  , 0}, "", 1, MoveLines, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){EDIT_ARROW_LEFT  , 0}, "", -1, MoveByChars, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){EDIT_ARROW_RIGHT  , 0}, "", 1, MoveByChars, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){EDIT_ARROW_UP  , 0}, "", -1, MoveLines, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){EDIT_ARROW_DOWN  , 0}, "", 1, MoveLines, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){'z'|EDIT_CTRL_KEY  , 0}, "", 1, Undo, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'r'|EDIT_CTRL_KEY  , 0}, "", 1, Redo, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'x'|EDIT_CTRL_KEY  , 0}, "", 1, Cut, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'c'|EDIT_CTRL_KEY  , 0}, "", 1, Copy, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'v'|EDIT_CTRL_KEY  , 0}, "", 1, Paste, UndoPaste));
-    AddCommand(t, CreateCommand((unsigned int[]){31 /* ctrl + / */, 0}, "", 1, FindCommand, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'z'|EDIT_CTRL_KEY  , 0}, "", 1, Undo, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'r'|EDIT_CTRL_KEY  , 0}, "", 1, Redo, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'x'|EDIT_CTRL_KEY  , 0}, "", 1, Cut, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'c'|EDIT_CTRL_KEY  , 0}, "", 1, Copy, NULL));
+    AddCommand(t, CreateCommand((const unsigned int[]){'v'|EDIT_CTRL_KEY  , 0}, "", 1, Paste, UndoPaste));
+    AddCommand(t, CreateCommand((const unsigned int[]){31 /* ctrl + / */, 0}, "", 1, FindCommand, NULL));
 
     FILE *fp = fopen("text_editor.c", "r");
 
@@ -1545,8 +1483,6 @@ void TextEditor_Init(TextEditor *t){
     t->text = (char *)malloc(len + 1);
     t->text[len] = 0;
 
-    t->textLen = len;
-
     fread(t->text, sizeof(char), len, fp);
 
     fclose(fp);
@@ -1554,351 +1490,187 @@ void TextEditor_Init(TextEditor *t){
     t->cursors = (TextEditorCursor *)malloc(sizeof(TextEditorCursor) * ++t->nCursors);
     memset(&t->cursors[0], 0, sizeof(TextEditorCursor));
 
+    SyntaxHighlight(t);
 }
 
-// static void DrawSearchBar(TextEditor *t){
-// }
+static void DrawSearchBar(TextEditor *t){
+}
 
 void TextEditor_Draw(TextEditor *t){
 
-    if(!t->text) return;
+    // if(t->searching) DrawSearchBar(t);
 
+    if(t->text == NULL)
+        return;
 
-    t->textLen = strlen(t->text);
+    int currColor = COLOR1;
+    attron(COLOR_PAIR(COLOR1));
 
-    int nLinesToLastCursor = 0;
-    if(t->nCursors > 1)
-        nLinesToLastCursor = GetNumLinesToPos(t->text,t->cursors[t->nCursors-1].pos);
-    else
-        nLinesToLastCursor = GetNumLinesToPos(t->text,t->cursors[0].pos);
+    int nDrawCursors = t->nCursors;
+    int *drawCursors = (int *)malloc(nDrawCursors * sizeof(int));
+
+    int k;
+    for(k = 0; k < nDrawCursors; k++)
+        drawCursors[k] = t->cursors[k].pos;
+
+    int nLinesToLastCursor = GetNumLinesToPos(t->text,t->cursors[t->nCursors-1].pos);
 
     if(nLinesToLastCursor < t->scroll)
         t->scroll = nLinesToLastCursor;
-    else if(nLinesToLastCursor >= t->scroll + (Graphics_TextCollumns()-1)/2)
-        t->scroll = nLinesToLastCursor - (Graphics_TextCollumns()-1)/2;
-    
-    int ctOffset = 0;
-    int x = 0, y = 0;
-    // cant modulus x with width, \n might be farther out.
+    else if(nLinesToLastCursor >= t->scroll + LINES)
+        t->scroll = nLinesToLastCursor - (LINES-1);
 
-    int k = 0;
-    int scrollPos = 0;
+    int nDigits = log10(t->scroll + LINES) + 1;
 
-    if(t->scroll > 0){
-        for(k = 0; k < t->textLen; k++){
-            if(t->text[k] == '\n'){
-                y++;
-                if(y == t->scroll) { k++; break; }
+    int startPosColored = GetCharsToLine(t->coloredText, t->scroll);
+    int startPos = GetCharsToLine(t->text, t->scroll);
+
+    int cursorPos = startPosColored;
+
+    int x = nDigits+1, y = 0;
+
+
+    for(k = cursorPos; k < (int)strlen(t->coloredText); k++, cursorPos++){
+
+        if(t->coloredText[k] == '\n'){
+
+            if(y >= 0){
+
+                attroff(COLOR_PAIR(currColor));
+                attron(COLOR_PAIR(COLOR1));
+
+                int j;
+                for(j = 0; j < COLS; j++)
+                    mvprintw(y, x+j, " ");
+
+                attroff(COLOR_PAIR(COLOR1));
+
+                attron(COLOR_PAIR(COLOR_SIDE_NUMBERS));
+
+                for(j = 0; j < nDigits+1; j++)
+                    mvprintw(y, j, " ");
+
+                // attron(A_BOLD);
+                mvprintw(y, 0, "%i", y+t->scroll);
+                // attroff(A_BOLD);
+
+                attroff(COLOR_PAIR(COLOR_SIDE_NUMBERS));
+                attron(COLOR_PAIR(currColor));
+            }
+
+            x = nDigits+1;
+            y++;
+
+            continue;
+        }
+
+        GetCursorPos(&t->coloredText[startPosColored], k - startPosColored, &x, &y);
+
+        x += nDigits+1;
+
+        if(t->coloredText[k] == (char)COLOR_CHAR7)      { attroff(COLOR_PAIR(currColor)); attron(COLOR_PAIR((currColor = COLOR7))); --cursorPos; continue; }
+        else if(t->coloredText[k] == (char)COLOR_CHAR6) { attroff(COLOR_PAIR(currColor)); attron(COLOR_PAIR((currColor = COLOR6))); --cursorPos; continue; }
+        else if(t->coloredText[k] == (char)COLOR_CHAR5) { attroff(COLOR_PAIR(currColor)); attron(COLOR_PAIR((currColor = COLOR5))); --cursorPos; continue; }
+        else if(t->coloredText[k] == (char)COLOR_CHAR4) { attroff(COLOR_PAIR(currColor)); attron(COLOR_PAIR((currColor = COLOR4))); --cursorPos; continue; }
+        else if(t->coloredText[k] == (char)COLOR_CHAR3) { attroff(COLOR_PAIR(currColor)); attron(COLOR_PAIR((currColor = COLOR3))); --cursorPos; continue; }
+        else if(t->coloredText[k] == (char)COLOR_CHAR2) { attroff(COLOR_PAIR(currColor)); attron(COLOR_PAIR((currColor = COLOR2))); --cursorPos; continue; }
+        else if(t->coloredText[k] == (char)COLOR_CHAR1) { attroff(COLOR_PAIR(currColor)); attron(COLOR_PAIR((currColor = COLOR1))); --cursorPos; continue; }
+
+        if(x > COLS) continue;
+        if(y > LINES) break;
+
+        int localColor = -1;
+
+        int cursorPosNonColored = (cursorPos - startPosColored) + startPos;
+
+        int j;
+        for(j = 0; j < t->nCursors; j++){
+
+
+            if(t->cursors[j].pos == cursorPosNonColored){
+
+                localColor = COLOR_CURSOR;
+
+                int f;
+                for(f = j; f < t->nCursors-1; f++)
+                    drawCursors[f] = t->cursors[f+1].pos;
+
+                drawCursors = (int *)realloc(drawCursors, sizeof(int) * --nDrawCursors);
+
+            } else {
+
+                TextEditorSelection *selection = &t->cursors[j].selection;
+
+                if(selection->len == 0) continue;
+
+                int startCursorPos;
+                int endCursorPos;
+
+                GetSelectionStartEnd(*selection, &startCursorPos, &endCursorPos);
+
+                if(cursorPosNonColored >= startCursorPos && cursorPosNonColored <= endCursorPos)
+                    localColor = COLOR_SELECTED;
             }
         }
-    }
-    scrollPos = k;
-    ctOffset = k;
-    y = 0;
 
-    for(; k < t->textLen; ){
-
-        // if(x > Graphics_TextCollumns()){
-            // for(; k < t->textLen; k++){
-            //     if(t->text[k] == '\n'){
-            //         y++;
-            //         x = 0;
-            //         ctOffset = ++k;
-            //     }
-            // }
-        // }
-
-        // printf("%i %i\n",y, Graphics_TextCollumns() );
-
-        if(y > Graphics_TextRows()) break;
-
-        int comment = 0;
-        int string = 0;
-
-        char c = t->text[k];
-
-        char token = IsToken(c);
-        if(!token){
-
-            c = t->text[k];
-            // number not like COLOR4 but 23
-            if((k - ctOffset) == 1 && IsDigit(c)){
-
-                Graphics_attron(COLOR5);
-
-                for(k = k+1; k < t->textLen && IsDigit(t->text[k]); k++);
-
-                Graphics_mvprintw(x, y, &t->text[ctOffset], k - ctOffset);
-                x += k - ctOffset;
-                ctOffset = k;
-
-                continue;
-            }
-
-            k++;
-            // add to temp str
-
-
-
+        if(localColor != -1){
+            attroff(COLOR_PAIR(currColor));
+            attron(COLOR_PAIR(localColor));
+            mvprintw(y, x, "%c", t->coloredText[k]);
+            attroff(COLOR_PAIR(localColor));
+            attron(COLOR_PAIR(currColor));
         } else {
 
-            if(k - ctOffset > 0){
+            mvprintw(y, x, "%c", t->coloredText[k]);
+        }
 
-                if((k - ctOffset) == 1 && IsDigit(t->text[k-1])){
-                    Graphics_attron(COLOR5);
-                    Graphics_mvprintw(x, y, &t->text[ctOffset], 1);
-                    x++;
-                    ctOffset = k;
-                    goto addedStr;
-                }
+        x++;
+    }
 
-                for(int m = 0; m < (int)(sizeof(keywords)/sizeof(char *)); m++){
-                    if(strlen(keywords[m]) == (k - ctOffset) && 
-                        memcmp(&t->text[ctOffset], keywords[m], (k - ctOffset)) == 0) {
-                        
-                        Graphics_attron(COLOR2);
-                        Graphics_mvprintw(x, y, &t->text[ctOffset], k - ctOffset);
+    attroff(COLOR_PAIR(currColor));
 
-                        x += k - ctOffset;
-                        ctOffset = k;
-                        goto addedStr;
+    if(y >= 0 && y <= LINES){
 
-                    }
-                }
-            
-                if(c == '('){
-                    // function def example(), k - ctOffset, ctOffset stops at beginning of non tokens, unless a digit or a keyword
-                    // so that we can change colors at the token after the def
-
-                    Graphics_attron(COLOR4);
-                    Graphics_mvprintw(x, y, &t->text[ctOffset], k - ctOffset); 
-                    x += k - ctOffset;
-                    Graphics_attron(COLOR4);
-                    Graphics_mvprintw(x, y, &t->text[k], 1);
-                    x++;
-                    k++;
-                    ctOffset = k;
-                    continue;
-                }
+        attron(COLOR_PAIR(COLOR1));
     
-                Graphics_attron(COLOR1);
-                Graphics_mvprintw(x, y, &t->text[ctOffset], k - ctOffset);
-                x += k - ctOffset;
+        int j;
+        for(j = 0; j < COLS; j++)
+            mvprintw(y, x+j, " ");
 
-                ctOffset = k;
-            }
+        x = nDigits+1;
+        y++;
 
-            addedStr:
+        for(; y < LINES; y++){
 
-            if(c =='\n'){
+            for(; x < COLS; x++)
+                mvprintw(y, x, " ");
         
-                y++;
-                x = 0;
-                ctOffset = ++k;
-
-                if(y > Graphics_TextRows()) break;
-
-        //         //     Graphics_attron( COLOR_SIDE_NUMBERS);
-        //         //     // for(j = 0; j < nDigits+1; j++)
-        //         //     //     Graphics_mvprintw( y, j, " ");
-        //         //     // Graphics_attron( A_BOLD);
-        //         //     sprintf(buffer, "%i", y+t->scroll);
-        //         //     Graphics_mvprintw(x, y, 0, buffer);
-        //         //     // Graphics_attroff(A_BOLD);
-        //         //     Graphics_attron( currColor);
-        //         // }
-
-                // x = nDigits+1;
-                continue;
-            }
-
-            if(c =='\t'){
-                x += 4;
-                ctOffset = ++k;
-                continue;
-            }
-
-            if(c ==' '){
-                x++;
-                ctOffset = ++k;
-                continue;
-            }
-
-            if(c == '/' && t->text[k+1] == '/') comment = 1;
-            else if(c == '-' && t->text[k+1] == '-') comment = 1;
-            else if(c == '/' && t->text[k+1] == '*') comment = 2;
-            else if(c == '"') string = 1;
-            else if(c == '\'') string = 2;
-    
-    
-            if(c == ')' || c == '('){
-                Graphics_attron(COLOR4);
-                Graphics_mvprintw(x, y, &t->text[ctOffset], 1);
-                x++;
-                ctOffset = ++k;
-                continue;
-            }
-            
-            if(c != ' ' && c != '(' && c != ')' && token && !comment && !string){
-                Graphics_attron(COLOR3);
-                Graphics_mvprintw(x, y, &t->text[ctOffset], 1);
-                x++;
-                ctOffset = ++k;
-                continue;
-            }
-            
-
-            // if(!comment && !string) k++;
-
-            if(comment){
-
-
-                k += 2;
-
-                if(comment == 1){
-                    for (; k < t->textLen; k++){
-                        if(t->text[k] == '\n'){  break; }
-                    }
-
-
-                } else { /* comment */
-
-
-                    for(;k < (t->textLen-1) && t->text[k] != '*' && t->text[k+1] != '/'; k++);
-
-                    if(k < t->textLen-1){
-                        k++; // will run to end of file otherwise. 
-                    }
-                }
-
-                Graphics_attron(COLOR6);
-                Graphics_mvprintw(x, y, &t->text[ctOffset], k - ctOffset);
-                x += k - ctOffset;
-                ctOffset = k;
-                comment = 0;
-                continue;
-            }
-
-
-            if(string){
-
-                ctOffset = k;
-                k++;
-
-                int escaped = 0;
-
-                while(k < t->textLen){
-
-                    k++;
-                    if(k == t->textLen) break;
-
-
-                    if(t->text[k] == '\n') { k--; break; }
-                    if(t->text[k] == '"' && string == 1 && !escaped) { k++; break; }
-                    if(t->text[k] == '\'' && string == 2 && !escaped) { k++; break; }
-
-
-                    if(t->text[k] == '\\' && !escaped)
-                        escaped = 1;
-                    else
-                        escaped = 0;
-
-
-                }
-                
-                if(k == t->textLen) break;
-
-                Graphics_attron(COLOR7);
-                Graphics_mvprintw(x, y, &t->text[ctOffset], k - ctOffset);
-                
-                x += k - ctOffset;
-                ctOffset = k;
-                string = 0;
-
-                continue;
-            }
-
-            x++;
-            ctOffset = ++k;
+            x = nDigits+1;
         }
-
+    
+        attroff(COLOR_PAIR(COLOR1));
     }
 
-    int j;
-    k = 0;
-    y = 0;
+    attron(COLOR_PAIR(COLOR_CURSOR));
 
-    for(j = 0; j < t->nCursors; j++){
-        // selections
+    for(k = 0; k < nDrawCursors; k++){
 
-        TextEditorSelection *selection = &t->cursors[j].selection;
-        if(selection->len != 0){
+        int x, y;
+        GetCursorPos(t->text, drawCursors[k], &x, &y);
 
-            int startCursorPos=0;
-            int endCursorPos=0;
+        x += nDigits+1;
+        y -= t->scroll;
 
-            GetSelectionStartEnd(*selection, &startCursorPos, &endCursorPos);
+        if(y < 0 || y > LINES || x > COLS) continue;
 
-            Graphics_attron(COLOR_SELECTED);
-
-            y = 0;
-            x = 0;
-            for(k = scrollPos; k < endCursorPos; k++){
-
-                if(t->text[k] == '\n'){
-                    x = 0;
-                    y++;
-                    continue;
-                } else if(t->text[k] == '\t'){
-                    x+=4;
-                    continue;
-                }
-
-                if(k >= startCursorPos){
-                    if(y < 0 || y >= Graphics_TextCollumns()) break;
-                    if(x >= Graphics_TextRows()) continue;
-                    Graphics_mvprintw(x, y, &t->text[k], 1);
-                }
-
-                x++;
-            }
-        }
-
-        // cursors
-
-
-        if(scrollPos > t->cursors[j].pos) continue;
-
-        k = scrollPos;    
-        y = 0;
-        x = 0;
-
-        for(; k < t->cursors[j].pos && k < t->textLen; k++){
-            x++;
-            if(t->text[k] == '\n'){
-                x = 0;
-                y++;
-            } else if(t->text[k] == '\t'){
-                x+=3;
-            }
-        }
-
-        Graphics_attron(COLOR_CURSOR);
-
-        if((y >= Graphics_TextCollumns()) ||
-            x >= Graphics_TextRows()) continue;
-
-
-        if(t->text[t->cursors[j].pos] == '\n' || t->text[t->cursors[j].pos] == '\t')
-            Graphics_mvprintw(x, y, " ", 1);
-        else
-            Graphics_mvprintw(x, y, &t->text[t->cursors[j].pos], 1);
-    
-
+        mvprintw(y, x, " ");
     }
+
+    attroff(COLOR_PAIR(COLOR_CURSOR));
+
+    if(drawCursors)
+        free(drawCursors);
 }
-
-
 
 void TextEditor_Event(TextEditor *t, unsigned int key){
 
@@ -1933,9 +1705,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         FreeCommand(command);
         return;
     }
-
     if(key>>8){
-
         //ctrl/shift/alt or arrowkeys
 
         if(key == ((( unsigned int)'q') | EDIT_CTRL_KEY)){
@@ -1954,7 +1724,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         return;
     }
 
-    // if(key >= 32 && key <= 126){
+    if(key >= 32 && key <= 126){
 
         if(t->searching){
             SearchingAddText(t, (char[]){key, 0});
@@ -1964,8 +1734,8 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, (const char[]){(char)key, 0}, 0, AddCharacters, UndoAddCharacters);
         ExecuteCommand(t,command);
         FreeCommand(command);
-        // return;
-    // }
+        return;
+    }
 
 }
 

@@ -1,0 +1,9 @@
+goto
+find
+files
+auto complete
+pageup/pagedown
+ctrl shift up (move line down/up
+wrap end line
+load screen buffer chunk from file
+texteditor_draw only scrolled region
