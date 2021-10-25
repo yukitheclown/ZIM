@@ -22,6 +22,9 @@ Commands so far.<br>
     Copy<br>
     Paste<br>
     ![Screenshot](undo.gif)<br>
+    AutoComplete<br>
+    ![Screenshot](autocomplete.gif)<br>
+    
 
 ![Screenshot](Screenshot.png)<br>
 
