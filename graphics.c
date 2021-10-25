@@ -47,10 +47,15 @@ static RGBColor ncursesColors[NUM_COLORS] = {
     {1,0,1},
     {1,1,1},
     {0,0,0},
+    {0.05,0.05,0.05},
     {0,0,0},
 };
 
 static char         nCursesRefresh[MAX_TEXT_CHARS];
+static u16          ncursespos[MAX_TEXT_CHARS*6][2];
+static float        ncursesuv[MAX_TEXT_CHARS*6][2];
+static u8           ncursesfgs[MAX_TEXT_CHARS*6];
+static u8           ncursesbgs[MAX_TEXT_CHARS*6];
 static u8           currentNCursesPair = 0;
 static u8          ncursesAttrPairs[MAX_COLOR_PAIRS][2] = {
     {COLOR_YELLOW,COLOR_BLACK},
@@ -341,25 +346,25 @@ void Graphics_Init(void){
 
     glGenBuffers(1, &ncursesPosVbo_g);
     glBindBuffer(GL_ARRAY_BUFFER, ncursesPosVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(u16)*2*MAX_TEXT_CHARS*6, NULL, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(u16)*2*MAX_TEXT_CHARS*6, NULL, GL_STATIC_DRAW);
     glEnableVertexAttribArray(POS_LOC);
     glVertexAttribPointer(POS_LOC, 2, GL_SHORT, GL_FALSE, 0, 0);
 
     glGenBuffers(1, &ncursesColorBGVbo_g);
     glBindBuffer(GL_ARRAY_BUFFER, ncursesColorBGVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(u8)*MAX_TEXT_CHARS*6, NULL, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(u8)*MAX_TEXT_CHARS*6, NULL, GL_STATIC_DRAW);
     glEnableVertexAttribArray(COLORFG_LOC);
     glVertexAttribPointer(COLORFG_LOC, 1, GL_UNSIGNED_BYTE, GL_FALSE, 0, 0);
 
     glGenBuffers(1, &ncursesColorFGVbo_g);
     glBindBuffer(GL_ARRAY_BUFFER, ncursesColorFGVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(u8)*MAX_TEXT_CHARS*6, NULL, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(u8)*MAX_TEXT_CHARS*6, NULL, GL_STATIC_DRAW);
     glEnableVertexAttribArray(COLORBG_LOC);
     glVertexAttribPointer(COLORBG_LOC, 1, GL_UNSIGNED_BYTE, GL_FALSE, 0, 0);
 
     glGenBuffers(1, &ncursesUvVbo_g);
     glBindBuffer(GL_ARRAY_BUFFER, ncursesUvVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float)*2*MAX_TEXT_CHARS*6, NULL, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float)*2*MAX_TEXT_CHARS*6, NULL, GL_STATIC_DRAW);
     glEnableVertexAttribArray(UV_LOC);
     glVertexAttribPointer(UV_LOC, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
@@ -699,8 +704,7 @@ void Graphics_RenderRotatedRect(float x, float y, u16 w, u16 h, float rotation, 
     glUniform2f(shaders[TEXTURELESS_SHADER].invViewportLoc, 1.0f/viewport.w, 1.0f/viewport.h); 
     glUniform4f(shaders[TEXTURELESS_SHADER].uniColorLoc, r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f); 
 
-    // glActiveTexture(GL_TEXTURE0);
-    // glBindTexture(GL_TEXTURE_2D, sprites_g);
+    glCullFace(GL_BACK);
 
     glBindVertexArray(vao_g);
     glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
@@ -802,29 +806,15 @@ void Graphics_SetFontSize(u8 fs){
 
 void Graphics_mvprintw(u32 x, u32 y, char *str, int strLen){
 
-    if(x >= Graphics_TextRows() || y >= Graphics_TextCollumns()){
-        return;
-    }
-
-    u16 pos[2];
-    float uv[2];
 
     u32 k;
 
     // float fontSize = font_g.width / 16;
-    u32 offsetX = x;
-    u32 offsetY = y;
     x *= fontSize;
     y *= fontSize;
 
-    int startX = x;
-    int vSpacing = 0;
-    int hSpacing = 0;
-    int maxWidth = 300;
-
     char p;
 
-    glBindVertexArray(ncursesVao_g);
 
     int j;
 
@@ -835,105 +825,30 @@ void Graphics_mvprintw(u32 x, u32 y, char *str, int strLen){
         float tX = (p % 16) / 16.0f;
         float tY = (1 - SS_CHAR_SIZE) - (floorf(p / 16.0f) / 16.0f);
 
-        p -= ' ';
-
-        // if(nCursesRefresh[(offsetY*Graphics_TextCollumns()) + offsetX] == p){
-        //     nCursesRefresh[(offsetY*Graphics_TextCollumns()) + offsetX] = p;
-        // }
-        // if(p == '\n'){
-
-            // y += (fontSize + vSpacing);
-            
-            // x = startX;
-
-            // // top and bottom height are the same.
-            // if(y+fontSize >= viewport.h)
-            //     break;
-
-            // continue;
-        
-        // } else if(p == '\t' ){
-            
-        //     x += (fontSize + hSpacing) * TAB_SPACING;
-            
-        //     if(ValidateXY(&x, &y, fontSize, startX, vSpacing, maxWidth) < 0) break;
-
-        //     continue;
-
-        // } else 
-        // if(p < 32){
-
-        //     break;
-        
-        if(p == 32){
-
-            x += (fontSize + hSpacing);
-
-            // if(ValidateXY(&x, &y, fontSize, startX, vSpacing, maxWidth) < 0) break;
-
-            continue;
-        }
-
-        if(offsetX >= Graphics_TextRows()){
-            break;
-        }
-
-
-        offsetX++;
-
         for(k = 0; k < 12; k+=2){
 
 
-                uv[0] = ((RectTriangleVerts[k] * SS_CHAR_SIZE) + tX);
-                uv[1] = 1 - ((RectTriangleVerts[k+1] * SS_CHAR_SIZE) + tY);
-                pos[0] = (RectTriangleVerts[k] * fontSize) + x;
-                pos[1] = ((1-RectTriangleVerts[k+1]) * fontSize) + y;
+                ncursesuv[stringOffset][0] = ((RectTriangleVerts[k] * SS_CHAR_SIZE) + tX);
+                ncursesuv[stringOffset][1] = 1 - ((RectTriangleVerts[k+1] * SS_CHAR_SIZE) + tY);
+                ncursespos[stringOffset][0] = (RectTriangleVerts[k] * fontSize) + x;
+                ncursespos[stringOffset][1] = ((1-RectTriangleVerts[k+1]) * fontSize) + y;
+                ncursesfgs[stringOffset] = ncursesAttrPairs[currentNCursesPair][0];
+                ncursesbgs[stringOffset] = ncursesAttrPairs[currentNCursesPair][1];
 
-                // pos[0] = ((s16)RectTriangleVerts[k] << 3) + x;
-                // pos[1] = ((s16)RectTriangleVerts[k+1] << 3) + y;
-                // uv[0] = (float)((RectTriangleVerts[k] + (p & FONT_SIZE_MASK)) << 3) * font_g.invW;
-                // uv[1] = (float)((RectTriangleVerts[k+1] + (p >> FONT_SIZE_BITS)) << 3) * font_g.invH;
-            
-                glBindBuffer(GL_ARRAY_BUFFER, ncursesPosVbo_g);
-                glBufferSubData(GL_ARRAY_BUFFER, stringOffset*sizeof(pos), sizeof(pos), pos);
-                glBindBuffer(GL_ARRAY_BUFFER, ncursesUvVbo_g);
-                glBufferSubData(GL_ARRAY_BUFFER, stringOffset*sizeof(uv), sizeof(uv), uv);
-                glBindBuffer(GL_ARRAY_BUFFER, ncursesColorFGVbo_g);
-                glBufferSubData(GL_ARRAY_BUFFER, stringOffset, sizeof(GL_UNSIGNED_BYTE), &ncursesAttrPairs[currentNCursesPair][0]);
-                glBindBuffer(GL_ARRAY_BUFFER, ncursesColorBGVbo_g);
-                glBufferSubData(GL_ARRAY_BUFFER, stringOffset, sizeof(GL_UNSIGNED_BYTE), &ncursesAttrPairs[currentNCursesPair][1]);
+                // glBindBuffer(GL_ARRAY_BUFFER, ncursesPosVbo_g);
+                // glBufferSubData(GL_ARRAY_BUFFER, stringOffset*sizeof(pos), sizeof(pos), pos);
+                // glBindBuffer(GL_ARRAY_BUFFER, ncursesUvVbo_g);
+                // glBufferSubData(GL_ARRAY_BUFFER, stringOffset*sizeof(uv), sizeof(uv), uv);
+                // glBindBuffer(GL_ARRAY_BUFFER, ncursesColorFGVbo_g);
+                // glBufferSubData(GL_ARRAY_BUFFER, stringOffset, sizeof(GL_UNSIGNED_BYTE), &ncursesAttrPairs[currentNCursesPair][0]);
+                // glBindBuffer(GL_ARRAY_BUFFER, ncursesColorBGVbo_g);
+                // glBufferSubData(GL_ARRAY_BUFFER, stringOffset, sizeof(GL_UNSIGNED_BYTE), &ncursesAttrPairs[currentNCursesPair][1]);
                 ++stringOffset;
         }
-
 
         
         x += fontSize;
     }
-
-//     float tX = (c % 16) / 16.0f;
-//     float tY = (1 - SS_CHAR_SIZE) - (floorf(c / 16.0f) / 16.0f);
-
-//     float uv[2];
-//     u16 pos[2];
-
-//     int k;
-//     for(k = 0; k < 12; k++){
-
-//         uv[0] = ((RectTriangleVerts[k] * SS_CHAR_SIZE) + tX);
-//         uv[1] = ((RectTriangleVerts[k+1] * SS_CHAR_SIZE) + tY);
-//         pos[0] = (RectTriangleVerts[k] * fontSize) + x;
-//         pos[1] = (RectTriangleVerts[k+1] * fontSize) + y;
-//     }
-//     // pos[0] = ((s16)RectTriangleVerts[k] << 3) + x;
-//     // pos[1] = ((s16)RectTriangleVerts[k+1] << 3) + y;
-//     // uv[0] = (float)((RectTriangleVerts[k] + (p & FONT_SIZE_MASK)) << 3) * font_g.invW;
-//     // uv[1] = (float)((RectTriangleVerts[k+1] + (p >> FONT_SIZE_BITS)) << 3) * font_g.invH;
-
-//     glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
-//     glBufferSubData(GL_ARRAY_BUFFER, stringOffset*sizeof(pos), sizeof(pos), pos);
-//     glBindBuffer(GL_ARRAY_BUFFER, uvVbo_g);
-//     glBufferSubData(GL_ARRAY_BUFFER, stringOffset*sizeof(uv), sizeof(uv), uv);
-//     ++stringOffset;
 
 }
 
@@ -950,12 +865,21 @@ void Graphics_RenderNCurses(){
 
     // use instancing.
     glCullFace(GL_FRONT);
+
+    glBindBuffer(GL_ARRAY_BUFFER, ncursesPosVbo_g);
+    glBufferData(GL_ARRAY_BUFFER, stringOffset*2*sizeof(u16), &ncursespos[0][0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, ncursesUvVbo_g);
+    glBufferData(GL_ARRAY_BUFFER, stringOffset*2*sizeof(float), &ncursesuv[0][0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, ncursesColorFGVbo_g);
+    glBufferData(GL_ARRAY_BUFFER, stringOffset, &ncursesfgs[0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, ncursesColorBGVbo_g);
+    glBufferData(GL_ARRAY_BUFFER, stringOffset, &ncursesbgs[0], GL_STATIC_DRAW);
+
     glDrawArrays(GL_TRIANGLES, 0, stringOffset);
 
     stringOffset = 0;
-
-
 }
+
 void Graphics_attron(u32 attr){
     currentNCursesPair = attr;
 }

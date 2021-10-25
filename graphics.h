@@ -47,6 +47,7 @@ enum {
 	COLOR_MAGENTA,
 	COLOR_WHITE,
 	COLOR_BLACK,
+	COLOR_GREY,
 	COLOR_BG,
 	NUM_COLORS,
 };
@@ -58,8 +59,8 @@ void Graphics_mvprintw(u32 x, u32 y, char *str, int strLen);
 void Graphics_attron(u32 attr);
 void Graphics_init_pair(u8 pair, u8 fg, u8 bg);
 void Graphics_attroff(u32 attr);
-
 void Graphics_RenderNCurses();
+void Graphics_InitNCurses();
 
 void Graphics_Init(void);
 void Graphics_Clear(void);

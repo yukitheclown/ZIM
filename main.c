@@ -64,7 +64,7 @@ void Event(GodCode_t *gc){
 
         } else if(ev.type == SDL_TEXTINPUT){
             gc->key = (gc->key&0xFF00) | (ev.text.text[0] & 0xFF);
-            gc->state = GODCODE_STATE_UPDATE;        
+            // gc->state = GODCODE_STATE_UPDATE;        
         }
 
 
@@ -110,8 +110,6 @@ int main(int argc, char **argv){
 
         ++frames;
         
-
-
         lastTime = currTime;
 
         Event(&gc);
@@ -129,19 +127,13 @@ int main(int argc, char **argv){
             gc.key = gc.key & 0xff00;
 
             gc.state = GODCODE_STATE_RUNNING;
-    
-    
-            Graphics_Clear();
-
-            TextEditor_Draw(&gc.te);        
-            Graphics_RenderNCurses();
-
         }
 
+        Graphics_Clear();
+        TextEditor_Draw(&gc.te);        
+        Graphics_RenderNCurses();
 
-        // rotation += 0.001 * deltatime;
-        // printf("%f\n", rotation);
-        // Graphics_RenderRotatedRect(20, 50, 30, 30, rotation, 0, 0, 0,0,255,255);
+
         if(gc.te.quit) break;
 
         Graphics_Render();

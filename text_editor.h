@@ -68,22 +68,24 @@
   int pos;
  };
 
+#define MAX_AUTO_COMPLETE_STRLEN 35
 #define MAX_AUTO_COMPLETE 20
 
 typedef struct {
-  char pair;
   int offset;
-} ColoredTextOffset;
+  int len;
+} AutoCompleteOffset;
 
  struct TextEditor {
-
-
 
   TextEditorCommand **history;
   int sHistory;
 
 
-  int autoComplete;
+  int autoCompleteSearchLen;
+  int autoCompleteLen;
+  AutoCompleteOffset autoComplete[MAX_AUTO_COMPLETE];
+  int autoCompleteIndex;
 
   int searching;
   char *searchingText;
@@ -98,9 +100,6 @@ typedef struct {
 
   char *text;
   int textLen;
-
-  ColoredTextOffset *coloredText;
-  int coloredTextLen;
 
   int quit;
  };
