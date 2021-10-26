@@ -5,7 +5,6 @@
 #include "log.h"
 #include "window.h"
 
-
 #define FONT_PATH "resources/font.png"
 
 #define STRDEF(x) STR(x)
@@ -51,7 +50,6 @@ static RGBColor ncursesColors[NUM_COLORS] = {
     {0,0,0},
 };
 
-static char         nCursesRefresh[MAX_TEXT_CHARS];
 static u16          ncursespos[MAX_TEXT_CHARS*6][2];
 static float        ncursesuv[MAX_TEXT_CHARS*6][2];
 static u8           ncursesfgs[MAX_TEXT_CHARS*6];
@@ -406,7 +404,6 @@ void Graphics_Close(void){
     
     DeleteShader(&shaders[TEXTURED_SHADER]);
     DeleteShader(&shaders[TEXTURELESS_SHADER]);
-    DeleteShader(&shaders[QUAD_SHADER]);
     DeleteShader(&shaders[NCURSES_SHADER]);
 
     glDeleteVertexArrays(1, &quadVao_g);
@@ -463,7 +460,6 @@ void Graphics_Clear(void){
 }
 
 static int ValidateXY(u32 *x, u32 *y, u32 fontSize, u32 startX, u32 vSpacing, u32 maxWidth){
-    
     // bottom width is the smaller one.
     if(*x+fontSize >= maxWidth - fontSize){
 
@@ -613,109 +609,6 @@ void Graphics_RenderSprite(float x, float y, u16 w, u16 h, u16 tx, u16 ty, u16 t
 }
 
 
-void Graphics_RenderRotatedSprite(float x, float y, u16 w, u16 h,
-    float rotation, s16 ox, s16 oy, u16 tx, u16 ty, Image_t tex){
-
-    glBindVertexArray(vao_g);
-
-    float sintheta = sinf(rotation);
-    float costheta = cosf(rotation);
-
-    ox += w/2;
-    oy += h/2;
-
-    s16 relx, rely;
-
-    u32 offset = 0;
-    u16 pos[2];
-
-    float uv[2];
-
-    u32 k;
-    for(k = 0; k < 12; k+=2){
-
-        relx = ((s16)RectTriangleVerts[k] * w) - ox;
-        rely = ((s16)RectTriangleVerts[k+1] * h) - oy;
-
-        pos[0] = x + ox + ( (relx * costheta) - (sintheta * rely) );
-        pos[1] = y + oy + ( (relx * sintheta) + (costheta * rely) );
-        // pos[0] = x + ( (relx * costheta) - (sintheta * rely) );
-        // pos[1] = y + ( (relx * sintheta) + (costheta * rely) );
-
-        uv[0] = ((float)(RectTriangleVerts[k] * w) + tx) * tex.invW;
-        uv[1] = ((float)(RectTriangleVerts[k+1] * h) + ty) * tex.invH;
-
-        glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
-        glBufferSubData(GL_ARRAY_BUFFER, offset*sizeof(pos), sizeof(pos), pos);
-        glBindBuffer(GL_ARRAY_BUFFER, uvVbo_g);
-        glBufferSubData(GL_ARRAY_BUFFER, offset*sizeof(uv), sizeof(uv), uv);
-    
-        ++offset;
-    }
-
-
-    glUseProgram(shaders[TEXTURED_SHADER].program);
-    glUniform4f(shaders[TEXTURED_SHADER].uniColorLoc, 1, 1, 1, 1); 
-    glUniform2f(shaders[TEXTURED_SHADER].invViewportLoc, 1.0f/viewport.w, 1.0f/viewport.h); 
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex.texture);
-
-    glBindVertexArray(vao_g);
-    glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
-
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-}
-
-void Graphics_RenderRotatedRect(float x, float y, u16 w, u16 h, float rotation, s16 ox, s16 oy, u8 r, u8 g, u8 b, u8 a){
-
-    glBindVertexArray(vao_g);
-
-    float sintheta = sinf(rotation);
-    float costheta = cosf(rotation);
-
-    ox += w/2;
-    oy += h/2;
-
-    s16 relx, rely;
-
-    u32 offset = 0;
-    u16 pos[2];
-
-    u32 k;
-    for(k = 0; k < 12; k+=2){
-
-        relx = ((s16)RectTriangleVerts[k] * w) - ox;
-        rely = ((s16)RectTriangleVerts[k+1] * h) - oy;
-
-        pos[0] = x + ox + ( (relx * costheta) - (sintheta * rely) );
-        pos[1] = y + oy + ( (relx * sintheta) + (costheta * rely) );
-        // pos[0] = x + ( (relx * costheta) - (sintheta * rely) );
-        // pos[1] = y + ( (relx * sintheta) + (costheta * rely) );
-
-        glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
-        glBufferSubData(GL_ARRAY_BUFFER, offset*sizeof(pos), sizeof(pos), pos);
-    
-        ++offset;
-    }
-
-
-    glUseProgram(shaders[TEXTURELESS_SHADER].program);
-    glUniform2f(shaders[TEXTURELESS_SHADER].invViewportLoc, 1.0f/viewport.w, 1.0f/viewport.h); 
-    glUniform4f(shaders[TEXTURELESS_SHADER].uniColorLoc, r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f); 
-
-    glCullFace(GL_BACK);
-
-    glBindVertexArray(vao_g);
-    glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
-
-    glDisableVertexAttribArray(UV_LOC);
-
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-
-    glEnableVertexAttribArray(UV_LOC);
-}
-
 void Graphics_RenderRect(float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, u8 a){
 
     glBindFramebuffer(GL_FRAMEBUFFER, fb_g);
@@ -834,15 +727,6 @@ void Graphics_mvprintw(u32 x, u32 y, char *str, int strLen){
                 ncursespos[stringOffset][1] = ((1-RectTriangleVerts[k+1]) * fontSize) + y;
                 ncursesfgs[stringOffset] = ncursesAttrPairs[currentNCursesPair][0];
                 ncursesbgs[stringOffset] = ncursesAttrPairs[currentNCursesPair][1];
-
-                // glBindBuffer(GL_ARRAY_BUFFER, ncursesPosVbo_g);
-                // glBufferSubData(GL_ARRAY_BUFFER, stringOffset*sizeof(pos), sizeof(pos), pos);
-                // glBindBuffer(GL_ARRAY_BUFFER, ncursesUvVbo_g);
-                // glBufferSubData(GL_ARRAY_BUFFER, stringOffset*sizeof(uv), sizeof(uv), uv);
-                // glBindBuffer(GL_ARRAY_BUFFER, ncursesColorFGVbo_g);
-                // glBufferSubData(GL_ARRAY_BUFFER, stringOffset, sizeof(GL_UNSIGNED_BYTE), &ncursesAttrPairs[currentNCursesPair][0]);
-                // glBindBuffer(GL_ARRAY_BUFFER, ncursesColorBGVbo_g);
-                // glBufferSubData(GL_ARRAY_BUFFER, stringOffset, sizeof(GL_UNSIGNED_BYTE), &ncursesAttrPairs[currentNCursesPair][1]);
                 ++stringOffset;
         }
 

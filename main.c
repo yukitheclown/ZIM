@@ -85,16 +85,12 @@ int main(int argc, char **argv){
 
     SDL_StartTextInput();
     u32 currTime;
-    u32 lastTime = SDL_GetTicks();
     u32 frames = 0;
     u32 lastSecond = SDL_GetTicks();
-    float deltatime = 0;
-    float rotation = 0;
 
 	while(gc.state != GODCODE_STATE_QUIT){
         currTime = SDL_GetTicks();
 
-        deltatime = currTime - lastTime;
 
         int fps;
         float frameTime;
@@ -110,7 +106,6 @@ int main(int argc, char **argv){
 
         ++frames;
         
-        lastTime = currTime;
 
         Event(&gc);
 
@@ -135,7 +130,6 @@ int main(int argc, char **argv){
 
 
         if(gc.te.quit) break;
-
         Graphics_Render();
         Window_Swap();
 	}

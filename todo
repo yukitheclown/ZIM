@@ -5,5 +5,7 @@ files
 pageup/pagedown alt+up/down
 ctrl shift up (move line down/up
 load screen buffer chunk from file
-select between {}
-optimize, only render what changed.
+select between {} 
+ctrl+b make target like sublime (compiler log)
+resize window
+fix redo (done)
