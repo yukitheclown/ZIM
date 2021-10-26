@@ -17,7 +17,7 @@ Commands so far.<br>
    ![Screenshot](indenting.gif)<br>
     MoveLines Up/Down<br>
     Undo<br>
-    Redo(WIP bug)<br>
+    Redo<br>
     Cut<br>
     Copy<br>
     Paste<br>
@@ -33,7 +33,6 @@ TODO:<br>
     find<br>
     files save open etc<br>
     } auto indent down<br>
-    pageup/pagedown alt+up/down<br>
     select between {}<br>
 <br>
 Deveoloped while bedridden after I got hit by a car on a moped. I'll be fully recovered soon.
