@@ -30,9 +30,7 @@ Commands so far.<br>
 
 TODO:<br>
 files save open etc<br>
-toggle comment // /* */<br>
 ctrl+d skip <br>
-select/move between {} ctrl+j ctrl+m  <br>
 text scale <br>
 resize window<br>
 windows/tabs<br>
