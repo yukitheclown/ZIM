@@ -32,7 +32,7 @@ void Event(GodCode_t *gc){
 
         if(ev.type == SDL_KEYDOWN){
 
-            if(ev.key.keysym.sym == SDLK_RETURN) gc->key = 10;
+            if(ev.key.keysym.sym == SDLK_RETURN) gc->key |= 10;
             else if(ev.key.keysym.sym == SDLK_TAB) gc->key = 9;
             else if(ev.key.keysym.sym == SDLK_ESCAPE) gc->key = 27;
             else if(ev.key.keysym.sym == SDLK_BACKSPACE) gc->key = 127;
@@ -46,7 +46,7 @@ void Event(GodCode_t *gc){
             else
                 gc->key = (gc->key&0xFF00) | (ev.key.keysym.sym & 0xFF);
 
-            gc->state = GODCODE_STATE_UPDATE;        
+            gc->state = GODCODE_STATE_UPDATE;
 
             if(ev.key.keysym.sym == 'q'){
                 gc->state = GODCODE_STATE_QUIT;

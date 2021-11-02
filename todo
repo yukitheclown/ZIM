@@ -1,11 +1,17 @@
-goto
-find
+sorted by importance:
+
+toggle comment // /* */
+ctrl+d skip
+select/move between {} ctrl+j ctrl+m 
 files
-} auto indent down
-pageup/pagedown alt+up/down
-ctrl shift up (move line down/up
-load screen buffer chunk from file
-select between {} 
-ctrl+b make target like sublime (compiler log)
+text scale
 resize window
-fix redo (done)
+windows/tabs
+ctrl+b compiler
+
+code folding
+undo indent command multiple lines bug
+load screen buffer chunk from file
+} auto indent down
+
+charsintoline bug likely

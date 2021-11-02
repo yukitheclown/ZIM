@@ -71,6 +71,11 @@
 #define MAX_AUTO_COMPLETE_STRLEN 35
 #define MAX_AUTO_COMPLETE 20
 
+ enum {
+  SEARCHINGMODE_NUM = 1,
+  SEARCHINGMODE_TEXT,
+ };
+
 typedef struct {
   int offset;
   int len;
@@ -78,30 +83,30 @@ typedef struct {
 
  struct TextEditor {
 
-  TextEditorCommand **history;
-  int sHistory;
+  TextEditorCommand       **history;
+  int                     sHistory;
 
 
-  int autoCompleteSearchLen;
-  int autoCompleteLen;
-  AutoCompleteOffset autoComplete[MAX_AUTO_COMPLETE];
-  int autoCompleteIndex;
+  int                     autoCompleteSearchLen;
+  int                     autoCompleteLen;
+  AutoCompleteOffset      autoComplete[MAX_AUTO_COMPLETE];
+  int                     autoCompleteIndex;
 
-  int searching;
-  char *searchingText;
-  int scroll;
-  int historyPos;
+  int                     searching;
+  char                    *searchingText;
+  int                     scroll;
+  int                     historyPos;
 
-  TextEditorCommand **commands;
-  int nCommands;
+  TextEditorCommand       **commands;
+  int                     nCommands;
 
-  TextEditorCursor *cursors;
-  int nCursors;
+  TextEditorCursor        *cursors;
+  int                     nCursors;
 
-  char *text;
-  int textLen;
+  char                    *text;
+  int                     textLen;
 
-  int quit;
+  int                     quit;
  };
 
  void TextEditor_Draw(TextEditor *t);
