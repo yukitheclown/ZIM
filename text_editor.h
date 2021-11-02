@@ -72,8 +72,10 @@
 #define MAX_AUTO_COMPLETE 20
 
  enum {
-  SEARCHINGMODE_NUM = 1,
-  SEARCHINGMODE_TEXT,
+  LOGMODE_NUM = 1,
+  LOGMODE_TEXT,
+  LOGMODE_SAVE,
+  LOGMODE_OPEN,
  };
 
 typedef struct {
@@ -86,14 +88,15 @@ typedef struct {
   TextEditorCommand       **history;
   int                     sHistory;
 
+  int                     selectNextWordTerminator; // "select" not get it in the phrase selecting
 
   int                     autoCompleteSearchLen;
   int                     autoCompleteLen;
   AutoCompleteOffset      autoComplete[MAX_AUTO_COMPLETE];
   int                     autoCompleteIndex;
 
-  int                     searching;
-  char                    *searchingText;
+  int                     logging;
+  char                    *loggingText;
   int                     scroll;
   int                     historyPos;
 

@@ -26,7 +26,7 @@ enum {
     COLOR_SIDE_NUMBERS,
 };
 
-static void EndSearching(TextEditor *t);
+static void EndLogging(TextEditor *t);
 static void FindTextGoto(TextEditor *t, int dir);
 static void ScrollToLine(TextEditor *t);
 static int MoveByWordsFunc(char *text, int len, int start, int dir);
@@ -39,12 +39,15 @@ static int IsDigit(char c);
 static int GetStartOfNextLine(char *text, int textLen, int cPos);
 static int GetNumLinesToPos(char *text, int cPos);
 static int GetCharsIntoLine(char *text, int cPos);
-static int GetCharsToLine(char *text, int line);
 static void GetWordStartEnd(char *text, int cPos, int *s, int *e);
 static int GetWordEnd(char *text, int cPos);
 static int GetWordStart(char *text, int cPos);
 static int GetStartOfPrevLine(char *text, int cPos);
-static void GetCursorPos(char *text, int cPos, int *x, int *y);
+static void DoOpenFile(TextEditor *t);
+static void DoSaveFile(TextEditor *t);
+static void OpenFile(TextEditor *t, TextEditorCommand *c);
+static void LoadFile(TextEditor *t, char *path);
+static void SaveFile(TextEditor *t, TextEditorCommand *c);
 static void RefreshEditorCommand(TextEditorCommand *c);
 static void ResolveCursorCollisions(TextEditor *t);
 static void MoveCursorsAndSelection(TextEditor *t, int pos, int by, int cursorIndex);
@@ -76,6 +79,8 @@ static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c);
 static void AddCharacters(TextEditor *t, TextEditorCommand *c);
 static void Undo(TextEditor *t, TextEditorCommand *c);
 static void Copy(TextEditor *t, TextEditorCommand *c);
+static void MoveBrackets(TextEditor *t, TextEditorCommand *c);
+static int GetBetweenBrackets(char *text, int len, int pos, int *first, int *last);
 static void ExpandSelectionLines(TextEditor *t, TextEditorCommand *c);
 static void DeleteLine(TextEditor *t, TextEditorCommand *c);
 static void Cut(TextEditor *t, TextEditorCommand *c);
@@ -136,47 +141,53 @@ static int GetCharsIntoLine(char *text, int cPos){
     return (cPos - k);
 }
 
-static void EndSearching(TextEditor *t){
-    if(t->searchingText) free(t->searchingText);
-    t->searching = 0;
-    t->searchingText = NULL;
+static void EndLogging(TextEditor *t){
+    if(t->loggingText) free(t->loggingText);
+    t->logging = 0;
+    t->loggingText = NULL;
 }
 
 static void FindTextGoto(TextEditor *t, int dir){
 
     RemoveSelections(t);
     RemoveExtraCursors(t);
-    if(!t->searchingText) return;
-    int searchLen = strlen(t->searchingText);
+    if(!t->loggingText) return;
+    int searchLen = strlen(t->loggingText);
 
     if(dir > 0){
 
-        int next = Find(&t->text[t->cursors[0].pos], t->searchingText, searchLen);
+        int next = Find(&t->text[t->cursors[0].pos], t->loggingText, searchLen);
 
         if(next < 0 || t->cursors[0].pos == strlen(t->text)){
     
-            next = Find(&t->text[0], t->searchingText, searchLen);
+            next = Find(&t->text[0], t->loggingText, searchLen);
     
             if(next < 0)
                 next = 0;
+            else
+                t->cursors[0].selection.len = searchLen;
 
             t->cursors[0].pos = next;
         
         } else if(next == 0){
-            next = Find(&t->text[t->cursors[0].pos+searchLen], t->searchingText, searchLen);
+            next = Find(&t->text[t->cursors[0].pos+searchLen], t->loggingText, searchLen);
 
             if(next < 0){
-                next = Find(&t->text[0], t->searchingText, searchLen);
+                next = Find(&t->text[0], t->loggingText, searchLen);
                 t->cursors[0].pos = next;
+                
+                if(next >= 0)
+                    t->cursors[0].selection.len = searchLen;
             } else {
                 t->cursors[0].pos += next + searchLen;
+                t->cursors[0].selection.len = searchLen;
             }
         } else {
             t->cursors[0].pos += next;
+            t->cursors[0].selection.len = searchLen;
         }
 
         t->cursors[0].selection.startCursorPos = t->cursors[0].pos;
-        t->cursors[0].selection.len = searchLen;
 
 
         return;
@@ -186,7 +197,7 @@ static void FindTextGoto(TextEditor *t, int dir){
 
         t->textLen = strlen(t->text);
 
-        int curr = Find(&t->text[0], t->searchingText, searchLen);
+        int curr = Find(&t->text[0], t->loggingText, searchLen);
         if(curr < 0) {
             return;
         }
@@ -196,7 +207,7 @@ static void FindTextGoto(TextEditor *t, int dir){
 
         do{
             curr += next+searchLen;
-            next = Find(&t->text[curr], t->searchingText, searchLen);
+            next = Find(&t->text[curr], t->loggingText, searchLen);
 
         } while(next > 0 && curr+next+searchLen < t->cursors[0].pos && curr+next+searchLen < t->textLen);
 
@@ -204,17 +215,16 @@ static void FindTextGoto(TextEditor *t, int dir){
         if(curr-searchLen == start){ // find last occurance
             do{
                 curr += next+searchLen;
-                next = Find(&t->text[curr], t->searchingText, searchLen);
+                next = Find(&t->text[curr], t->loggingText, searchLen);
 
             } while(next > 0 && curr+next+searchLen < t->textLen);
-            printf("%i\n",curr );
 
         }
 
-        t->cursors[0].selection.startCursorPos = curr - searchLen;
+        t->cursors[0].pos = curr-searchLen;            
+        t->cursors[0].selection.startCursorPos = t->cursors[0].pos;
         t->cursors[0].selection.len = searchLen;
 
-        t->cursors[0].pos = curr-searchLen;            
 
         return;
     }
@@ -223,16 +233,16 @@ static void FindTextGoto(TextEditor *t, int dir){
 
 static void ScrollToLine(TextEditor *t){
 
-    t->searching = 0;
+    t->logging = 0;
     RemoveSelections(t);
     RemoveExtraCursors(t);
 
-    if(!t->searchingText) return;
+    if(!t->loggingText) return;
 
-    int line = atoi(t->searchingText);
+    int line = atoi(t->loggingText);
 
-    free(t->searchingText);
-    t->searchingText = NULL;
+    free(t->loggingText);
+    t->loggingText = NULL;
 
 
     if(line == 0){
@@ -265,17 +275,25 @@ static void ScrollToLine(TextEditor *t){
 }
 
 static void EventCtrlEnter(TextEditor *t, TextEditorCommand *c){
-    if(t->searching != SEARCHINGMODE_TEXT) return;
+    if(t->logging != LOGMODE_TEXT) return;
     FindTextGoto(t, -1);
 }
 
 static void EventEnter(TextEditor *t){
 
-    if(t->searching == SEARCHINGMODE_NUM){
+    if(t->logging == LOGMODE_SAVE){
+        DoSaveFile(t);
+        return;
+    }
+    if(t->logging == LOGMODE_OPEN){
+        DoOpenFile(t);
+        return;
+    }
+    if(t->logging == LOGMODE_NUM){
         ScrollToLine(t);
         return;
     }
-    if(t->searching == SEARCHINGMODE_TEXT){
+    if(t->logging == LOGMODE_TEXT){
         FindTextGoto(t, 1);
         return;
     }
@@ -336,7 +354,7 @@ static int GetWordEnd(char *text, int cPos){
 static int GetWordStart(char *text, int cPos){
 
     int k;
-    for(k=cPos; k > 0; k--)
+    for(k=cPos; k >= 0; k--)
         if(IsToken(text[k])) break;
 
     return k+1;
@@ -378,6 +396,7 @@ static void ResolveCursorCollisions(TextEditor *t){
 
 static void MoveCursorsAndSelection(TextEditor *t, int pos, int by, int cursorIndex){
 
+
     int k;
     for(k = 0; k < t->nCursors; k++){
         if(k == cursorIndex) continue;
@@ -398,6 +417,7 @@ static void MoveCursorsAndSelection(TextEditor *t, int pos, int by, int cursorIn
 
 static void RemoveSelections(TextEditor *t){
     
+    t->selectNextWordTerminator = 0;    
     t->autoCompleteSearchLen = 0;
     t->autoCompleteLen = 0;
     t->autoCompleteIndex = 0;
@@ -448,7 +468,7 @@ static int MoveByWordsFunc(char *text, int len, int start, int dir){
 
     if((start > len && dir > 0) || (start == 0 && dir < 0)) return start;
 
-    if(dir < 0){
+    if(dir < 0 && start > 0){
         
         if(text[start-1] == '\n'){
             start -= 1;
@@ -460,7 +480,7 @@ static int MoveByWordsFunc(char *text, int len, int start, int dir){
             }
             
             if(IsToken(text[start])){
-                while(start > 0){
+                while(start >= 0){
                     char c = text[--start];
                     if(c == '\n') { start++; break; }
                     if(!IsToken(c)) { start = GetWordStart(text, start); break; }
@@ -724,26 +744,51 @@ static void MoveLinesText(TextEditor *t, TextEditorCommand *c){
     ResolveCursorCollisions(t);
 }
 
-static void GotoLine(TextEditor *t, TextEditorCommand *c){
+static void UndoMoveLinesText(TextEditor *t, TextEditorCommand *c){
 
-    if(t->text == NULL) return;
+    int k;
 
-    if(t->searching){
-        if(t->searchingText) free(t->searchingText);
-        t->searchingText = NULL;
+    if(t->text == NULL || !t->textLen)
+        return;
+
+    for(k = 0; k < t->nCursors; k++){
+
+        TextEditorCursor *cursor = &t->cursors[k];
+
+        if(c->num > 0)
+            MoveLineUp(t, cursor);
+        else if(c->num < 0 && GetNumLinesToPos(t->text, cursor->pos) > 0)
+            MoveLineDown(t, cursor);
     }
-    t->searching = SEARCHINGMODE_NUM;
+
+    ResolveCursorCollisions(t);
+}
+
+
+static void GotoLine(TextEditor *t, TextEditorCommand *c){
+    EndLogging(t);
+    t->logging = LOGMODE_NUM;
+}
+
+static void DoOpenFile(TextEditor *t){
+    LoadFile(t, t->loggingText);
+    EndLogging(t);
+}
+static void DoSaveFile(TextEditor *t){
+
+}
+static void OpenFile(TextEditor *t, TextEditorCommand *c){
+    EndLogging(t);
+    t->logging = LOGMODE_OPEN;
+}
+static void SaveFile(TextEditor *t, TextEditorCommand *c){
+    EndLogging(t);
+    t->logging = LOGMODE_OPEN;
 }
 
 static void FindText(TextEditor *t, TextEditorCommand *c){
-
-    if(t->text == NULL) return;
-
-    if(t->searching){
-        if(t->searchingText) free(t->searchingText);
-        t->searchingText = NULL;
-    }
-    t->searching = SEARCHINGMODE_TEXT;
+    EndLogging(t);
+    t->logging = LOGMODE_TEXT;
 }
 
 
@@ -939,6 +984,8 @@ static void SelectNextWord(TextEditor *t, TextEditorCommand *c){
             int start = 0;
             GetWordStartEnd(t->text, cursor->pos, &start, &cursor->pos);
 
+            t->selectNextWordTerminator = 1;
+
             cursor->selection.startCursorPos = start;
             cursor->selection.len = cursor->pos - start;
         }
@@ -954,10 +1001,22 @@ static void SelectNextWord(TextEditor *t, TextEditorCommand *c){
 
         int len = end-startPos;
 
-        int next = Find(&t->text[end], &t->text[startPos], len);
+        int next = 0;
+
+        while(next >= 0){
+
+            next = Find(&t->text[end], &t->text[startPos], len);
+
+            if(next >= 0){
+                if(t->selectNextWordTerminator && !IsToken(t->text[end+next+len])){
+                    end += next+len;
+                    continue;
+                }
+            }
+            break;
+        }
 
         if(next >= 0){
-
             next += end;
 
             TextEditorCursor *cursor = AddCursor(t);
@@ -968,7 +1027,7 @@ static void SelectNextWord(TextEditor *t, TextEditorCommand *c){
         }
     }
 
-    ResolveCursorCollisions(t);
+        ResolveCursorCollisions(t);
 }
 
 // static void ExpandSelectionBrackets(TextEditor *t,TextEditorCommand *c){
@@ -1015,6 +1074,219 @@ static void UndoPaste(TextEditor *t, TextEditorCommand *c){
 
     SaveCursors(t, c);
 
+}
+
+static int GetBetweenBrackets(char *text, int len, int pos, int *first, int *last){
+
+    *first = -1;
+    char endBracket = 0;
+    int j;
+
+
+    for(j = pos; j >= 0; j--){
+
+        if(j > 1 && text[j] == '/' && text[j-1] == '*'){ // comment /*  -> */
+            j -= 2;
+            for(; j > 0 && text[j-1] != '*' && text[j] != '/'; j--);
+            if(j < 0) break;
+        }
+
+        if(text[j] == '"'){ //string ""
+            for(j = j-1; j >= 0; j--) if(text[j] == '"') break;
+            if(j < 0) break;
+        }
+        if(text[j] == '\''){ // char string ''
+            for(j = j-1; j >= 0; j--) if(text[j] == '\'') break;
+            if(j < 0) break;
+        }
+
+        if(text[j] == '{'){
+            endBracket = '}';
+        }
+        if(text[j] == '[') {
+            endBracket = ']';
+        }
+        if(text[j] == '(') {
+            endBracket = ')';
+        }
+
+        if(endBracket){ // comment , check up to first '\n' of line its on
+            int f;
+            for(f = j; f >= 1; f--){
+                if(text[f] == '\n') break;
+                if(text[f] == '/' && text[f-1] == '/'){
+                    endBracket = 0;
+                    break;
+                }
+            }
+            if(endBracket) break;
+        }    
+    }
+
+    if(endBracket == 0) return 0;
+
+    *first = j;
+
+    for(j = pos; j < len; j++){
+
+        if(j < len-1 && text[j] == '/' && text[j+1] == '*'){ // comment /*  -> */
+            j += 2;
+            for(; j < len-1 && text[j+1] != '*' && text[j] != '/'; j++);
+            if(j >= len) break;
+        }
+
+        if(j < len-1 && text[j] == '/' && text[j+1] == '/'){ // comment //
+            for(; j < len; j++)
+                if(text[j] == '\n') break;
+            if(j >= len) break;
+        }
+        if(text[j] == '"'){ //string ""
+            for(j = j+1; j < len; j++) if(text[j] == '"') break;
+            if(j >= len) break;
+        }
+        if(text[j] == '\''){ // char string ''
+            for(j = j+1; j < len; j++) if(text[j] == '\'') break;
+            if(j >= len) break;
+        }
+
+        if(text[j] == endBracket){
+
+            *last = j;
+            return 1;
+        }
+    }
+    *last = -1;
+    return 0;
+
+}
+
+static void ToggleComment(TextEditor *t, TextEditorCommand *c){
+
+    if(!t->text) return;
+
+    t->textLen = strlen(t->text);
+
+    LoadCursors(t,c);
+
+    int k;
+    for(k = 0; k < t->nCursors; k++){
+
+
+        if(t->cursors[k].selection.len == 0){
+
+            int lineEnd = GetStartOfNextLine(t->text, t->textLen, t->cursors[k].pos)-1;
+            int lineStart = t->cursors[k].pos - GetCharsIntoLine(t->text, t->cursors[k].pos);
+
+            int j;
+            int toggled = 0;
+            for(j = lineEnd-1; j >= lineStart+1; j--){
+
+                if(t->text[j] == '/' && t->text[j-1] == '/') {
+                    t->cursors[k].pos = j+1;
+                    RemoveStrFromText(t, k, 2);
+                    toggled = 1;
+                    break;
+                }
+            }
+
+            if(toggled) continue;
+            t->cursors[k].pos = lineStart;
+            AddStrToText(t, k, "//");
+            
+            continue;
+        }
+
+
+        int startSelection = t->cursors[k].selection.startCursorPos - 
+        GetCharsIntoLine(t->text, t->cursors[k].selection.startCursorPos);
+        int endSelection = t->cursors[k].selection.startCursorPos + t->cursors[k].selection.len;
+
+        int toggled = 0;
+
+        int m;
+        for(m = startSelection; m < endSelection; m++){
+            if(t->text[m] == '/' && t->text[m-1] == '/') {
+                toggled = 1;    
+                break;
+            }
+            if(t->text[m] == '\n')
+                break;
+        }
+
+        if(toggled == 1){
+            for(m = startSelection; m < endSelection; m++){
+                if(t->text[m] == '/' && t->text[m-1] == '/') {
+                    t->cursors[k].pos = m+1;
+                    RemoveStrFromText(t, k, 2);
+                    t->cursors[k].selection.len -= 2;
+                    m--;
+                }
+            }
+
+            continue;
+        }
+
+
+        // if mixture of commenting/not in selection double comment, every line gets it.
+        t->cursors[k].pos = startSelection;
+        t->cursors[k].selection.len += 2;
+
+        for(m = startSelection; m < endSelection; m++){
+            if(t->text[m] == '\n'){
+                t->cursors[k].pos = m+1;
+                t->cursors[k].selection.len += 2;
+                AddStrToText(t, k, "//");
+            }
+        }
+    }
+
+    SaveCursors(t,c);
+}
+
+static void MoveBrackets(TextEditor *t, TextEditorCommand *c){
+
+    if(!t->text) return;
+
+    t->textLen = strlen(t->text);
+
+    int k;
+    for(k = 0; k < t->nCursors; k++){
+        int first, last;
+        if(GetBetweenBrackets(t->text, t->textLen, t->cursors[k].pos, &first, &last)){
+            if(last == t->cursors[k].pos){
+                t->cursors[k].pos = first; 
+            } else {
+                t->cursors[k].pos = last;
+            }
+        }
+    }
+
+    ResolveCursorCollisions(t);
+}
+
+static void SelectBrackets(TextEditor *t, TextEditorCommand *c){
+
+    if(!t->text) return;
+
+    t->textLen = strlen(t->text);
+
+    int k;
+    for(k = 0; k < t->nCursors; k++){
+
+        TextEditorCursor *cursor = &t->cursors[k];
+        int first, last;
+        if(GetBetweenBrackets(t->text, t->textLen, cursor->pos, &first, &last)){
+            if(last == cursor->pos){
+                cursor->pos = first; 
+            } else {
+                cursor->pos = last;
+            }
+            cursor->selection.startCursorPos = first + 1;
+            cursor->selection.len = (last - first) - 2; // exclude brackets from selection
+        }
+    }
+
+    ResolveCursorCollisions(t);
 }
 
 static void ExpandSelectionLines(TextEditor *t, TextEditorCommand *c){
@@ -1150,7 +1422,7 @@ static void FindCommand(TextEditor *t, TextEditorCommand *c){
 
     UNUSED(c);
 
-    t->searching = 1;
+    t->logging = 1;
 }
 
 static void SaveCursors(TextEditor *t, TextEditorCommand *c){
@@ -1261,7 +1533,7 @@ static void RemoveStrFromText(TextEditor *t, int cursorIndex, int len){
 
 static void UndoRemoveCharacters(TextEditor *t, TextEditorCommand *c){
 
-    if(t->searching) return;
+    if(t->logging) return;
 
     LoadCursors(t, c);
 
@@ -1362,21 +1634,21 @@ static void ScrollScreen(TextEditor *t, TextEditorCommand *c){
 
 static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
 
-    if(t->searching){
+    if(t->logging){
 
-        if(t->searchingText){
-            int searchLen = strlen(t->searchingText);
+        if(t->loggingText){
+            int searchLen = strlen(t->loggingText);
             if(searchLen - c->num <= 0){
-                free(t->searchingText);
-                t->searchingText = NULL;
-                t->searching = 0;
+                free(t->loggingText);
+                t->loggingText = NULL;
+                t->logging = 0;
                 return;
             } else {
                 char *tmp = malloc(searchLen - c->num + 1);
-                memcpy(tmp, t->searchingText, searchLen - c->num);
+                memcpy(tmp, t->loggingText, searchLen - c->num);
                 tmp[searchLen - c->num] = 0;
-                free(t->searchingText);
-                t->searchingText = tmp;
+                free(t->loggingText);
+                t->loggingText = tmp;
             }
         }
 
@@ -1416,7 +1688,7 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
 
 static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c){
     
-    if(t->searching) return;
+    if(t->logging) return;
 
     LoadCursors(t, c);
 
@@ -1496,7 +1768,6 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
             TextEditorSelection selection = t->cursors[k].selection;
 
             int startCursorPos=t->cursors[k].selection.startCursorPos;
-            int endCursorPos=startCursorPos+t->cursors[k].selection.len;
             RemoveSelections(t);
 
             int next = startCursorPos;
@@ -1554,24 +1825,24 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
 
 static void AddCharacters(TextEditor *t, TextEditorCommand *c){
     
-    if(t->searching){
+    if(t->logging){
         int nKeys = strlen(c->keys);
 
-        if(t->searching == SEARCHINGMODE_NUM){
+        if(t->logging == LOGMODE_NUM){
             int k;
             for(k = 0; k < nKeys; k++) if(!IsDigit(c->keys[k])) return;
         }
 
-        if(t->searchingText){
-            int searchLen = strlen(t->searchingText);
-            t->searchingText = realloc(t->searchingText, searchLen+nKeys+1);
-            memcpy(&t->searchingText[searchLen], c->keys, nKeys);
-            t->searchingText[searchLen+nKeys] = 0;
+        if(t->loggingText){
+            int searchLen = strlen(t->loggingText);
+            t->loggingText = realloc(t->loggingText, searchLen+nKeys+1);
+            memcpy(&t->loggingText[searchLen], c->keys, nKeys);
+            t->loggingText[searchLen+nKeys] = 0;
         }
         else{
-            t->searchingText = malloc(nKeys);
-            memcpy(t->searchingText, c->keys, nKeys);
-            t->searchingText[nKeys] = 0;
+            t->loggingText = malloc(nKeys);
+            memcpy(t->loggingText, c->keys, nKeys);
+            t->loggingText[nKeys] = 0;
         }
 
         return;
@@ -1772,8 +2043,27 @@ static void AddCommand(TextEditor *t, TextEditorCommand *c){
     t->commands[t->nCommands-1] = c;
 }
 
+static void LoadFile(TextEditor *t, char *path){
+    FILE *fp = fopen(path, "r");
+
+    fseek(fp, 0, SEEK_END);
+
+    int len = ftell(fp);
+
+    rewind(fp);
+
+    t->text = (char *)malloc(len + 1);
+    t->text[len] = 0;
+
+    t->textLen = len;
+
+    fread(t->text, sizeof(char), len, fp);
+
+    fclose(fp);
+
+}
+
 void TextEditor_Init(TextEditor *t){
-    
 
     memset(t, 0, sizeof(TextEditor));
 
@@ -1792,8 +2082,17 @@ void TextEditor_Init(TextEditor *t){
     Graphics_init_pair(COLOR_FIND, COLOR_BLACK ,COLOR_WHITE);
     Graphics_init_pair(COLOR_LINE_NUM, COLOR_GREY ,COLOR_BLACK);
 
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_UP  , 0}, "", -1, MoveLinesText, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_DOWN  , 0}, "", 1, MoveLinesText, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_UP  , 0}, "", -1, MoveLinesText, UndoMoveLinesText));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_DOWN  , 0}, "", 1, MoveLinesText, UndoMoveLinesText));
+
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'o'  , 0}, "", 0, OpenFile, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'w'  , 0}, "", 0, SaveFile, NULL));
+
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'/'  , 0}, "", 0, ToggleComment, ToggleComment));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'/'  , 0}, "", 0, ToggleComment, ToggleComment));
+
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'m'  , 0}, "", 0, MoveBrackets, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'j'  , 0}, "", 0, SelectBrackets, NULL));
 
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'g'  , 0}, "", 0, GotoLine, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'f'  , 0}, "", 0, FindText, NULL));
@@ -1839,26 +2138,11 @@ void TextEditor_Init(TextEditor *t){
     AddCommand(t, CreateCommand((unsigned int[]){'v'|EDIT_CTRL_KEY  , 0}, "", 1, Paste, UndoPaste));
     AddCommand(t, CreateCommand((unsigned int[]){31 /* ctrl + / */, 0}, "", 1, FindCommand, NULL));
 
-    FILE *fp = fopen("text_editor.c", "r");
-
-    fseek(fp, 0, SEEK_END);
-
-    int len = ftell(fp);
-
-    rewind(fp);
-
-    t->text = (char *)malloc(len + 1);
-    t->text[len] = 0;
-
-    t->textLen = len;
-
-    fread(t->text, sizeof(char), len, fp);
-
-    fclose(fp);
 
     t->cursors = (TextEditorCursor *)malloc(sizeof(TextEditorCursor) * ++t->nCursors);
     memset(&t->cursors[0], 0, sizeof(TextEditorCursor));
 
+    LoadFile(t, "text_editor.c");
 }
 
 void TextEditor_Draw(TextEditor *t){
@@ -1870,7 +2154,7 @@ void TextEditor_Draw(TextEditor *t){
     t->textLen = strlen(t->text);
 
     int logY = 0, logX = 4;
-    if(t->searching) logY = 1;
+    if(t->logging) logY = 1;
 
     int nLinesToLastCursor = 0;
     if(t->nCursors > 1)
@@ -2257,9 +2541,19 @@ void TextEditor_Draw(TextEditor *t){
 
     }
 
-    if(t->searchingText){
-        Graphics_attron(COLOR_FIND);        
-        Graphics_mvprintw(0, 0, t->searchingText, strlen(t->searchingText));
+    if(t->logging){
+        Graphics_attron(COLOR_FIND);
+        char buffer[4];
+        buffer[3] = 0;
+        sprintf(buffer, "ERR");
+        if(t->logging == LOGMODE_NUM){ sprintf(buffer, "g: "); }        
+        else if(t->logging == LOGMODE_TEXT){ sprintf(buffer, "f: "); }        
+        else if(t->logging == LOGMODE_OPEN){ sprintf(buffer, "o: "); }        
+        else if(t->logging == LOGMODE_SAVE){ sprintf(buffer, "w: "); }        
+        Graphics_mvprintw(0, 0, buffer, strlen(buffer));
+    
+        if(t->loggingText)        
+            Graphics_mvprintw(3, 0, t->loggingText, strlen(t->loggingText));
     }
 
     Graphics_attron(COLOR_LINE_NUM);        
@@ -2279,7 +2573,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
     if(key == 27){ // escape
         RemoveSelections(t);
         RemoveExtraCursors(t);
-        EndSearching(t);
+        EndLogging(t);
         t->autoCompleteIndex = 0;
 
         return;
@@ -2291,7 +2585,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
     }
 
     if(key == 9){ // tab
-        if(t->searching) return;
+        if(t->logging) return;
         TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0, AddCharacters, UndoAddCharacters);
         ExecuteCommand(t,command);
         FreeCommand(command);
