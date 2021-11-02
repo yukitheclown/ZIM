@@ -29,10 +29,19 @@ Commands so far.<br>
 ![Screenshot](Screenshot.png)<br>
 
 TODO:<br>
-    goto line<br>
-    find<br>
-    files save open etc<br>
-    } auto indent down<br>
-    select between {}<br>
+files save open etc<br>
+toggle comment // /* */<br>
+ctrl+d skip <br>
+select/move between {} ctrl+j ctrl+m  <br>
+text scale <br>
+resize window<br>
+windows/tabs<br>
+ctrl+b compiler<br>
+---- less important-----<br>
+code folding<br>
+undo indent command multiple lines bug<br>
+load screen buffer chunk from file<br>
+} auto indent down<br>
+
 <br>
 Deveoloped while bedridden after I got hit by a car on a moped. I'll be fully recovered soon.
