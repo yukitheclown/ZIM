@@ -24,6 +24,10 @@ Commands so far.<br>
     ![Screenshot](undo.gif)<br>
     AutoComplete<br>
     ![Screenshot](autocomplete.gif)<br>
+    Goto line<br>
+    Find, forward/back<br>
+    
+    
     
 
 ![Screenshot](Screenshot.png)<br>
