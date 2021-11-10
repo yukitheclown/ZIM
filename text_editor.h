@@ -62,6 +62,7 @@
 
   TextEditorSelection selection;
 
+  //no longer used, now clipboard is from system, lines seperated by \n
   char *clipboard;
   int sClipboard;
 

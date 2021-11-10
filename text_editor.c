@@ -2,6 +2,7 @@
 #include "text_editor.h"
 #include "text.h"
 #include <stdio.h>
+#include <SDL.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -904,17 +905,17 @@ static TextEditorCursor *AddCursor(TextEditor *t){
 
     memset(cursor, 0, sizeof(TextEditorCursor));
 
-    char *last = t->cursors[t->nCursors-2].clipboard;
+    // char *last = t->cursors[t->nCursors-2].clipboard;
 
-    if(last){
+    // if(last){
 
-        int len = strlen(last);
+    //     int len = strlen(last);
 
-        cursor->clipboard = (char *)malloc(len + 1);
-        cursor->clipboard[len] = 0;
+    //     cursor->clipboard = (char *)malloc(len + 1);
+    //     cursor->clipboard[len] = 0;
 
-        memcpy(cursor->clipboard, last, len);
-    }
+    //     memcpy(cursor->clipboard, last, len);
+    // }
 
     return cursor;
 }
@@ -1040,14 +1041,49 @@ static void Paste(TextEditor *t, TextEditorCommand *c){
 
     RefreshEditorCommand(c);
 
+    char *clipboard = SDL_GetClipboardText();
+    int clipboardLen = strlen(clipboard);
+
+    int line = 0;
+
+    int f;
+    for(f = 0; f < clipboardLen; f++){
+        if(clipboard[f] == '\n') line++;
+    }
+
+    f = 0;
+
     int k;
+
     for(k = 0; k < t->nCursors; k++){
         
         EraseAllSelectedText(t, k, c);
 
-        if(t->cursors[k].clipboard == NULL) continue;
-        c->addedLens[k] = strlen(t->cursors[k].clipboard);
-        AddStrToText(t, k, t->cursors[k].clipboard);
+        // if(t->cursors[k].clipboard == NULL) continue;
+        // c->addedLens[k] = strlen(t->cursors[k].clipboard);
+
+
+        if(t->nCursors > 0 && t->nCursors == line){
+        
+            int start = f;
+            char tmp = 0;
+
+            for(; f < clipboardLen; f++){
+                if(clipboard[f] == '\n'){
+                    tmp = clipboard[f];
+                    f++;
+                    break;
+                }
+            }
+            if(tmp) clipboard[f-1] = 0;
+            AddStrToText(t, k, &clipboard[start]);
+            c->addedLens[k] = (f-1) - start;
+            clipboard[f-1] = tmp;
+        } else {
+            AddStrToText(t, k, clipboard);
+            c->addedLens[k] = clipboardLen;
+        }
+
 
     }
 
@@ -1079,9 +1115,19 @@ static void UndoPaste(TextEditor *t, TextEditorCommand *c){
 static int GetBetweenBrackets(char *text, int len, int pos, int *first, int *last){
 
     *first = -1;
-    char endBracket = 0;
+    int endBracket = -1;
     int j;
 
+    struct {
+        int scope;
+        char start;
+        char end;
+        int found;
+    } brackets[3] = {
+        {0,'{','}',0},
+        {0,'[',']',0},
+        {0,'(',')',0},
+    };
 
     for(j = pos; j >= 0; j--){
 
@@ -1092,38 +1138,51 @@ static int GetBetweenBrackets(char *text, int len, int pos, int *first, int *las
         }
 
         if(text[j] == '"'){ //string ""
-            for(j = j-1; j >= 0; j--) if(text[j] == '"') break;
+            j--;
+            for(; j >= 0; j--){
+                if(j > 0 && text[j-1] == '\\') { j--; continue; } // escaped
+                if(text[j] == '"') break;
+            }
             if(j < 0) break;
+            continue;
         }
         if(text[j] == '\''){ // char string ''
-            for(j = j-1; j >= 0; j--) if(text[j] == '\'') break;
+            j--;
+            for(; j >= 0; j--){
+                if(j > 0 && text[j-1] == '\\') { j--; continue; } // escaped
+                if(text[j] == '\'') { break; }
+            }
             if(j < 0) break;
+            continue;
         }
 
-        if(text[j] == '{'){
-            endBracket = '}';
-        }
-        if(text[j] == '[') {
-            endBracket = ']';
-        }
-        if(text[j] == '(') {
-            endBracket = ')';
+        int m;
+        for(m = 0; m < 3; m++){
+            if(text[j] == brackets[m].end && j < pos) brackets[m].scope++;
+
+            if(text[j] == brackets[m].start){
+                if(brackets[m].scope)
+                    brackets[m].scope--;
+                else 
+                    endBracket = m;
+            }
         }
 
-        if(endBracket){ // comment , check up to first '\n' of line its on
+
+        if(endBracket != -1){ // comment , check up to first '\n' of line its on
             int f;
             for(f = j; f >= 1; f--){
                 if(text[f] == '\n') break;
                 if(text[f] == '/' && text[f-1] == '/'){
-                    endBracket = 0;
+                    endBracket = -1;
                     break;
                 }
             }
-            if(endBracket) break;
+            if(endBracket != -1) break;
         }    
     }
 
-    if(endBracket == 0) return 0;
+    if(endBracket == -1) return 0;
 
     *first = j;
 
@@ -1141,18 +1200,38 @@ static int GetBetweenBrackets(char *text, int len, int pos, int *first, int *las
             if(j >= len) break;
         }
         if(text[j] == '"'){ //string ""
-            for(j = j+1; j < len; j++) if(text[j] == '"') break;
+            j++;
+            for(; j < len; j++){
+                if(text[j] == '\\') { j++; continue; } // escaped
+                if(text[j] == '"') break;
+            }
             if(j >= len) break;
+            continue;
         }
         if(text[j] == '\''){ // char string ''
-            for(j = j+1; j < len; j++) if(text[j] == '\'') break;
+            j++;
+            for(; j < len; j++){
+                if(text[j] == '\\') { j++; continue; } // escaped
+                if(text[j] == '\'') break;
+            }
             if(j >= len) break;
+            continue;
         }
 
-        if(text[j] == endBracket){
+        if(text[j] == brackets[endBracket].start && j > pos){
+            brackets[endBracket].scope++;
+        }
 
-            *last = j;
-            return 1;
+        if(text[j] == brackets[endBracket].end){
+            if(brackets[endBracket].scope){
+
+                brackets[endBracket].scope--;
+            } else {
+                *last = j;
+                return 1;
+
+            }
+
         }
     }
     *last = -1;
@@ -1254,7 +1333,7 @@ static void MoveBrackets(TextEditor *t, TextEditorCommand *c){
         int first, last;
         if(GetBetweenBrackets(t->text, t->textLen, t->cursors[k].pos, &first, &last)){
             if(last == t->cursors[k].pos){
-                t->cursors[k].pos = first; 
+                t->cursors[k].pos = first+1; 
             } else {
                 t->cursors[k].pos = last;
             }
@@ -1282,7 +1361,7 @@ static void SelectBrackets(TextEditor *t, TextEditorCommand *c){
                 cursor->pos = last;
             }
             cursor->selection.startCursorPos = first + 1;
-            cursor->selection.len = (last - first) - 2; // exclude brackets from selection
+            cursor->selection.len = (last - first) - 1; // exclude brackets from selection
         }
     }
 
@@ -1350,6 +1429,9 @@ static void Copy(TextEditor *t, TextEditorCommand *c){
 
     if(t->text == NULL) return;
 
+    char *buffer = NULL;
+    int bufferLen = 0;
+
     int k;
     for(k = 0; k < t->nCursors; k++){
 
@@ -1359,13 +1441,29 @@ static void Copy(TextEditor *t, TextEditorCommand *c){
         end = start+t->cursors[k].selection.len;
 
 
-        if(t->cursors[k].clipboard) free(t->cursors[k].clipboard);
+        if(buffer){
+            bufferLen += (end-start)+1;
+            buffer = realloc(buffer, bufferLen+1);
+            buffer[bufferLen] = 0;
+            memcpy(&buffer[bufferLen-((end-start)+1)], &t->text[start], end-start);
+            buffer[bufferLen - 1] = '\n';
+        } else {
+            bufferLen = (end-start) + 1;
+            buffer = malloc(bufferLen+1);
+            buffer[bufferLen] = 0;
+            buffer[bufferLen - 1] = '\n';
+            memcpy(buffer, &t->text[start], end-start);
+        }
 
-        t->cursors[k].clipboard = (char *)malloc((end-start) + 1);
-        t->cursors[k].clipboard[end-start] = 0;
+        // if(t->cursors[k].clipboard) free(t->cursors[k].clipboard);
 
-        memcpy(t->cursors[k].clipboard, &t->text[start], end-start);
+        // t->cursors[k].clipboard = (char *)malloc((end-start) + 1);
+        // t->cursors[k].clipboard[end-start] = 0;
+
+        // memcpy(t->cursors[k].clipboard, &t->text[start], end-start);
     }
+    if(buffer)
+        SDL_SetClipboardText(buffer);
 }
 
 static void Cut(TextEditor *t, TextEditorCommand *c){
@@ -1703,13 +1801,13 @@ static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c){
 
     SaveCursors(t, c);
 
-    // if(t->autoCompleteSearchLen > 0){
-    //     t->autoCompleteSearchLen -= c->addedLens[0];
-    //     if(t->autoCompleteSearchLen > 0)
-    //         AutoComplete(t);
-    //     else
-    //         t->autoCompleteSearchLen = 0;
-    // }
+    if(t->autoCompleteSearchLen > 0){
+        t->autoCompleteSearchLen -= c->addedLens[0];
+        if(t->autoCompleteSearchLen > 0)
+            AutoComplete(t);
+        else
+            t->autoCompleteSearchLen = 0;
+    }
 
 
 }
@@ -1863,14 +1961,14 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
 
     SaveCursors(t, c);
 
-    // for(k = 0; k < strlen(c->keys); k++){
-    //     if(!IsToken(c->keys[k])){
-    //         t->autoCompleteSearchLen++;
-    //     } else {
-    //         t->autoCompleteSearchLen = 0;
-    //     }
-    // }        
-    // AutoComplete(t);
+    for(k = 0; k < strlen(c->keys); k++){
+        if(!IsToken(c->keys[k])){
+            t->autoCompleteSearchLen++;
+        } else {
+            t->autoCompleteSearchLen = 0;
+        }
+    }        
+    AutoComplete(t);
 
     for(k = 0; k < t->nCursors; k++)
         memset(&t->cursors[k].selection, 0, sizeof(TextEditorSelection));
@@ -2076,7 +2174,7 @@ void TextEditor_Init(TextEditor *t){
     Graphics_init_pair(COLOR_FUNCTION, COLOR_YELLOW, COLOR_BLACK);
     Graphics_init_pair(COLOR_STRING, COLOR_MAGENTA, COLOR_BLACK);
 
-    Graphics_init_pair(COLOR_SELECTED, COLOR_BLACK ,COLOR_WHITE);
+    Graphics_init_pair(COLOR_SELECTED, COLOR_BLACK ,COLOR_YELLOW);
     Graphics_init_pair(COLOR_AUTO_COMPLETE, COLOR_BLACK, COLOR_WHITE);
     Graphics_init_pair(COLOR_CURSOR, COLOR_BLACK ,COLOR_MAGENTA);
     Graphics_init_pair(COLOR_FIND, COLOR_BLACK ,COLOR_WHITE);
