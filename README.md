@@ -1,4 +1,4 @@
-![Screenshot](Screenshot.gif)
+![Screenshot](Screenshot.png)
 <br>
     <b>SelectNextWord</b> Find/Replace, CTRL+D In sublime text ||| <b>AddCursorCommand</b> Up/Down<br>
     ![Screenshot](selectcursors.gif) ![Screenshot](cursors.gif)<br>
@@ -12,14 +12,16 @@
     
     
 
-![Screenshot](Screenshot.png)<br>
+![Screenshot](Screenshot.gif)<br>
 
-TODO:<br>
+<b>TODO</b>:<br>
 files save open etc<br>
+config files<br>
+new gifs with new font in readme.md<br>
 windows/tabs<br>
 <br>
 <br>
-COMMANDS:<br>
+<b>COMMANDS</b>:<br>
 ctrl+- (zoom out)<br>
 ctrl+= (zoom in)<br>
 ctrl+q (quit)<br>
