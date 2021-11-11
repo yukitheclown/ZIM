@@ -33,6 +33,7 @@ enum {
 	TEXTURED_SHADER,
 	QUAD_SHADER,
 	NCURSES_SHADER,
+	NCURSES_BG_SHADER,
 	NUM_SHADERS
 };
 
@@ -55,13 +56,13 @@ enum {
 
 u32 Graphics_TextCollumns();
 u32 Graphics_TextRows();
-void Graphics_mvprintw(u32 x, u32 y, char *str, int strLen);
+void Graphics_mvprintw(float x, float y, char *str, int strLen);
 void Graphics_attron(u32 attr);
 void Graphics_init_pair(u8 pair, u8 fg, u8 bg);
 void Graphics_attroff(u32 attr);
 void Graphics_RenderNCurses();
 void Graphics_InitNCurses();
-
+void Graphics_Zoom(int by);
 void Graphics_Init(void);
 void Graphics_Clear(void);
 void Graphics_Close(void);

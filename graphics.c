@@ -4,8 +4,13 @@
 #include "utils.h"
 #include "log.h"
 #include "window.h"
+#include "freetype.h"
+
+#define MINFONTSIZE 6
+#define MAXFONTSIZE 70
 
 #define FONT_PATH "resources/font.png"
+#define FONT_PATH_TTF "resources/Monoid-Regular.ttf"
 
 #define STRDEF(x) STR(x)
 #define STR(x) #x
@@ -22,9 +27,9 @@
 #define FONTSIZE 9
 
 
-#define TEXTHEIGHT 60
-#define TEXTWIDTH 106
-#define MAX_TEXT_CHARS (int)(TEXTHEIGHT*TEXTWIDTH)
+#define MAXTEXTHEIGHT 130
+#define MAXTEXTWIDTH 130
+#define MAX_TEXT_CHARS (int)(MAXTEXTHEIGHT*MAXTEXTWIDTH)
 #define RENDER_VRAM_SIZE MAX_TEXT_CHARS*6// idk most text characters on screen possible
 
 #define TAB_SPACING 4
@@ -50,6 +55,8 @@ static RGBColor ncursesColors[NUM_COLORS] = {
     {0,0,0},
 };
 
+static u8           ncursesBgColors[MAX_TEXT_CHARS*6];
+static u16          ncursesBgPos[MAX_TEXT_CHARS*6][2];
 static u16          ncursespos[MAX_TEXT_CHARS*6][2];
 static float        ncursesuv[MAX_TEXT_CHARS*6][2];
 static u8           ncursesfgs[MAX_TEXT_CHARS*6];
@@ -71,7 +78,6 @@ static u8          ncursesAttrPairs[MAX_COLOR_PAIRS][2] = {
 static struct { u32 w; u32 h; } viewport;
 static const u8     RectTriangleVerts[] = {0,0,1,0,1,1,1,1,0,1,0,0};
 static u8           fontSize = FONTSIZE;
-static u32           stringOffset = 0;
 // shaders
 static Shader_t     shaders[NUM_SHADERS];
 // textured/texturelesss vao/vbos
@@ -79,11 +85,17 @@ static u32          vao_g;
 static u32          posVbo_g;
 static u32          uvVbo_g;
 // ncurses vao/vbos
+static u32          stringOffset = 0;
 static u32          ncursesVao_g;
 static u32          ncursesPosVbo_g;
 static u32          ncursesUvVbo_g;
 static u32          ncursesColorFGVbo_g;
 static u32          ncursesColorBGVbo_g;
+// ncurses bg vao/vbos
+static u32          bgOffset = 0;
+ static u32         ncursesBgVao_g;
+ static u32         ncursesBgPosVbo_g;
+ static u32         ncursesBgColorVbo_g;
 
 // quad vao/vbo
 static u32          quadVao_g;
@@ -93,6 +105,7 @@ static u32          fb_g;
 static u32          fbTexture_g;
 // textures
 static Image_t     font_g;
+static FontFace    fontTTF;
 
 static void Compile(Shader_t *shader, const char *vSource, const char *fSource){
 
@@ -161,6 +174,33 @@ void main(){
 }
 );
 
+static const char *VSNCursesBG_Source = "#version 120\n"
+STR(
+attribute vec2 pos;
+attribute float colorBG;
+varying float ColorOutBG;
+uniform vec2 invViewport;
+)
+
+
+STR(
+
+void main(){
+    ColorOutBG = colorBG;
+    gl_Position = vec4(((pos * invViewport) * 2) - 1, -1, 1);
+}
+);
+
+static const char *FSNCursesBG_Source = "#version 120\n"
+STR(
+varying float ColorOutBG;
+uniform vec3 colors[16];
+
+void main(){
+
+    gl_FragColor = vec4(colors[int(ColorOutBG)],1);
+}
+);
 static const char *VSNCurses_Source = "#version 120\n"
 STR(
 attribute vec2 pos;
@@ -197,12 +237,10 @@ void main(){
 
     vec4 color = texture2D(tex, TexCoord);
 
-    if(color.a < 0.5){
-        color = vec4(colors[int(ColorOutBG)],1);
-    }else 
-    {
-        color = color * vec4(colors[int(ColorOutFG)],1);
-    }
+    if(color.r > 0.4)
+        color = vec4(colors[int(ColorOutFG)],1);
+    else
+        color = vec4(mix(colors[int(ColorOutBG)], colors[int(ColorOutFG)], color.r),1);
 
     gl_FragColor = color;
 }
@@ -314,16 +352,37 @@ void Graphics_Init(void){
     glCullFace(GL_BACK);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_POLYGON_SMOOTH);
+    
+    Text_Init();
 
     // textures
 
-    Utils_LoadImage(&font_g, FONT_PATH);
+    // Utils_LoadImage(&font_g, FONT_PATH);
+    FontFace_LoadFont(&fontTTF, FONT_PATH_TTF);
+    FontFace_SetSize(&fontTTF, fontSize);
+
+    // int k;
+    // int x = 0;
+    // for(k = 0; k < 128; k++){
+    //     fontTTF.fontCharacters[k] = {
+    //         .ax = 0,
+    //         .ay = 0,
+    //         .bw = fontSize,
+    //         .bh = fontSize,
+    //         .bl = 0,
+    //         .bt = 0,
+    //         .tx = (float)x%16 * fontTTF.atlasWidth;
+    //         .ty = (float)x/16 * fontTTF.atlasHeight;
+    //     }
+    //     x += g->bitmap.width;
+    // }
 
     // compile shaders
 
     Compile(&shaders[TEXTURED_SHADER], VS_Source, FS_Source);
     Compile(&shaders[QUAD_SHADER], VS_Quad_Source, FS_Quad_Source);
     Compile(&shaders[NCURSES_SHADER], VSNCurses_Source, FSNCurses_Source);
+    Compile(&shaders[NCURSES_BG_SHADER], VSNCursesBG_Source, FSNCursesBG_Source);
     Compile(&shaders[TEXTURELESS_SHADER], VS_Textureless_Source, FS_Textureless_Source);
 
     // quad vao
@@ -344,28 +403,37 @@ void Graphics_Init(void){
 
     glGenBuffers(1, &ncursesPosVbo_g);
     glBindBuffer(GL_ARRAY_BUFFER, ncursesPosVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(u16)*2*MAX_TEXT_CHARS*6, NULL, GL_STATIC_DRAW);
     glEnableVertexAttribArray(POS_LOC);
     glVertexAttribPointer(POS_LOC, 2, GL_SHORT, GL_FALSE, 0, 0);
 
     glGenBuffers(1, &ncursesColorBGVbo_g);
     glBindBuffer(GL_ARRAY_BUFFER, ncursesColorBGVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(u8)*MAX_TEXT_CHARS*6, NULL, GL_STATIC_DRAW);
     glEnableVertexAttribArray(COLORFG_LOC);
     glVertexAttribPointer(COLORFG_LOC, 1, GL_UNSIGNED_BYTE, GL_FALSE, 0, 0);
 
     glGenBuffers(1, &ncursesColorFGVbo_g);
     glBindBuffer(GL_ARRAY_BUFFER, ncursesColorFGVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(u8)*MAX_TEXT_CHARS*6, NULL, GL_STATIC_DRAW);
     glEnableVertexAttribArray(COLORBG_LOC);
     glVertexAttribPointer(COLORBG_LOC, 1, GL_UNSIGNED_BYTE, GL_FALSE, 0, 0);
 
     glGenBuffers(1, &ncursesUvVbo_g);
     glBindBuffer(GL_ARRAY_BUFFER, ncursesUvVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float)*2*MAX_TEXT_CHARS*6, NULL, GL_STATIC_DRAW);
     glEnableVertexAttribArray(UV_LOC);
     glVertexAttribPointer(UV_LOC, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    
+    // ncurses vao backgrounds
+    glGenVertexArrays(1, &ncursesBgVao_g);
+    glBindVertexArray(ncursesBgVao_g);
 
+    glGenBuffers(1, &ncursesBgPosVbo_g);
+    glBindBuffer(GL_ARRAY_BUFFER, ncursesBgPosVbo_g);
+    glEnableVertexAttribArray(POS_LOC);
+    glVertexAttribPointer(POS_LOC, 2, GL_SHORT, GL_FALSE, 0, 0);
+
+    glGenBuffers(1, &ncursesBgColorVbo_g);
+    glBindBuffer(GL_ARRAY_BUFFER, ncursesBgColorVbo_g);
+    glEnableVertexAttribArray(COLORBG_LOC);
+    glVertexAttribPointer(COLORBG_LOC, 1, GL_UNSIGNED_BYTE, GL_FALSE, 0, 0);
 
     // textured/textureless vao/vbos
 
@@ -399,6 +467,9 @@ static void DeleteShader(Shader_t *shader){
 
 void Graphics_Close(void){
 
+    FontFace_Delete(&fontTTF);
+    Text_Close();
+
     glDeleteFramebuffers(1, &fb_g);
     glDeleteTextures(1, &fbTexture_g);
     
@@ -424,7 +495,14 @@ void Graphics_Close(void){
 void Graphics_Resize(int w, int h){
     glBindTexture(GL_TEXTURE_2D, fbTexture_g);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    viewport.w = w;
+    viewport.h = h;
+}
 
+void Graphics_Zoom(int by){
+    if(by < 0 && fontSize > MINFONTSIZE) fontSize += by;
+    if(by > 0 && fontSize < MAXFONTSIZE) fontSize += by;
+    FontFace_SetSize(&fontTTF, fontSize);
 }
 
 void Graphics_Render(void){
@@ -434,7 +512,6 @@ void Graphics_Render(void){
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     glBindVertexArray(quadVao_g);
-
 
     glViewport(0, 0, viewport.w, viewport.h);
 
@@ -473,101 +550,6 @@ static int ValidateXY(u32 *x, u32 *y, u32 fontSize, u32 startX, u32 vSpacing, u3
 
     return 1;
 }
-
-void Graphics_RenderString(char *str, u32 x, u32 y, u8 r, u8 g, u8 b){
-
-    glUseProgram(shaders[TEXTURED_SHADER].program);
-    glUniform2f(shaders[TEXTURED_SHADER].invViewportLoc, 1.0f/viewport.w, 1.0f/viewport.h); 
-    glUniform4f(shaders[TEXTURED_SHADER].uniColorLoc, r / 255.0f, g  / 255.0f, b  / 255.0f, 1); 
-
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, font_g.texture);
-
-    glBindVertexArray(vao_g);
-
-    u32 offset = 0;
-
-    u16 pos[2];
-    float uv[2];
-
-    u32 k;
-
-    float fontSize = font_g.width / 16;
-    int startX = x;
-    int vSpacing = 0;
-    int hSpacing = 0;
-    int maxWidth = 300;
-
-    char p;
-    while((p = *str++) && offset < MAX_TEXT_CHARS*6){
-
-
-        float tX = (p % 16) / 16.0f;
-        float tY = (1 - SS_CHAR_SIZE) - (floorf(p / 16.0f) / 16.0f);
-
-        p -= ' ';
-
-        for(k = 0; k < 12; k+=2){
-
-        if(p == '\n'){
-
-            y += (fontSize + vSpacing);
-            
-            x = startX;
-
-            // top and bottom height are the same.
-            if(y+fontSize >= viewport.h)
-                break;
-
-            continue;
-        
-        } else if(p == '\t' ){
-            
-            x += (fontSize + hSpacing) * TAB_SPACING;
-            
-            if(ValidateXY(&x, &y, fontSize, startX, vSpacing, maxWidth) < 0) break;
-
-            continue;
-
-        } else if(p < 32){
-
-            break;
-        
-        } else if(p == 32){
-
-            x += (fontSize + hSpacing);
-
-            if(ValidateXY(&x, &y, fontSize, startX, vSpacing, maxWidth) < 0) break;
-
-            continue;
-        }
-
-            uv[0] = ((RectTriangleVerts[k] * SS_CHAR_SIZE) + tX);
-            uv[1] = 1 - ((RectTriangleVerts[k+1] * SS_CHAR_SIZE) + tY);
-            pos[0] = (RectTriangleVerts[k] * fontSize) + x;
-            pos[1] = ((1-RectTriangleVerts[k+1]) * fontSize) + y;
-
-            // pos[0] = ((s16)RectTriangleVerts[k] << 3) + x;
-            // pos[1] = ((s16)RectTriangleVerts[k+1] << 3) + y;
-            // uv[0] = (float)((RectTriangleVerts[k] + (p & FONT_SIZE_MASK)) << 3) * font_g.invW;
-            // uv[1] = (float)((RectTriangleVerts[k+1] + (p >> FONT_SIZE_BITS)) << 3) * font_g.invH;
-        
-            glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
-            glBufferSubData(GL_ARRAY_BUFFER, offset*sizeof(pos), sizeof(pos), pos);
-            glBindBuffer(GL_ARRAY_BUFFER, uvVbo_g);
-            glBufferSubData(GL_ARRAY_BUFFER, offset*sizeof(uv), sizeof(uv), uv);
-            ++offset;
-        }
-        
-        x += fontSize;
-    }
-
-
-
-    glDrawArrays(GL_TRIANGLES, 0, offset);
-}
-
 
 void Graphics_RenderSprite(float x, float y, u16 w, u16 h, u16 tx, u16 ty, u16 tw, u16 th, Image_t tex){
 
@@ -687,63 +669,111 @@ void Graphics_UseShader(int shader){
 
 
 u32 Graphics_TextCollumns(){
-   return TEXTHEIGHT; 
+   return viewport.h / fontSize; 
 }
 u32 Graphics_TextRows(){
-   return TEXTWIDTH;
+   return viewport.w / fontSize;
 }
 
 void Graphics_SetFontSize(u8 fs){
     fontSize = fs;
 }
 
-void Graphics_mvprintw(u32 x, u32 y, char *str, int strLen){
+void Graphics_mvprintw(float x, float y, char *str, int strLen){
 
 
+    float fontSizeX = fontTTF.fontCharacters[(int)' '].ax;
+    float fontSizeY = fontTTF.fontSize*1.3;
     u32 k;
 
     // float fontSize = font_g.width / 16;
-    x *= fontSize;
-    y *= fontSize;
+    x *= fontSizeX;
+    y++;
+    y *= fontSizeY;
 
     char p;
 
-
     int j;
-
     for(j = 0; j < strLen && stringOffset < MAX_TEXT_CHARS*6; j++){
 
         p = str[j];
+        // if(p < 32) continue;
 
-        float tX = (p % 16) / 16.0f;
-        float tY = (1 - SS_CHAR_SIZE) - (floorf(p / 16.0f) / 16.0f);
+        FontCharacter fc = fontTTF.fontCharacters[(int)p];
+
+        float x2 = x + fc.bl;
+        float y2 = y - fc.bt;
+        float w = fc.bw;
+        float h = fc.bh;
+
+        // x += fc.ax;
+        // y += fc.ay;
+
+        if(ncursesAttrPairs[currentNCursesPair][0] != COLOR_BLACK){
+            for(k = 0; k < 12; k+=2){
+                ncursesBgPos[bgOffset][0] = ((RectTriangleVerts[k] * fontSizeX) + x);
+                ncursesBgPos[bgOffset][1] = ((1-RectTriangleVerts[k+1] * fontSizeY) + y);
+                ncursesBgColors[bgOffset] = ncursesAttrPairs[currentNCursesPair][0];
+                ++bgOffset;
+            }
+        }
+
+        x += fontSizeX;
+
+        if(!w || !h) continue;
+
+        // float tX = (p % 16) / 16.0f;
+        //float tY = (1 - fontTTF.atlasWidth) - (floorf(p / 16.0f) / 16.0f);
+        float tX = fc.tx;
+        float tY = 0;
+
+        float ah = fontTTF.atlasHeight;
+        float aw = fontTTF.atlasWidth;
+
 
         for(k = 0; k < 12; k+=2){
 
+                // ncursesuv[stringOffset][0] = ((RectTriangleVerts[k] * SS_CHAR_SIZE) + tX);
+                // ncursesuv[stringOffset][1] = 1 - ((RectTriangleVerts[k+1] * SS_CHAR_SIZE) + tY);
+                ncursesuv[stringOffset][0] = ((RectTriangleVerts[k] * (fc.bw / aw)) + tX);
+                ncursesuv[stringOffset][1] = (((1-RectTriangleVerts[k+1]) * ((float)fc.bh / ah)) + tY);
 
-                ncursesuv[stringOffset][0] = ((RectTriangleVerts[k] * SS_CHAR_SIZE) + tX);
-                ncursesuv[stringOffset][1] = 1 - ((RectTriangleVerts[k+1] * SS_CHAR_SIZE) + tY);
-                ncursespos[stringOffset][0] = (RectTriangleVerts[k] * fontSize) + x;
-                ncursespos[stringOffset][1] = ((1-RectTriangleVerts[k+1]) * fontSize) + y;
+                ncursespos[stringOffset][0] = (RectTriangleVerts[k] * w) + x2;
+                ncursespos[stringOffset][1] = ((1-RectTriangleVerts[k+1]) * h) + y2;
                 ncursesfgs[stringOffset] = ncursesAttrPairs[currentNCursesPair][0];
                 ncursesbgs[stringOffset] = ncursesAttrPairs[currentNCursesPair][1];
+
                 ++stringOffset;
         }
 
-        
-        x += fontSize;
+        // x += fontSize;
     }
 
 }
 
 void Graphics_RenderNCurses(){
 
+    glUseProgram(shaders[NCURSES_BG_SHADER].program);
+    glUniform2f(shaders[NCURSES_BG_SHADER].invViewportLoc, 1.0f/viewport.w, 1.0f/viewport.h); 
+
+    glBindVertexArray(ncursesBgVao_g);
+    glCullFace(GL_FRONT);
+    glBindBuffer(GL_ARRAY_BUFFER, ncursesBgPosVbo_g);
+    glBufferData(GL_ARRAY_BUFFER, bgOffset*2*sizeof(u16), &ncursesBgPos[0][0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, ncursesBgColorVbo_g);
+    glBufferData(GL_ARRAY_BUFFER, bgOffset, &ncursesBgColors[0], GL_STATIC_DRAW);
+
+    glDrawArrays(GL_TRIANGLES, 0, bgOffset);
+
+    bgOffset = 0;
+
     glUseProgram(shaders[NCURSES_SHADER].program);
     glUniform2f(shaders[NCURSES_SHADER].invViewportLoc, 1.0f/viewport.w, 1.0f/viewport.h); 
 
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, font_g.texture);
+    glBindTexture(GL_TEXTURE_2D, fontTTF.fontTexture);
+    // glBindTexture(GL_TEXTURE_2D, font_g.texture);
 
     glBindVertexArray(ncursesVao_g);
 
@@ -762,6 +792,7 @@ void Graphics_RenderNCurses(){
     glDrawArrays(GL_TRIANGLES, 0, stringOffset);
 
     stringOffset = 0;
+
 }
 
 void Graphics_attron(u32 attr){

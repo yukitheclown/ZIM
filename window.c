@@ -19,7 +19,7 @@ int Window_Open(){
         SDL_WINDOWPOS_CENTERED,
         WINDOW_INIT_WIDTH,
         WINDOW_INIT_HEIGHT,
-        SDL_WINDOW_OPENGL
+        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
     );
 
     context = SDL_GL_CreateContext(window);

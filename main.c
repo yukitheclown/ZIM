@@ -1,11 +1,12 @@
 #include <stdio.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <SDL2/SDL.h>
 #include "text_editor.h"
 #include "window.h"
 #include "memory.h"
 #include "graphics.h"
-#include "text.h"
-
 enum {
     GODCODE_STATE_QUIT = 1,
     GODCODE_STATE_UPDATE,
@@ -65,9 +66,11 @@ void Event(GodCode_t *gc){
         } else if(ev.type == SDL_TEXTINPUT){
             gc->key = (gc->key&0xFF00) | (ev.text.text[0] & 0xFF);
             // gc->state = GODCODE_STATE_UPDATE;        
+
+        } else if (ev.type == SDL_WINDOWEVENT){
+            if(ev.window.event == SDL_WINDOWEVENT_RESIZED || ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+                Graphics_Resize(ev.window.data1, ev.window.data2);
         }
-
-
 
     }
 }
@@ -100,12 +103,13 @@ int main(int argc, char **argv){
             lastSecond = currTime;
             frames = 0;
 
+
             printf("fps: %i | ms: %f\n", fps, frameTime);
         }
 
 
         ++frames;
-        
+
 
         Event(&gc);
 

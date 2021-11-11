@@ -77,6 +77,7 @@
   LOGMODE_TEXT,
   LOGMODE_SAVE,
   LOGMODE_OPEN,
+  LOGMODE_CONSOLE,
  };
 
 typedef struct {

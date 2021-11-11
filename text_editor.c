@@ -1,8 +1,9 @@
 #include "graphics.h"
 #include "text_editor.h"
-#include "text.h"
 #include <stdio.h>
+#include <fcntl.h>
 #include <SDL.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -484,7 +485,7 @@ static int MoveByWordsFunc(char *text, int len, int start, int dir){
                 while(start >= 0){
                     char c = text[--start];
                     if(c == '\n') { start++; break; }
-                    if(!IsToken(c)) { start = GetWordStart(text, start); break; }
+                    if(!IsToken(c)) { break; }
                 }
             } else {
                 start = GetWordStart(text, start); 
@@ -2254,6 +2255,46 @@ void TextEditor_Draw(TextEditor *t){
     int logY = 0, logX = 4;
     if(t->logging) logY = 1;
 
+    int k = 0;
+    int y = 0;
+    int x = 0;
+
+    if(t->logging == LOGMODE_CONSOLE){
+
+        FILE *logfp = fopen("thothlog.txt", "r");
+        fseek(logfp, 0, SEEK_END);
+        int len = ftell(logfp);
+        rewind(logfp);
+        if(t->loggingText) free(t->loggingText);
+        t->loggingText = (char *)malloc(len);
+        t->loggingText[len] = 0;
+        fread(t->loggingText, 1, len, logfp);
+        fclose(logfp);
+
+        Graphics_attron(COLOR_NORMAL);
+        int logLen = strlen(t->loggingText);
+
+        int last = 0;
+        for(k = 0; k < logLen; k++){
+            if(x >= Graphics_TextRows() || t->loggingText[k] == '\n'){
+                Graphics_mvprintw(0, y, &t->loggingText[last], (k-last));
+                if(t->loggingText[k] == '\n' || t->loggingText[k] == '\r') k++;
+                last = k;
+                y++;
+                x = 0;
+            }
+            x++;
+        }
+
+        if(k != logLen){
+            Graphics_mvprintw(0, y, &t->loggingText[last], (logLen-last));
+            y++;
+        }
+
+        logY = y;
+    }
+
+
     int nLinesToLastCursor = 0;
     if(t->nCursors > 1)
         nLinesToLastCursor = GetNumLinesToPos(t->text,t->cursors[t->nCursors-1].pos);
@@ -2266,10 +2307,11 @@ void TextEditor_Draw(TextEditor *t){
         t->scroll = nLinesToLastCursor - (screenHeight-1)/2;
     
     int ctOffset = 0;
-    int x = 0, y = 0;
+    x = 0;
+    y = 0;
     // cant modulus x with width, \n might be farther out.
 
-    int k = 0;
+    k = 0;
 
     int scrollPos = 0;
     int scrollPosMax = 0;
@@ -2476,12 +2518,14 @@ void TextEditor_Draw(TextEditor *t){
                     } else { /* comment */
 
 
-                        for(;k < (renderTo-1) && t->text[k] != '*' && t->text[k+1] != '/'; k++);
+                        for(;k < (renderTo-1) && !(t->text[k] == '*' && t->text[k+1] == '/'); k++);
 
                         if(k < renderTo-1){
                             k++; // will run to end of file otherwise. 
                         }
                     }
+
+                    if(k > 0 && t->text[k-1] == '*' && t->text[k] == '/') k++;
 
                     Graphics_attron(COLOR_COMMENT);
                     Graphics_mvprintw(logX+x, logY+y, &t->text[ctOffset], k - ctOffset);
@@ -2515,6 +2559,7 @@ void TextEditor_Draw(TextEditor *t){
 
 
                     }
+                    k++;
                     
                     if(k == renderTo) break;
 
@@ -2639,7 +2684,16 @@ void TextEditor_Draw(TextEditor *t){
 
     }
 
-    if(t->logging){
+    Graphics_attron(COLOR_LINE_NUM);        
+    // draw line numbers
+    for(k = 0; k < Graphics_TextCollumns(); k++){
+        char buffer[10];
+        sprintf(buffer, "%i", t->scroll+k);
+        Graphics_mvprintw(0, logY+k, buffer, strlen(buffer));
+    }
+
+    if(t->logging && t->logging != LOGMODE_CONSOLE){
+
         Graphics_attron(COLOR_FIND);
         char buffer[4];
         buffer[3] = 0;
@@ -2652,16 +2706,8 @@ void TextEditor_Draw(TextEditor *t){
     
         if(t->loggingText)        
             Graphics_mvprintw(3, 0, t->loggingText, strlen(t->loggingText));
-    }
 
-    Graphics_attron(COLOR_LINE_NUM);        
-    // draw line numbers
-    for(k = 0; k < Graphics_TextCollumns(); k++){
-        char buffer[10];
-        sprintf(buffer, "%i", t->scroll+k);
-        Graphics_mvprintw(0, logY+k, buffer, strlen(buffer));
     }
-
 }
 
 
@@ -2673,6 +2719,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         RemoveExtraCursors(t);
         EndLogging(t);
         t->autoCompleteIndex = 0;
+
 
         return;
     }
@@ -2706,6 +2753,26 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
             t->quit = 1;
             return;
         }
+        if(key == ((( unsigned int)'b') | EDIT_CTRL_KEY)){
+            
+            if(t->loggingText) free(t->loggingText);
+            t->loggingText = NULL;
+        
+
+
+            system("make > thothlog.txt 2>&1 &");
+
+            t->logging = LOGMODE_CONSOLE;
+            return;
+        }
+        if(key == ((( unsigned int)'=') | EDIT_CTRL_KEY)){
+            Graphics_Zoom(1);
+            return;
+        }
+        if(key == ((( unsigned int)'-') | EDIT_CTRL_KEY)){
+            Graphics_Zoom(-1);
+            return;
+        }
 
         int k;
         for(k = 0; k < t->nCommands; k++){
@@ -2729,7 +2796,6 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
 }
 
 void TextEditor_Destroy(TextEditor *t){
-
     if(t->text) free(t->text);
 
     int k;
