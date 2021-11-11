@@ -19,6 +19,7 @@ files save open etc<br>
 config files<br>
 new gifs with new font in readme.md<br>
 windows/tabs<br>
+make libthoth for text editor embed for opengl games<br>
 <br>
 <br>
 <b>COMMANDS</b>:<br>
