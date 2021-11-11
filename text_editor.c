@@ -1110,11 +1110,11 @@ static void Paste(TextEditor *t, TextEditorCommand *c){
             }
             if(tmp) clipboard[f-1] = 0;
             AddStrToText(t, &k, &clipboard[start]);
-            c->addedLens[k] = (f-1) - start;
+            t->cursors[k].addedLen = (f-1) - start;
             clipboard[f-1] = tmp;
         } else {
             AddStrToText(t, &k, clipboard);
-            c->addedLens[k] = clipboardLen;
+            t->cursors[k].addedLen = clipboardLen;
         }
 
 
@@ -1134,7 +1134,7 @@ static void UndoPaste(TextEditor *t, TextEditorCommand *c){
     int k;
     for(k = t->nCursors-1; k >= 0; k--){
 
-        RemoveStrFromText(t, &k, c->addedLens[k]);
+        RemoveStrFromText(t, &k, t->cursors[k].addedLen);
 
         if(k < c->nSavedCursors && t->cursors[k].savedText){
             AddStrToText(t, &k, t->cursors[k].savedText);
@@ -1882,7 +1882,7 @@ static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c){
 
     int k;
     for(k = t->nCursors-1; k >= 0; k--){
-        RemoveStrFromText(t, &k, c->addedLens[k]);
+        RemoveStrFromText(t, &k, t->cursors[k].addedLen);
 
         if(k < c->nSavedCursors && t->cursors[k].savedText){
             AddStrToText(t, &k, t->cursors[k].savedText);
@@ -2046,7 +2046,7 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
     for(k = 0; k < t->nCursors; k++){
         EraseAllSelectedText(t, &k, c);
         AddStrToText(t, &k, c->keys);
-        c->addedLens[k] = strlen(c->keys);
+        t->cursors[k].addedLen = strlen(c->keys);
     }
 
     SaveCursors(t, c);
@@ -2107,28 +2107,16 @@ static TextEditorCommand *CopyCommand(TextEditorCommand *c){
     ret->nSavedCursors = c->nSavedCursors;
 
     int k;
-    for(k = 0; k < c->nSavedCursors; k++)
-        memcpy(&c->savedCursors[k], &ret->savedCursors[k], sizeof(TextEditorCursor));
+    for(k = 0; k < c->nSavedCursors; k++){
 
+        memcpy(&ret->savedCursors[k], &c->savedCursors[k], sizeof(TextEditorCursor));
 
-    if(c->savedTexts){
-
-        ret->savedTexts = (char **)malloc(sizeof(char *) * c->nSavedCursors);
-
-        for(k = 0; k < c->nSavedCursors; k++){
-
-            int len = strlen(c->savedTexts[k]);
-
-            ret->savedTexts[k] = (char *)malloc(len + 1);
-            ret->savedTexts[k][len] = 0;
-
-            memcpy(ret->savedTexts[k], c->savedTexts[k], len);
+        if(c->savedCursors[k].savedText){
+            int len = strlen(c->savedCursors[k].savedText);
+            ret->savedCursors[k].savedText = malloc(len+1);
+            ret->savedCursors[k].savedText[len] = 0;
+            memcpy(ret->savedCursors[k].savedText, c->savedCursors[k].savedText, len);
         }
-    }
-
-    if(c->addedLens){
-        ret->addedLens = (int *)malloc(sizeof(int) * c->nSavedCursors);
-        memcpy(ret->addedLens, c->addedLens, sizeof(int) * c->nSavedCursors);
     }
 
     return ret;
@@ -2167,7 +2155,7 @@ static TextEditorCommand *CreateCommand(const unsigned int binding[], const char
 
 static void UndoCommands(TextEditor *t, int num){
 
-    if(t->historyPos - num < 0)
+    if(t->historyPos == 0 || t->historyPos - num < 0)
         return;
 
     int k;
@@ -2205,10 +2193,11 @@ static void RemoveExtraCursors(TextEditor *t){
 static void ExecuteCommand(TextEditor *t, TextEditorCommand *c){
 
 
-    if(c->Undo == NULL){
+    if(c->Undo == NULL || t->logging){
         c->Execute(t, c);
         return;
     }
+
 
     if(t->historyPos <= t->sHistory){
 

@@ -50,8 +50,6 @@
 
   TextEditorCursor *savedCursors;
   int nSavedCursors;
-  char **savedTexts;
-  int *addedLens;
 
   void (*Execute)(TextEditor *, TextEditorCommand *c);
   void (*Undo)(TextEditor *, TextEditorCommand *c);
