@@ -33,8 +33,8 @@ static void FindTextGoto(TextEditor *t, int dir);
 static void ScrollToLine(TextEditor *t);
 static int MoveByWordsFunc(char *text, int len, int start, int dir);
 static void FindCommand(TextEditor *t, TextEditorCommand *command);
-static void AddSavedText(TextEditorCommand *command, char *str, int len, int index);
-static void EraseAllSelectedText(TextEditor *t, int index, TextEditorCommand *command);
+static void AddSavedText(TextEditor *t, char *str, int len, int *cursorIndex);
+static void EraseAllSelectedText(TextEditor *t, int *cursorIndex, TextEditorCommand *command);
 static void AutoComplete(TextEditor *t);
 static int IsToken(char c);
 static int IsDigit(char c);
@@ -50,9 +50,9 @@ static void DoSaveFile(TextEditor *t);
 static void OpenFile(TextEditor *t, TextEditorCommand *c);
 static void LoadFile(TextEditor *t, char *path);
 static void SaveFile(TextEditor *t, TextEditorCommand *c);
-static void RefreshEditorCommand(TextEditorCommand *c);
-static void ResolveCursorCollisions(TextEditor *t);
-static void MoveCursorsAndSelection(TextEditor *t, int pos, int by, int cursorIndex);
+// static void RefreshEditorCommand(TextEditorCommand *c);
+static void ResolveCursorCollisions(TextEditor *t, int *cursorIndex);
+static void MoveCursorsAndSelection(TextEditor *t, int pos, int by, int *cursorIndex);
 static void MoveLineUp(TextEditor *t, TextEditorCursor *c);
 static void MoveLineDown(TextEditor *t, TextEditorCursor *c);
 static void RemoveSelections(TextEditor *t);
@@ -73,8 +73,8 @@ static void EventEnter(TextEditor *t);
 static void EventCtrlEnter(TextEditor *t, TextEditorCommand *c);
 static void SaveCursors(TextEditor *t, TextEditorCommand *c);
 static void LoadCursors(TextEditor *t, TextEditorCommand *c);
-static void AddStrToText(TextEditor *t, int cursorIndex, char *text);
-static void RemoveStrFromText(TextEditor *t, int cursorIndex, int len);
+static void AddStrToText(TextEditor *t, int *cursorIndex, char *text);
+static void RemoveStrFromText(TextEditor *t, int *cursorIndex, int len);
 static void UndoRemoveCharacters(TextEditor *t, TextEditorCommand *c);
 static void RemoveCharacters(TextEditor *t, TextEditorCommand *c);
 static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c);
@@ -85,6 +85,7 @@ static void MoveBrackets(TextEditor *t, TextEditorCommand *c);
 static int GetBetweenBrackets(char *text, int len, int pos, int *first, int *last);
 static void ExpandSelectionLines(TextEditor *t, TextEditorCommand *c);
 static void DeleteLine(TextEditor *t, TextEditorCommand *c);
+static void UndoDeleteLine(TextEditor *t, TextEditorCommand *c);
 static void Cut(TextEditor *t, TextEditorCommand *c);
 static void Redo(TextEditor *t, TextEditorCommand *c);
 static void FreeCommand(TextEditorCommand *c);
@@ -376,18 +377,46 @@ static int GetStartOfPrevLine(char *text, int cPos){
     return k < 0 ? 0 : k+1;
 }
 
-static void ResolveCursorCollisions(TextEditor *t){
+static void ResolveCursorCollisions(TextEditor *t, int *cursorIndex){
 
     int j, f;
     for(j = 0; j < t->nCursors; j++){
         for(f = 0; f < t->nCursors; f++){
             if(f != j && t->cursors[j].pos == t->cursors[f].pos){
+                
+                
+
+                if(j+1 < t->nCursors){
+
+                    if(t->cursors[j].savedText){
+                        
+                        if(t->cursors[f].savedText){
+                            int len1 = strlen(t->cursors[j].savedText);
+                            int len2 = strlen(t->cursors[f].savedText);
+                            t->cursors[j].savedText = realloc(t->cursors[j].savedText, len1+len2+1);
+                            t->cursors[j].savedText[len1+len2] = 0;
+
+                            memcpy(&t->cursors[j].savedText[len1], t->cursors[f].savedText, len2);
+                        }
+                        
+                        free(t->cursors[f].savedText);
+
+                        t->cursors[f].savedText = t->cursors[j].savedText;
+                    }
+
+                    t->cursors[f].addedLen += t->cursors[j].addedLen;
+                }
 
                 int m;
-                for(m = j; m < t->nCursors-1; m++)
+                for(m = j; m < t->nCursors-1; m++){
                     t->cursors[m] = t->cursors[m+1];
+                }
 
                 t->cursors = realloc(t->cursors, --t->nCursors * sizeof(TextEditorCursor));                 
+
+
+                if(cursorIndex && *cursorIndex >= j)
+                    (*cursorIndex)--;
 
                 j--;
                 break;
@@ -396,12 +425,12 @@ static void ResolveCursorCollisions(TextEditor *t){
     }
 }
 
-static void MoveCursorsAndSelection(TextEditor *t, int pos, int by, int cursorIndex){
+static void MoveCursorsAndSelection(TextEditor *t, int pos, int by, int *cursorIndex){
 
 
     int k;
     for(k = 0; k < t->nCursors; k++){
-        if(k == cursorIndex) continue;
+        if(k == *cursorIndex) continue;
 
         if(t->cursors[k].selection.len > 0){
 
@@ -414,7 +443,7 @@ static void MoveCursorsAndSelection(TextEditor *t, int pos, int by, int cursorIn
             t->cursors[k].pos += by;
 
     }
-    ResolveCursorCollisions(t);
+    ResolveCursorCollisions(t, cursorIndex);
 }
 
 static void RemoveSelections(TextEditor *t){
@@ -463,7 +492,7 @@ static void MoveByChars(TextEditor *t, TextEditorCommand *c){
 
     RemoveSelections(t);
 
-    ResolveCursorCollisions(t);
+    ResolveCursorCollisions(t, 0);
 }
 
 static int MoveByWordsFunc(char *text, int len, int start, int dir){
@@ -531,16 +560,19 @@ static void MoveByWords(TextEditor *t, TextEditorCommand *c){
         t->cursors[k].pos = MoveByWordsFunc(t->text, t->textLen,t->cursors[k].pos,c->num);
     }
 
-    ResolveCursorCollisions(t);
+    ResolveCursorCollisions(t,0);
 }
 
 
 static void FreeCursors(TextEditor *t){
 
     int k;
-    for(k = 0; k < t->nCursors; k++)
+    for(k = 0; k < t->nCursors; k++){
         if(t->cursors[k].clipboard)
             free(t->cursors[k].clipboard);
+        if(t->cursors[k].savedText)
+            free(t->cursors[k].savedText);
+    }
 
     t->nCursors = 0;
     free(t->cursors);
@@ -743,7 +775,7 @@ static void MoveLinesText(TextEditor *t, TextEditorCommand *c){
             MoveLineUp(t, cursor);
     }
 
-    ResolveCursorCollisions(t);
+    ResolveCursorCollisions(t,0);
 }
 
 static void UndoMoveLinesText(TextEditor *t, TextEditorCommand *c){
@@ -763,7 +795,7 @@ static void UndoMoveLinesText(TextEditor *t, TextEditorCommand *c){
             MoveLineDown(t, cursor);
     }
 
-    ResolveCursorCollisions(t);
+    ResolveCursorCollisions(t,0);
 }
 
 
@@ -869,7 +901,7 @@ static void MoveLines(TextEditor *t, TextEditorCommand *c){
     }
 
     RemoveSelections(t);
-    ResolveCursorCollisions(t);
+    ResolveCursorCollisions(t,0);
 }
 
 static void ExpandSelectionWords(TextEditor *t,TextEditorCommand *c){
@@ -895,7 +927,7 @@ static void ExpandSelectionWords(TextEditor *t,TextEditorCommand *c){
     }
 
 
-    ResolveCursorCollisions(t);
+    ResolveCursorCollisions(t,0);
 }
 
 static TextEditorCursor *AddCursor(TextEditor *t){
@@ -1029,7 +1061,7 @@ static void SelectNextWord(TextEditor *t, TextEditorCommand *c){
         }
     }
 
-        ResolveCursorCollisions(t);
+        ResolveCursorCollisions(t,0);
 }
 
 // static void ExpandSelectionBrackets(TextEditor *t,TextEditorCommand *c){
@@ -1040,7 +1072,7 @@ static void Paste(TextEditor *t, TextEditorCommand *c){
 
     LoadCursors(t, c);
 
-    RefreshEditorCommand(c);
+    // RefreshEditorCommand(c);
 
     char *clipboard = SDL_GetClipboardText();
     int clipboardLen = strlen(clipboard);
@@ -1058,7 +1090,7 @@ static void Paste(TextEditor *t, TextEditorCommand *c){
 
     for(k = 0; k < t->nCursors; k++){
         
-        EraseAllSelectedText(t, k, c);
+        EraseAllSelectedText(t, &k, c);
 
         // if(t->cursors[k].clipboard == NULL) continue;
         // c->addedLens[k] = strlen(t->cursors[k].clipboard);
@@ -1077,11 +1109,11 @@ static void Paste(TextEditor *t, TextEditorCommand *c){
                 }
             }
             if(tmp) clipboard[f-1] = 0;
-            AddStrToText(t, k, &clipboard[start]);
+            AddStrToText(t, &k, &clipboard[start]);
             c->addedLens[k] = (f-1) - start;
             clipboard[f-1] = tmp;
         } else {
-            AddStrToText(t, k, clipboard);
+            AddStrToText(t, &k, clipboard);
             c->addedLens[k] = clipboardLen;
         }
 
@@ -1102,10 +1134,10 @@ static void UndoPaste(TextEditor *t, TextEditorCommand *c){
     int k;
     for(k = t->nCursors-1; k >= 0; k--){
 
-        RemoveStrFromText(t, k, c->addedLens[k]);
+        RemoveStrFromText(t, &k, c->addedLens[k]);
 
-        if(k < c->nSavedCursors && c->savedTexts[k]){
-            AddStrToText(t, k, c->savedTexts[k]);
+        if(k < c->nSavedCursors && t->cursors[k].savedText){
+            AddStrToText(t, &k, t->cursors[k].savedText);
         }
     }
 
@@ -1263,7 +1295,7 @@ static void ToggleComment(TextEditor *t, TextEditorCommand *c){
 
                 if(t->text[j] == '/' && t->text[j-1] == '/') {
                     t->cursors[k].pos = j+1;
-                    RemoveStrFromText(t, k, 2);
+                    RemoveStrFromText(t, &k, 2);
                     toggled = 1;
                     break;
                 }
@@ -1271,7 +1303,7 @@ static void ToggleComment(TextEditor *t, TextEditorCommand *c){
 
             if(toggled) continue;
             t->cursors[k].pos = lineStart;
-            AddStrToText(t, k, "//");
+            AddStrToText(t, &k, "//");
             
             continue;
         }
@@ -1297,7 +1329,7 @@ static void ToggleComment(TextEditor *t, TextEditorCommand *c){
             for(m = startSelection; m < endSelection; m++){
                 if(t->text[m] == '/' && t->text[m-1] == '/') {
                     t->cursors[k].pos = m+1;
-                    RemoveStrFromText(t, k, 2);
+                    RemoveStrFromText(t, &k, 2);
                     t->cursors[k].selection.len -= 2;
                     m--;
                 }
@@ -1315,7 +1347,7 @@ static void ToggleComment(TextEditor *t, TextEditorCommand *c){
             if(t->text[m] == '\n'){
                 t->cursors[k].pos = m+1;
                 t->cursors[k].selection.len += 2;
-                AddStrToText(t, k, "//");
+                AddStrToText(t, &k, "//");
             }
         }
     }
@@ -1341,7 +1373,7 @@ static void MoveBrackets(TextEditor *t, TextEditorCommand *c){
         }
     }
 
-    ResolveCursorCollisions(t);
+    ResolveCursorCollisions(t,0);
 }
 
 static void SelectBrackets(TextEditor *t, TextEditorCommand *c){
@@ -1366,7 +1398,7 @@ static void SelectBrackets(TextEditor *t, TextEditorCommand *c){
         }
     }
 
-    ResolveCursorCollisions(t);
+    ResolveCursorCollisions(t,0);
 }
 
 static void ExpandSelectionLines(TextEditor *t, TextEditorCommand *c){
@@ -1402,26 +1434,66 @@ static void ExpandSelectionLines(TextEditor *t, TextEditorCommand *c){
     }
 }
 
+static void UndoDeleteLine(TextEditor *t, TextEditorCommand *c){
+
+    UNUSED(c);
+
+    if(t->text == NULL) return;
+
+    // RemoveSelections(t);
+    LoadCursors(t, c);
+    // RefreshEditorCommand(c);
+
+
+
+    int k;
+    for(k = 0; k < t->nCursors; k++){
+
+        // TextEditorCursor *cursor = &t->cursors[k];
+        AddStrToText(t, &k, t->cursors[k].savedText);
+    }
+    SaveCursors(t, c);
+}
+
 static void DeleteLine(TextEditor *t, TextEditorCommand *c){
 
     UNUSED(c);
 
     if(t->text == NULL) return;
 
-    RemoveSelections(t);
+
+    // RefreshEditorCommand(c);
+
+/*
+    problem, resolvecollisions is making there be less cursors, not as many as savedtexts,
+    so need to know to insert twice for combined cursors that were in the same location.
+*/
 
     int k;
     for(k = 0; k < t->nCursors; k++){
 
         TextEditorCursor *cursor = &t->cursors[k];
 
-        int start = cursor->pos - GetCharsIntoLine(t->text, cursor->pos);
-        int end = GetStartOfNextLine(t->text,t->textLen, cursor->pos)-1;
+        int start;
+        int end;
+
+        if(cursor->selection.len){
+            start = cursor->selection.startCursorPos - GetCharsIntoLine(t->text, cursor->selection.startCursorPos);
+            end = GetStartOfNextLine(t->text,t->textLen, cursor->selection.startCursorPos+cursor->selection.len - 1);
+        } else {
+            start = cursor->pos - GetCharsIntoLine(t->text, cursor->pos);
+            end = GetStartOfNextLine(t->text,t->textLen, cursor->pos);
+        }
+
+
         cursor->pos = end;
-        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, end-start, RemoveCharacters, UndoRemoveCharacters);
-         ExecuteCommand(t, command);
-        FreeCommand(command);
+        AddSavedText(t, &t->text[start], end-start, &k);
+        RemoveStrFromText(t, &k, end-start);
     }
+
+    RemoveSelections(t);
+    SaveCursors(t,c);
+    RemoveExtraCursors(t);
 }
 
 static void Copy(TextEditor *t, TextEditorCommand *c){
@@ -1480,19 +1552,28 @@ static void Cut(TextEditor *t, TextEditorCommand *c){
     FreeCommand(command);
 }
 
-static void AddSavedText(TextEditorCommand *command, char *str, int len, int index){
+static void AddSavedText(TextEditor *t, char *str, int len, int *cursorIndex){
     if(len <= 0) return;
-    command->savedTexts[index] = (char *)malloc(len + 1);
-    command->savedTexts[index][len] = 0;
-    memcpy(command->savedTexts[index], str, len);
+    if(t->cursors[*cursorIndex].savedText){
+        free(t->cursors[*cursorIndex].savedText);
+    }
+        // int len2 = strlen(t->cursors[*cursorIndex].savedText);
+        // t->cursors[*cursorIndex].savedText = (char *)realloc(t->cursors[*cursorIndex].savedText, len2 + len + 1);
+        // t->cursors[*cursorIndex].savedText[len+len2] = 0;
+        // memcpy(&t->cursors[*cursorIndex].savedText[len2], str, len);
+    // } else {
+        t->cursors[*cursorIndex].savedText = (char *)malloc(len + 1);
+        t->cursors[*cursorIndex].savedText[len] = 0;
+        memcpy(t->cursors[*cursorIndex].savedText, str, len);
+    // }
 }
 
-static void EraseAllSelectedText(TextEditor *t, int index, TextEditorCommand *command){
+static void EraseAllSelectedText(TextEditor *t, int *cursorIndex, TextEditorCommand *command){
         
 
     if(t->text == NULL) return;
 
-    TextEditorCursor *cursor = &t->cursors[index];
+    TextEditorCursor *cursor = &t->cursors[*cursorIndex];
 
     if(t->text == NULL || cursor->selection.len == 0) return;
 
@@ -1512,9 +1593,9 @@ static void EraseAllSelectedText(TextEditor *t, int index, TextEditorCommand *co
         return;
     }
 
-    AddSavedText(command, &t->text[startCursorPos], cursor->selection.len, index);
+    AddSavedText(t, &t->text[startCursorPos], cursor->selection.len, cursorIndex);
     cursor->pos = endCursorPos;
-    RemoveStrFromText(t, index, cursor->selection.len);
+    RemoveStrFromText(t, cursorIndex, cursor->selection.len);
 }
 
 static void FindCommand(TextEditor *t, TextEditorCommand *c){
@@ -1537,7 +1618,15 @@ static void SaveCursors(TextEditor *t, TextEditorCommand *c){
     int k;
     for(k = 0; k < t->nCursors; k++){
         if(t->cursors[k].pos < 0) t->cursors[k].pos = 0;
+
         memcpy(&c->savedCursors[k], &t->cursors[k], sizeof(TextEditorCursor));
+
+        if(t->cursors[k].savedText){
+            int len = strlen(t->cursors[k].savedText);
+            c->savedCursors[k].savedText = malloc(len+1);
+            c->savedCursors[k].savedText[len] = 0;
+            memcpy(c->savedCursors[k].savedText, t->cursors[k].savedText, len);
+        }
     }
 
 }
@@ -1562,14 +1651,14 @@ static void LoadCursors(TextEditor *t, TextEditorCommand *c){
     }
 }
 
-static void AddStrToText(TextEditor *t, int cursorIndex, char *text){
+static void AddStrToText(TextEditor *t, int *cursorIndex, char *text){
 
 
     int textLen = strlen(t->text);
 
     int len = strlen(text);
 
-    int pos = t->cursors[cursorIndex].pos;
+    int pos = t->cursors[*cursorIndex].pos;
 
     char *text1 = (char *)malloc(textLen);
 
@@ -1586,19 +1675,19 @@ static void AddStrToText(TextEditor *t, int cursorIndex, char *text){
     free(text1);
 
     t->textLen = strlen(t->text);
-    t->cursors[cursorIndex].pos += len;
+    t->cursors[*cursorIndex].pos += len;
     MoveCursorsAndSelection(t, pos, len, cursorIndex);
 }
 
-static void RemoveStrFromText(TextEditor *t, int cursorIndex, int len){
+static void RemoveStrFromText(TextEditor *t, int *cursorIndex, int len){
     if(t->text == NULL) return;
 
-    int pos = t->cursors[cursorIndex].pos;
+    int pos = t->cursors[*cursorIndex].pos;
     if(pos < 0) return;
     if(pos - len < 0) len = pos;
 
     pos -= len;
-    // t->cursors[cursorIndex].pos -= len;
+    // t->cursors[*cursorIndex].pos -= len;
 
 
     int textLen = strlen(t->text);
@@ -1626,7 +1715,7 @@ static void RemoveStrFromText(TextEditor *t, int cursorIndex, int len){
 
     t->text[textLen - len] = 0;
     t->textLen = strlen(t->text);
-    t->cursors[cursorIndex].pos = pos;
+    t->cursors[*cursorIndex].pos = pos;
     MoveCursorsAndSelection(t, pos, -len, cursorIndex);
 }
 
@@ -1639,8 +1728,8 @@ static void UndoRemoveCharacters(TextEditor *t, TextEditorCommand *c){
     int k;
     for(k = t->nCursors-1; k >= 0; k--){
 
-        if(k < c->nSavedCursors && c->savedTexts[k]){
-            AddStrToText(t, k, c->savedTexts[k]);
+        if(k < c->nSavedCursors && t->cursors[k].savedText){
+            AddStrToText(t, &k, t->cursors[k].savedText);
         }
     }
 
@@ -1757,7 +1846,7 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
 
     LoadCursors(t, c);
 
-    RefreshEditorCommand(c);
+    // RefreshEditorCommand(c);
 
 
 
@@ -1765,11 +1854,11 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
     for(k = 0; k < t->nCursors; k++){
 
         if(t->cursors[k].selection.len == 0){
-            AddSavedText(c, &t->text[t->cursors[k].pos-c->num], c->num, k);
-            RemoveStrFromText(t, k, c->num);
+            AddSavedText(t, &t->text[t->cursors[k].pos-c->num], c->num, &k);
+            RemoveStrFromText(t, &k, c->num);
         } else {
 
-            EraseAllSelectedText(t, k, c);
+            EraseAllSelectedText(t, &k, c);
         }
     }
 
@@ -1793,17 +1882,17 @@ static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c){
 
     int k;
     for(k = t->nCursors-1; k >= 0; k--){
-        RemoveStrFromText(t, k, c->addedLens[k]);
+        RemoveStrFromText(t, &k, c->addedLens[k]);
 
-        if(k < c->nSavedCursors && c->savedTexts[k]){
-            AddStrToText(t, k, c->savedTexts[k]);
+        if(k < c->nSavedCursors && t->cursors[k].savedText){
+            AddStrToText(t, &k, t->cursors[k].savedText);
         }
     }
 
     SaveCursors(t, c);
 
     if(t->autoCompleteSearchLen > 0){
-        t->autoCompleteSearchLen -= c->addedLens[0];
+        t->autoCompleteSearchLen -= t->cursors[0].addedLen;
         if(t->autoCompleteSearchLen > 0)
             AutoComplete(t);
         else
@@ -1813,25 +1902,25 @@ static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c){
 
 }
 
-static void RefreshEditorCommand(TextEditorCommand *c){
+// static void RefreshEditorCommand(TextEditorCommand *c){
 
-    if(c->addedLens) free(c->addedLens);
+    // if(c->addedLens) free(c->addedLens);
 
-    if(c->savedTexts){
+    // if(c->savedTexts){
 
-        int k;
-        for(k = 0; k < c->nSavedCursors; k++)
-            if(c->savedTexts[k]) free(c->savedTexts[k]);
+    //     int k;
+    //     for(k = 0; k < c->nSavedCursors; k++)
+    //         if(c->savedTexts[k]) free(c->savedTexts[k]);
     
-        free(c->savedTexts);
-    }
+    //     free(c->savedTexts);
+    // }
 
-    c->addedLens = (int *)malloc(c->nSavedCursors * sizeof(int));
-    memset(c->addedLens, 0, sizeof(int) * c->nSavedCursors);
+    // c->addedLens = (int *)malloc(c->nSavedCursors * sizeof(int));
+    // memset(c->addedLens, 0, sizeof(int) * c->nSavedCursors);
 
-    c->savedTexts = (char **)malloc(c->nSavedCursors * sizeof(char*));
-    memset(c->savedTexts, 0, sizeof(char*) * c->nSavedCursors);
-}
+    // c->savedTexts = (char **)malloc(c->nSavedCursors * sizeof(char*));
+    // memset(c->savedTexts, 0, sizeof(char*) * c->nSavedCursors);
+// }
 
 static void IndentLine(TextEditor *t, TextEditorCommand *c){
 
@@ -1949,14 +2038,14 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
 
     LoadCursors(t, c);
 
-    RefreshEditorCommand(c);
+    // RefreshEditorCommand(c);
 
     int k;
 
 
     for(k = 0; k < t->nCursors; k++){
-        EraseAllSelectedText(t, k, c);
-        AddStrToText(t, k, c->keys);
+        EraseAllSelectedText(t, &k, c);
+        AddStrToText(t, &k, c->keys);
         c->addedLens[k] = strlen(c->keys);
     }
 
@@ -1996,16 +2085,16 @@ static void FreeCommand(TextEditorCommand *c){
         free(c->savedCursors);
     }
     
-    if(c->savedTexts){
+    // if(c->savedTexts){
 
-        int k;
-        for(k = 0; k < c->nSavedCursors; k++)
-            free(c->savedTexts[k]);
+    //     int k;
+    //     for(k = 0; k < c->nSavedCursors; k++)
+    //         free(c->savedTexts[k]);
 
-        free(c->savedTexts);
-    }
+    //     free(c->savedTexts);
+    // }
 
-    if(c->addedLens) free(c->addedLens);
+    // if(c->addedLens) free(c->addedLens);
 
     free(c);
 }
@@ -2115,6 +2204,7 @@ static void RemoveExtraCursors(TextEditor *t){
 
 static void ExecuteCommand(TextEditor *t, TextEditorCommand *c){
 
+
     if(c->Undo == NULL){
         c->Execute(t, c);
         return;
@@ -2205,7 +2295,7 @@ void TextEditor_Init(TextEditor *t){
     // AddCommand(t, CreateCommand((unsigned int[]){unbound, 0}, "", -1, ExpandSelectionChars, NULL));
     // AddCommand(t, CreateCommand((unsigned int[]){unbound, 0}, "", 1, ExpandSelectionChars, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){'l'|EDIT_SHIFT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, ExpandSelectionLines, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'k'|EDIT_SHIFT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, DeleteLine, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'k'|EDIT_SHIFT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, DeleteLine, UndoDeleteLine));
 
     AddCommand(t, CreateCommand((unsigned int[]){'h'|EDIT_CTRL_KEY  , 0}, "", -1, MoveByChars, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){'l'|EDIT_CTRL_KEY  , 0}, "", 1, MoveByChars, NULL));

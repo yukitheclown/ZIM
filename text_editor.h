@@ -65,6 +65,8 @@
   //no longer used, now clipboard is from system, lines seperated by \n
   char *clipboard;
   int sClipboard;
+  char *savedText;
+  int addedLen;
 
   int pos;
  };
@@ -101,6 +103,7 @@ typedef struct {
   char                    *loggingText;
   int                     scroll;
   int                     historyPos;
+
 
   TextEditorCommand       **commands;
   int                     nCommands;
