@@ -579,187 +579,187 @@ static void FreeCursors(TextEditor *t){
     t->cursors = NULL;
 }
 
-static void MoveLineUp(TextEditor *t, TextEditorCursor *c){
+static void MoveLineUp(TextEditor *t, TextEditorCursor *cursor){
     if(t->text == NULL) return;
 
-    int k;
-    for(k = 0; k < t->nCursors; k++){
-        
-        TextEditorCursor *cursor = &t->cursors[k];            
-
-
-        if(cursor->selection.len == 0){
-
-            int lineStart = cursor->pos == 0 ? 0 : cursor->pos-1;
-            for(; lineStart > 0 && t->text[lineStart] != '\n'; lineStart--);
-            if(lineStart == 0) continue; // already top line
-            lineStart++; // skip \n of prev line
-
-            int charsOnLine = cursor->pos;
-            for(; charsOnLine < t->textLen && t->text[charsOnLine] != '\n'; charsOnLine++);
-            charsOnLine = (charsOnLine - lineStart);
-
-            int startOfPrevLine = lineStart-2;
-            for(; startOfPrevLine > 0 && t->text[startOfPrevLine] != '\n'; startOfPrevLine--);
-            if(startOfPrevLine > 0) startOfPrevLine++;
-            int prevLineLen = lineStart - startOfPrevLine;
-
-            if(prevLineLen > charsOnLine){
-
-                char *tmp = malloc(charsOnLine);
-                memcpy(tmp, &t->text[lineStart], charsOnLine);
-
-                memcpy(&t->text[startOfPrevLine+charsOnLine+1], &t->text[startOfPrevLine], prevLineLen);
-                t->text[startOfPrevLine+charsOnLine] = '\n';
-                memcpy(&t->text[startOfPrevLine], tmp, charsOnLine);
-
-                free(tmp);
-            } else {
-                char *tmp = malloc(prevLineLen);
-                memcpy(tmp, &t->text[startOfPrevLine], prevLineLen);
-
-                memcpy(&t->text[startOfPrevLine], &t->text[lineStart], charsOnLine);
-                t->text[startOfPrevLine+charsOnLine] = '\n';
-                memcpy(&t->text[startOfPrevLine+charsOnLine+1], tmp, prevLineLen);
-                free(tmp);
-            }
-
-            cursor->pos = startOfPrevLine + (cursor->pos - lineStart);
-        } else {
-
-            int lineStart = cursor->selection.startCursorPos == 0 ? 0 : cursor->selection.startCursorPos-1;
-            for(; lineStart > 0 && t->text[lineStart] != '\n'; lineStart--);
-            if(lineStart > 0) lineStart++; // skip \n of prev line
-
-            int charsOnLine = cursor->selection.startCursorPos+cursor->selection.len-1;
-            for(; charsOnLine < t->textLen && t->text[charsOnLine] != '\n'; charsOnLine++);
-            if(charsOnLine >= t->textLen || t->text[charsOnLine] != '\n') continue; // end of file dont move down
-            charsOnLine = (charsOnLine - lineStart);
-
-            int startOfPrevLine = lineStart-2;
-            for(; startOfPrevLine > 0 && t->text[startOfPrevLine] != '\n'; startOfPrevLine--);
-            if(startOfPrevLine > 0) startOfPrevLine++;
-            int prevLineLen = lineStart - startOfPrevLine;
-
-            if(prevLineLen > charsOnLine){
-
-                char *tmp = malloc(charsOnLine);
-                memcpy(tmp, &t->text[lineStart], charsOnLine);
-
-                memcpy(&t->text[startOfPrevLine+charsOnLine+1], &t->text[startOfPrevLine], prevLineLen);
-                t->text[startOfPrevLine+charsOnLine] = '\n';
-                memcpy(&t->text[startOfPrevLine], tmp, charsOnLine);
-
-                free(tmp);
-
-            } else {
-                char *tmp = malloc(prevLineLen);
-                memcpy(tmp, &t->text[startOfPrevLine], prevLineLen);
-
-                memcpy(&t->text[startOfPrevLine], &t->text[lineStart], charsOnLine);
-                t->text[startOfPrevLine+charsOnLine] = '\n';
-                memcpy(&t->text[startOfPrevLine+charsOnLine+1], tmp, prevLineLen);
-                free(tmp);
-
-            }
-
-            cursor->selection.startCursorPos = startOfPrevLine + (cursor->selection.startCursorPos - lineStart);
-            cursor->pos = startOfPrevLine + (cursor->pos - lineStart);
+    // int k;
+    // for(k = 0; k < t->nCursors; k++){
     
+    // TextEditorCursor *cursor = &t->cursors[k];            
+
+
+    if(cursor->selection.len == 0){
+
+        int lineStart = cursor->pos == 0 ? 0 : cursor->pos-1;
+        for(; lineStart > 0 && t->text[lineStart] != '\n'; lineStart--);
+        if(lineStart == 0) return; // already top line
+        lineStart++; // skip \n of prev line
+
+        int charsOnLine = cursor->pos;
+        for(; charsOnLine < t->textLen && t->text[charsOnLine] != '\n'; charsOnLine++);
+        charsOnLine = (charsOnLine - lineStart);
+
+        int startOfPrevLine = lineStart-2;
+        for(; startOfPrevLine > 0 && t->text[startOfPrevLine] != '\n'; startOfPrevLine--);
+        if(startOfPrevLine > 0) startOfPrevLine++;
+        int prevLineLen = lineStart - startOfPrevLine;
+
+        if(prevLineLen > charsOnLine){
+
+            char *tmp = malloc(charsOnLine);
+            memcpy(tmp, &t->text[lineStart], charsOnLine);
+
+            memcpy(&t->text[startOfPrevLine+charsOnLine+1], &t->text[startOfPrevLine], prevLineLen);
+            t->text[startOfPrevLine+charsOnLine] = '\n';
+            memcpy(&t->text[startOfPrevLine], tmp, charsOnLine);
+
+            free(tmp);
+        } else {
+            char *tmp = malloc(prevLineLen);
+            memcpy(tmp, &t->text[startOfPrevLine], prevLineLen);
+
+            memcpy(&t->text[startOfPrevLine], &t->text[lineStart], charsOnLine);
+            t->text[startOfPrevLine+charsOnLine] = '\n';
+            memcpy(&t->text[startOfPrevLine+charsOnLine+1], tmp, prevLineLen);
+            free(tmp);
         }
+
+        cursor->pos = startOfPrevLine + (cursor->pos - lineStart);
+    } else {
+
+        int lineStart = cursor->selection.startCursorPos == 0 ? 0 : cursor->selection.startCursorPos-1;
+        for(; lineStart > 0 && t->text[lineStart] != '\n'; lineStart--);
+        if(lineStart > 0) lineStart++; // skip \n of prev line
+
+        int charsOnLine = cursor->selection.startCursorPos+cursor->selection.len-1;
+        for(; charsOnLine < t->textLen && t->text[charsOnLine] != '\n'; charsOnLine++);
+        if(charsOnLine >= t->textLen || t->text[charsOnLine] != '\n') return; // end of file dont move down
+        charsOnLine = (charsOnLine - lineStart);
+
+        int startOfPrevLine = lineStart-2;
+        for(; startOfPrevLine > 0 && t->text[startOfPrevLine] != '\n'; startOfPrevLine--);
+        if(startOfPrevLine > 0) startOfPrevLine++;
+        int prevLineLen = lineStart - startOfPrevLine;
+
+        if(prevLineLen > charsOnLine){
+
+            char *tmp = malloc(charsOnLine);
+            memcpy(tmp, &t->text[lineStart], charsOnLine);
+
+            memcpy(&t->text[startOfPrevLine+charsOnLine+1], &t->text[startOfPrevLine], prevLineLen);
+            t->text[startOfPrevLine+charsOnLine] = '\n';
+            memcpy(&t->text[startOfPrevLine], tmp, charsOnLine);
+
+            free(tmp);
+
+        } else {
+            char *tmp = malloc(prevLineLen);
+            memcpy(tmp, &t->text[startOfPrevLine], prevLineLen);
+
+            memcpy(&t->text[startOfPrevLine], &t->text[lineStart], charsOnLine);
+            t->text[startOfPrevLine+charsOnLine] = '\n';
+            memcpy(&t->text[startOfPrevLine+charsOnLine+1], tmp, prevLineLen);
+            free(tmp);
+
+        }
+
+        cursor->selection.startCursorPos = startOfPrevLine + (cursor->selection.startCursorPos - lineStart);
+        cursor->pos = startOfPrevLine + (cursor->pos - lineStart);
+
     }
+    // }
 }
 
-static void MoveLineDown(TextEditor *t, TextEditorCursor *c){
+static void MoveLineDown(TextEditor *t, TextEditorCursor *cursor){
     if(t->text == NULL) return;
 
-    int k;
-    for(k = 0; k < t->nCursors; k++){
+    // int k;
+    // for(k = 0; k < t->nCursors; k++){
         
-        TextEditorCursor *cursor = &t->cursors[k];            
+    //     TextEditorCursor *cursor = &t->cursors[k];            
 
 
-        if(cursor->selection.len == 0){
+    if(cursor->selection.len == 0){
 
-            int lineStart = cursor->pos == 0 ? 0 : cursor->pos-1;
-            for(; lineStart > 0 && t->text[lineStart] != '\n'; lineStart--);
-            if(lineStart > 0) lineStart++; // skip \n of prev line
+        int lineStart = cursor->pos == 0 ? 0 : cursor->pos-1;
+        for(; lineStart > 0 && t->text[lineStart] != '\n'; lineStart--);
+        if(lineStart > 0) lineStart++; // skip \n of prev line
 
-            int charsOnLine = cursor->pos;
-            for(; charsOnLine < t->textLen && t->text[charsOnLine] != '\n'; charsOnLine++);
-            if(charsOnLine >= t->textLen || t->text[charsOnLine] != '\n') continue; // end of file dont move down
-            charsOnLine = (charsOnLine - lineStart);
+        int charsOnLine = cursor->pos;
+        for(; charsOnLine < t->textLen && t->text[charsOnLine] != '\n'; charsOnLine++);
+        if(charsOnLine >= t->textLen || t->text[charsOnLine] != '\n') return; // end of file dont move down
+        charsOnLine = (charsOnLine - lineStart);
 
-            int startOfNextLine = lineStart+charsOnLine+1;
-            int nextLineLen = startOfNextLine;
-            for(; nextLineLen < t->textLen && t->text[nextLineLen] != '\n'; nextLineLen++);
+        int startOfNextLine = lineStart+charsOnLine+1;
+        int nextLineLen = startOfNextLine;
+        for(; nextLineLen < t->textLen && t->text[nextLineLen] != '\n'; nextLineLen++);
 
-            nextLineLen = (nextLineLen - startOfNextLine);
+        nextLineLen = (nextLineLen - startOfNextLine);
 
-            if(nextLineLen > charsOnLine){
-                char *tmp = malloc(charsOnLine);
-                memcpy(tmp, &t->text[lineStart], charsOnLine);
-                memcpy(&t->text[lineStart], &t->text[startOfNextLine], nextLineLen);
-                t->text[lineStart+nextLineLen] = '\n';
-                memcpy(&t->text[lineStart+nextLineLen+1], tmp, charsOnLine);
+        if(nextLineLen > charsOnLine){
+            char *tmp = malloc(charsOnLine);
+            memcpy(tmp, &t->text[lineStart], charsOnLine);
+            memcpy(&t->text[lineStart], &t->text[startOfNextLine], nextLineLen);
+            t->text[lineStart+nextLineLen] = '\n';
+            memcpy(&t->text[lineStart+nextLineLen+1], tmp, charsOnLine);
 
-                free(tmp);
-            } else {
-                char *tmp = malloc(nextLineLen);
-                memcpy(tmp, &t->text[startOfNextLine], nextLineLen);
-
-                memcpy(&t->text[lineStart+nextLineLen+1], &t->text[lineStart], charsOnLine);
-                t->text[lineStart+nextLineLen] = '\n';
-                memcpy(&t->text[lineStart], tmp, nextLineLen);
-                free(tmp);
-            }
-
-            cursor->pos = lineStart+nextLineLen+1 + (cursor->pos - lineStart);
+            free(tmp);
         } else {
+            char *tmp = malloc(nextLineLen);
+            memcpy(tmp, &t->text[startOfNextLine], nextLineLen);
 
-            int lineStart = cursor->selection.startCursorPos == 0 ? 0 : cursor->selection.startCursorPos-1;
-            for(; lineStart > 0 && t->text[lineStart] != '\n'; lineStart--);
-            if(lineStart > 0) lineStart++; // skip \n of prev line
-
-            int charsOnLine = cursor->selection.startCursorPos+cursor->selection.len-1;
-            for(; charsOnLine < t->textLen && t->text[charsOnLine] != '\n'; charsOnLine++);
-            if(charsOnLine >= t->textLen || t->text[charsOnLine] != '\n') continue; // end of file dont move down
-
-            charsOnLine = (charsOnLine - lineStart);
-
-            int startOfNextLine = lineStart+charsOnLine+1;
-            int nextLineLen = startOfNextLine;
-            for(; nextLineLen < t->textLen && t->text[nextLineLen] != '\n'; nextLineLen++);
-
-            nextLineLen = (nextLineLen - startOfNextLine);
-
-            if(nextLineLen > charsOnLine){
-                char *tmp = malloc(charsOnLine);
-                memcpy(tmp, &t->text[lineStart], charsOnLine);
-                memcpy(&t->text[lineStart], &t->text[startOfNextLine], nextLineLen);
-                t->text[lineStart+nextLineLen] = '\n';
-                memcpy(&t->text[lineStart+nextLineLen+1], tmp, charsOnLine);
-
-                free(tmp);
-            } else {
-                char *tmp = malloc(nextLineLen);
-                memcpy(tmp, &t->text[startOfNextLine], nextLineLen);
-
-                memcpy(&t->text[lineStart+nextLineLen+1], &t->text[lineStart], charsOnLine);
-                t->text[lineStart+nextLineLen] = '\n';
-                memcpy(&t->text[lineStart], tmp, nextLineLen);
-                free(tmp);
-            }
-
-            cursor->pos = lineStart+nextLineLen+1 + (cursor->pos - lineStart);
-            cursor->selection.startCursorPos = lineStart+nextLineLen+1 + (cursor->selection.startCursorPos - lineStart);
-
+            memcpy(&t->text[lineStart+nextLineLen+1], &t->text[lineStart], charsOnLine);
+            t->text[lineStart+nextLineLen] = '\n';
+            memcpy(&t->text[lineStart], tmp, nextLineLen);
+            free(tmp);
         }
+
+        cursor->pos = lineStart+nextLineLen+1 + (cursor->pos - lineStart);
+    } else {
+
+        int lineStart = cursor->selection.startCursorPos == 0 ? 0 : cursor->selection.startCursorPos-1;
+        for(; lineStart > 0 && t->text[lineStart] != '\n'; lineStart--);
+        if(lineStart > 0) lineStart++; // skip \n of prev line
+
+        int charsOnLine = cursor->selection.startCursorPos+cursor->selection.len-1;
+        for(; charsOnLine < t->textLen && t->text[charsOnLine] != '\n'; charsOnLine++);
+        if(charsOnLine >= t->textLen || t->text[charsOnLine] != '\n') return; // end of file dont move down
+
+        charsOnLine = (charsOnLine - lineStart);
+
+        int startOfNextLine = lineStart+charsOnLine+1;
+        int nextLineLen = startOfNextLine;
+        for(; nextLineLen < t->textLen && t->text[nextLineLen] != '\n'; nextLineLen++);
+
+        nextLineLen = (nextLineLen - startOfNextLine);
+
+        if(nextLineLen > charsOnLine){
+            char *tmp = malloc(charsOnLine);
+            memcpy(tmp, &t->text[lineStart], charsOnLine);
+            memcpy(&t->text[lineStart], &t->text[startOfNextLine], nextLineLen);
+            t->text[lineStart+nextLineLen] = '\n';
+            memcpy(&t->text[lineStart+nextLineLen+1], tmp, charsOnLine);
+
+            free(tmp);
+        } else {
+            char *tmp = malloc(nextLineLen);
+            memcpy(tmp, &t->text[startOfNextLine], nextLineLen);
+
+            memcpy(&t->text[lineStart+nextLineLen+1], &t->text[lineStart], charsOnLine);
+            t->text[lineStart+nextLineLen] = '\n';
+            memcpy(&t->text[lineStart], tmp, nextLineLen);
+            free(tmp);
+        }
+
+        cursor->pos = lineStart+nextLineLen+1 + (cursor->pos - lineStart);
+        cursor->selection.startCursorPos = lineStart+nextLineLen+1 + (cursor->selection.startCursorPos - lineStart);
+
     }
+    // }
 }
 
 static void MoveLinesText(TextEditor *t, TextEditorCommand *c){
-
+    LoadCursors(t,c);
     int k;
 
     if(t->text == NULL || !t->textLen)
@@ -775,12 +775,14 @@ static void MoveLinesText(TextEditor *t, TextEditorCommand *c){
             MoveLineUp(t, cursor);
     }
 
+    SaveCursors(t,c);
     ResolveCursorCollisions(t,0);
 }
 
 static void UndoMoveLinesText(TextEditor *t, TextEditorCommand *c){
 
     int k;
+    LoadCursors(t,c);
 
     if(t->text == NULL || !t->textLen)
         return;
@@ -796,6 +798,7 @@ static void UndoMoveLinesText(TextEditor *t, TextEditorCommand *c){
     }
 
     ResolveCursorCollisions(t,0);
+    SaveCursors(t,c);
 }
 
 
@@ -1061,7 +1064,7 @@ static void SelectNextWord(TextEditor *t, TextEditorCommand *c){
         }
     }
 
-        ResolveCursorCollisions(t,0);
+    ResolveCursorCollisions(t,0);
 }
 
 // static void ExpandSelectionBrackets(TextEditor *t,TextEditorCommand *c){
@@ -1084,6 +1087,12 @@ static void Paste(TextEditor *t, TextEditorCommand *c){
         if(clipboard[f] == '\n') line++;
     }
 
+    if(line != t->nCursors){
+        // \n is fine, but not for the final line
+        clipboard[strlen(clipboard)-1] = 0;
+        clipboardLen--;
+    }
+
     f = 0;
 
     int k;
@@ -1095,9 +1104,7 @@ static void Paste(TextEditor *t, TextEditorCommand *c){
         // if(t->cursors[k].clipboard == NULL) continue;
         // c->addedLens[k] = strlen(t->cursors[k].clipboard);
 
-
-        if(t->nCursors > 0 && t->nCursors == line){
-        
+        if(t->nCursors == line){
             int start = f;
             char tmp = 0;
 
@@ -1132,12 +1139,11 @@ static void UndoPaste(TextEditor *t, TextEditorCommand *c){
     LoadCursors(t, c);
 
     int k;
-    for(k = t->nCursors-1; k >= 0; k--){
+    for(k = c->nSavedCursors-1; k >= 0; k--){
+        RemoveStrFromText(t, &k, c->savedCursors[k].addedLen);
 
-        RemoveStrFromText(t, &k, t->cursors[k].addedLen);
-
-        if(k < c->nSavedCursors && t->cursors[k].savedText){
-            AddStrToText(t, &k, t->cursors[k].savedText);
+        if(k < c->nSavedCursors && c->savedCursors[k].savedText){
+            AddStrToText(t, &k, c->savedCursors[k].savedText);
         }
     }
 
@@ -1450,9 +1456,9 @@ static void UndoDeleteLine(TextEditor *t, TextEditorCommand *c){
     for(k = 0; k < t->nCursors; k++){
 
         // TextEditorCursor *cursor = &t->cursors[k];
-        AddStrToText(t, &k, t->cursors[k].savedText);
+        AddStrToText(t, &k, c->savedCursors[k].savedText);
     }
-    SaveCursors(t, c);
+    // SaveCursors(t, c);
 }
 
 static void DeleteLine(TextEditor *t, TextEditorCommand *c){
@@ -1461,7 +1467,7 @@ static void DeleteLine(TextEditor *t, TextEditorCommand *c){
 
     if(t->text == NULL) return;
 
-
+    LoadCursors(t,c);
     // RefreshEditorCommand(c);
 
 /*
@@ -1491,8 +1497,8 @@ static void DeleteLine(TextEditor *t, TextEditorCommand *c){
         RemoveStrFromText(t, &k, end-start);
     }
 
-    RemoveSelections(t);
     SaveCursors(t,c);
+    RemoveSelections(t);
     RemoveExtraCursors(t);
 }
 
@@ -1626,7 +1632,10 @@ static void SaveCursors(TextEditor *t, TextEditorCommand *c){
             c->savedCursors[k].savedText = malloc(len+1);
             c->savedCursors[k].savedText[len] = 0;
             memcpy(c->savedCursors[k].savedText, t->cursors[k].savedText, len);
+            free(t->cursors[k].savedText);
+            t->cursors[k].savedText = NULL;
         }
+        t->cursors[k].addedLen = 0;
     }
 
 }
@@ -1881,11 +1890,10 @@ static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c){
     LoadCursors(t, c);
 
     int k;
-    for(k = t->nCursors-1; k >= 0; k--){
-        RemoveStrFromText(t, &k, t->cursors[k].addedLen);
-
-        if(k < c->nSavedCursors && t->cursors[k].savedText){
-            AddStrToText(t, &k, t->cursors[k].savedText);
+    for(k = c->nSavedCursors-1; k >= 0; k--){
+        RemoveStrFromText(t, &k, c->savedCursors[k].addedLen);
+        if(k < c->nSavedCursors && c->savedCursors[k].savedText){
+            AddStrToText(t, &k, c->savedCursors[k].savedText);
         }
     }
 
@@ -1923,6 +1931,8 @@ static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c){
 // }
 
 static void IndentLine(TextEditor *t, TextEditorCommand *c){
+
+    LoadCursors(t,c);
 
     int k;
     for(k = 0; k < t->nCursors; k++){
@@ -2009,6 +2019,7 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
 
         t->cursors[k].pos = prev;
     }
+    SaveCursors(t,c);
 }
 
 static void AddCharacters(TextEditor *t, TextEditorCommand *c){
@@ -2314,7 +2325,7 @@ void TextEditor_Init(TextEditor *t){
     AddCommand(t, CreateCommand((unsigned int[]){'x'|EDIT_CTRL_KEY  , 0}, "", 1, Cut, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){'c'|EDIT_CTRL_KEY  , 0}, "", 1, Copy, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){'v'|EDIT_CTRL_KEY  , 0}, "", 1, Paste, UndoPaste));
-    AddCommand(t, CreateCommand((unsigned int[]){31 /* ctrl + / */, 0}, "", 1, FindCommand, NULL));
+    // AddCommand(t, CreateCommand((unsigned int[]){31 /* ctrl + / */, 0}, "", 1, FindCommand, NULL));
 
 
     t->cursors = (TextEditorCursor *)malloc(sizeof(TextEditorCursor) * ++t->nCursors);
@@ -2530,18 +2541,6 @@ void TextEditor_Draw(TextEditor *t){
                     y++;
                     x = 0;
                     ctOffset = ++k;
-
-            //         //     Graphics_attron( COLOR_SIDE_NUMBERS);
-            //         //     // for(j = 0; j < nDigits+1; j++)
-                        //     Graphics_mvprintw(logX+ y,logY+ j, " ");
-            //         //     // Graphics_attron( A_BOLD);
-            //         //     sprintf(buffer, "%i", y+t->scroll);
-                        // Graphics_mvprintw(logX+x, logY+y, 0, buffer);
-            //         //     // Graphics_attroff(A_BOLD);
-            //         //     Graphics_attron( currColor);
-            //         // }
-
-                    // x = nDigits+1;
                     continue;
                 }
 
@@ -2558,7 +2557,6 @@ void TextEditor_Draw(TextEditor *t){
                 }
 
                 if(c == '/' && t->text[k+1] == '/') comment = 1;
-                else if(c == '-' && t->text[k+1] == '-') comment = 1;
                 else if(c == '/' && t->text[k+1] == '*') comment = 2;
                 else if(c == '"') string = 1;
                 else if(c == '\'') string = 2;
@@ -2724,6 +2722,34 @@ void TextEditor_Draw(TextEditor *t){
     }
 
     int j;
+
+    Graphics_attron(COLOR_LINE_NUM);        
+    // draw line numbers
+    for(k = 0; k < Graphics_TextCollumns(); k++){
+        char buffer[10];
+        sprintf(buffer, "%i", t->scroll+k);
+        Graphics_mvprintw(0, logY+k, buffer, strlen(buffer));
+    }
+
+    if(t->logging && t->logging != LOGMODE_CONSOLE){
+
+        Graphics_attron(COLOR_FIND);
+        char buffer[4];
+        buffer[3] = 0;
+        sprintf(buffer, "ERR");
+        if(t->logging == LOGMODE_NUM){ sprintf(buffer, "g: "); }        
+        else if(t->logging == LOGMODE_TEXT){ sprintf(buffer, "f: "); }        
+        else if(t->logging == LOGMODE_OPEN){ sprintf(buffer, "o: "); }        
+        else if(t->logging == LOGMODE_SAVE){ sprintf(buffer, "w: "); }        
+        Graphics_mvprintw(0, 0, buffer, strlen(buffer));
+    
+        if(t->loggingText)        
+            Graphics_mvprintw(3, 0, t->loggingText, strlen(t->loggingText));
+
+    }
+
+    Graphics_RenderNCurses();
+
     k = 0;
     y = 0;
 
@@ -2763,30 +2789,7 @@ void TextEditor_Draw(TextEditor *t){
 
     }
 
-    Graphics_attron(COLOR_LINE_NUM);        
-    // draw line numbers
-    for(k = 0; k < Graphics_TextCollumns(); k++){
-        char buffer[10];
-        sprintf(buffer, "%i", t->scroll+k);
-        Graphics_mvprintw(0, logY+k, buffer, strlen(buffer));
-    }
-
-    if(t->logging && t->logging != LOGMODE_CONSOLE){
-
-        Graphics_attron(COLOR_FIND);
-        char buffer[4];
-        buffer[3] = 0;
-        sprintf(buffer, "ERR");
-        if(t->logging == LOGMODE_NUM){ sprintf(buffer, "g: "); }        
-        else if(t->logging == LOGMODE_TEXT){ sprintf(buffer, "f: "); }        
-        else if(t->logging == LOGMODE_OPEN){ sprintf(buffer, "o: "); }        
-        else if(t->logging == LOGMODE_SAVE){ sprintf(buffer, "w: "); }        
-        Graphics_mvprintw(0, 0, buffer, strlen(buffer));
-    
-        if(t->loggingText)        
-            Graphics_mvprintw(3, 0, t->loggingText, strlen(t->loggingText));
-
-    }
+    Graphics_RenderNCurses();
 }
 
 

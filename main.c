@@ -130,7 +130,6 @@ int main(int argc, char **argv){
 
         Graphics_Clear();
         TextEditor_Draw(&gc.te);        
-        Graphics_RenderNCurses();
 
 
         if(gc.te.quit) break;

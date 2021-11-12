@@ -667,12 +667,14 @@ void Graphics_UseShader(int shader){
     glUseProgram(shaders[shader].program);
 }
 
+static u32 FontWidth(){ return fontTTF.fontCharacters[(int)' '].ax; }
+static u32 FontHeight(){ return fontTTF.fontSize*1.3; }
 
 u32 Graphics_TextCollumns(){
-   return viewport.h / fontSize; 
+   return viewport.h / FontHeight(); 
 }
 u32 Graphics_TextRows(){
-   return viewport.w / fontSize;
+   return viewport.w / FontWidth();
 }
 
 void Graphics_SetFontSize(u8 fs){
@@ -682,8 +684,8 @@ void Graphics_SetFontSize(u8 fs){
 void Graphics_mvprintw(float x, float y, char *str, int strLen){
 
 
-    float fontSizeX = fontTTF.fontCharacters[(int)' '].ax;
-    float fontSizeY = fontTTF.fontSize*1.3;
+    float fontSizeX = FontWidth();
+    float fontSizeY = FontHeight();
     u32 k;
 
     // float fontSize = font_g.width / 16;
@@ -695,6 +697,9 @@ void Graphics_mvprintw(float x, float y, char *str, int strLen){
 
     int j;
     for(j = 0; j < strLen && stringOffset < MAX_TEXT_CHARS*6; j++){
+
+        if(x > viewport.w) break;
+        if(y > viewport.h) break;
 
         p = str[j];
         // if(p < 32) continue;
