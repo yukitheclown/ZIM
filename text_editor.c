@@ -1932,7 +1932,7 @@ static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c){
 
 static void IndentLine(TextEditor *t, TextEditorCommand *c){
 
-    LoadCursors(t,c);
+    // LoadCursors(t,c);
 
     int k;
     for(k = 0; k < t->nCursors; k++){
@@ -1949,7 +1949,7 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
                 TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0, AddCharacters, UndoAddCharacters);
                 ExecuteCommand(t,command);
                 FreeCommand(command);
-                prev++;
+                // prev++;
             } else {
                 if (t->text[t->cursors[k].pos] == '\t' || t->text[t->cursors[k].pos] == ' '){
                     t->cursors[k].pos++;
@@ -1957,7 +1957,7 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
                         RemoveCharacters, UndoRemoveCharacters);
                     ExecuteCommand(t,command);
                     FreeCommand(command);
-                    prev--;
+                    // prev--;
                 } 
             }
 
