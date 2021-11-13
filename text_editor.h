@@ -113,6 +113,12 @@ typedef struct {
   int                     textLen;
 
   int                     quit;
+
+  int                     ttyPid;
+  int                     ttyMaster;
+  int                     ttySlave;
+  int                     _stdout;
+  int                     _stderr;
  };
 
  void TextEditor_Draw(TextEditor *t);

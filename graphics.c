@@ -15,8 +15,6 @@
 #define STRDEF(x) STR(x)
 #define STR(x) #x
 
-#define CLEAR_COLOR 0,0,0,0
-
 #define POS_ATTRIB "pos"
 #define UV_ATTRIB "uv"
 #define COLORFG_ATTRIB "colorFG"
@@ -24,7 +22,7 @@
 
 #define FONT_SIZE_BITS 4
 #define FONT_SIZE_MASK ((1 << FONT_SIZE_BITS)-1)
-#define FONTSIZE 9
+#define FONTSIZE 10
 
 
 #define MAXTEXTHEIGHT 130
@@ -43,16 +41,29 @@ typedef struct {
 } RGBColor;
 
 static RGBColor ncursesColors[NUM_COLORS] = {
-    {0,1,1},
-    {1,0,0},
-    {1,1,0},
-    {0,0,1},
-    {0,1,0},
-    {1,0,1},
-    {1,1,1},
-    {0,0,0},
-    {0.4,0.4,0.4},
-    {0,0,0},
+    //gruvbox
+    {0x8e/(float)255,0xc0/(float)255,0x7c/(float)255}, //cyan
+    {0xfb/(float)255,0x49/(float)255,0x34/(float)255},//red
+    {0xfa/(float)255,0xbd/(float)255,0x2f/(float)255},//yellow
+    {0x83/(float)255,0xa5/(float)255,0x98/(float)255},//blue
+    {0xb8/(float)255,0xbb/(float)255,0x26/(float)255}, //green
+    {0xd3/(float)255,0x86/(float)255,0x9b/(float)255}, //magenta purple
+    {0xeb/(float)255,0xdb/(float)255,0xb2/(float)255},//fg
+    {0x28/(float)255,0x28/(float)255,0x28/(float)255},//bg
+    {0x92/(float)255,0x83/(float)255,0x74/(float)255},//grey
+    {0x28/(float)255,0x28/(float)255,0x28/(float)255},//bg
+
+    // aurora
+    // {0xa1/255.0f,0xef/255.0f,0xe4/255.0f}, //cyan
+    // {0xff/255.0f,0x58/255.0f,0x74/255.0f}, //red
+    // {0xec/255.0f,0xc4/255.0f,0x8d/255.0f}, //yellow
+    // {0x82/255.0f,0xaa/255.0f,0xf0/255.0f}, //blue
+    // {0xad/255.0f,0xdb/255.0f,0x67/255.0f}, //green
+    // {0xbd/255.0f,0x93/255.0f,0xf3/255.0f}, //magenta
+    // {0xd6/255.0f,0xde/255.0f,0xeb/255.0f}, //white
+    // {0x14/255.0f,0x14/255.0f,0x15/255.0f}, //black
+    // {0x74/255.0f,0x74/255.0f,0x75/255.0f}, //grey
+    // {0x14/255.0f,0x14/255.0f,0x15/255.0f}, //bg
 };
 
 static u8           ncursesBgColors[MAX_TEXT_CHARS*6];
@@ -337,7 +348,7 @@ static void CreateFrameBuffer(void){
 
     glViewport(0, 0, viewport.w, viewport.h);
 
-    glClearColor(CLEAR_COLOR);
+    glClearColor(ncursesColors[COLOR_BG-1].r,ncursesColors[COLOR_BG-1].g,ncursesColors[COLOR_BG-1].b,1);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -530,7 +541,7 @@ void Graphics_Clear(void){
     glBindFramebuffer(GL_FRAMEBUFFER, fb_g);
     glViewport(0, 0, viewport.w, viewport.h);
 
-    glClearColor(CLEAR_COLOR);
+    glClearColor(ncursesColors[COLOR_BG-1].r,ncursesColors[COLOR_BG-1].g,ncursesColors[COLOR_BG-1].b,1);
     glClear(GL_COLOR_BUFFER_BIT);
     
     glCullFace(GL_BACK);

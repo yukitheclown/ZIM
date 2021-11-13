@@ -76,69 +76,67 @@ void Event(GodCode_t *gc){
 }
 
 int main(int argc, char **argv){
-
-
     Window_Open();
     Graphics_Init();
 
     GodCode_t gc;
     memset(&gc,0,sizeof(GodCode_t));
 
-	TextEditor_Init(&gc.te);
+    TextEditor_Init(&gc.te);
 
     SDL_StartTextInput();
     u32 currTime;
     u32 frames = 0;
     u32 lastSecond = SDL_GetTicks();
 
-	while(gc.state != GODCODE_STATE_QUIT){
-        currTime = SDL_GetTicks();
+    while(gc.state != GODCODE_STATE_QUIT){
+       currTime = SDL_GetTicks();
 
 
-        int fps;
-        float frameTime;
-        if(currTime - lastSecond > 1000){
-            fps = frames;
-            frameTime = (currTime - lastSecond) / (float)frames;
-            lastSecond = currTime;
-            frames = 0;
+       int fps;
+       float frameTime;
+       if(currTime - lastSecond > 1000){
+           fps = frames;
+           frameTime = (currTime - lastSecond) / (float)frames;
+           lastSecond = currTime;
+           frames = 0;
 
 
-            printf("fps: %i | ms: %f\n", fps, frameTime);
-        }
+           // printf("fps: %i | ms: %f\n", fps, frameTime);
+       }
 
 
-        ++frames;
+       ++frames;
 
 
-        Event(&gc);
+       Event(&gc);
 
-        if(gc.state == GODCODE_STATE_UPDATE){
-                int key = gc.key;
+       if(gc.state == GODCODE_STATE_UPDATE){
+               int key = gc.key;
 
-            if((gc.key >> 8) == (EDIT_SHIFT_KEY >> 8)){
-                key = (gc.key & 0xFF);
+           if((gc.key >> 8) == (EDIT_SHIFT_KEY >> 8)){
+               key = (gc.key & 0xFF);
 
-            } 
+           } 
 
-            TextEditor_Event(&gc.te,key);
+           TextEditor_Event(&gc.te,key);
 
-            gc.key = gc.key & 0xff00;
+           gc.key = gc.key & 0xff00;
 
-            gc.state = GODCODE_STATE_RUNNING;
-        }
+           gc.state = GODCODE_STATE_RUNNING;
+       }
 
-        Graphics_Clear();
-        TextEditor_Draw(&gc.te);        
+       Graphics_Clear();
+       TextEditor_Draw(&gc.te);        
 
 
-        if(gc.te.quit) break;
-        Graphics_Render();
-        Window_Swap();
-	}
+       if(gc.te.quit) break;
+       Graphics_Render();
+       Window_Swap();
+    }
 
-	TextEditor_Destroy(&gc.te);
+    TextEditor_Destroy(&gc.te);
     Graphics_Close();
     Window_Close();
-	return 0;
+    return 0;
 }

@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <termios.h>
+#include <pty.h>
 #include <math.h>
 
 #ifndef UNUSED
@@ -26,7 +28,17 @@ enum {
     COLOR_AUTO_COMPLETE,
     COLOR_CURSOR,
     COLOR_SIDE_NUMBERS,
+    TE_COLOR_BLACK,
+    TE_COLOR_RED,
+    TE_COLOR_GREEN,
+    TE_COLOR_YELLOW,
+    TE_COLOR_BLUE,
+    TE_COLOR_CYAN,
+    TE_COLOR_MAGENTA,
+    TE_COLOR_WHITE,
+    TE_COLOR_NUM_STANDARD,
 };
+
 
 static void EndLogging(TextEditor *t);
 static void FindTextGoto(TextEditor *t, int dir);
@@ -148,6 +160,15 @@ static void EndLogging(TextEditor *t){
     if(t->loggingText) free(t->loggingText);
     t->logging = 0;
     t->loggingText = NULL;
+
+    if(t->logging == LOGMODE_CONSOLE){
+        fsync(STDERR_FILENO);
+        fsync(STDOUT_FILENO);
+        dup2(t->_stderr, STDERR_FILENO);
+        dup2(t->_stdout, STDOUT_FILENO);
+        close(t->ttyMaster);
+        close(t->ttySlave);
+    }
 }
 
 static void FindTextGoto(TextEditor *t, int dir){
@@ -812,15 +833,19 @@ static void DoOpenFile(TextEditor *t){
     EndLogging(t);
 }
 static void DoSaveFile(TextEditor *t){
-
+    FILE *fp = fopen(t->loggingText, "w");
+    fwrite(t->text,1,strlen(t->text),fp);
+    fclose(fp);
+    EndLogging(t);
 }
+
 static void OpenFile(TextEditor *t, TextEditorCommand *c){
     EndLogging(t);
     t->logging = LOGMODE_OPEN;
 }
 static void SaveFile(TextEditor *t, TextEditorCommand *c){
     EndLogging(t);
-    t->logging = LOGMODE_OPEN;
+    t->logging = LOGMODE_SAVE;
 }
 
 static void FindText(TextEditor *t, TextEditorCommand *c){
@@ -2259,17 +2284,26 @@ void TextEditor_Init(TextEditor *t){
     Graphics_init_pair(COLOR_SIDE_NUMBERS, COLOR_WHITE, COLOR_BLACK);
     Graphics_init_pair(COLOR_NORMAL, COLOR_WHITE, COLOR_BLACK);
     Graphics_init_pair(COLOR_KEYWORD, COLOR_CYAN, COLOR_BLACK);
-    Graphics_init_pair(COLOR_COMMENT, COLOR_BLUE, COLOR_BLACK);
-    Graphics_init_pair(COLOR_TOKEN, COLOR_GREEN, COLOR_BLACK);
+    Graphics_init_pair(COLOR_COMMENT, COLOR_GREY, COLOR_BLACK);
+    Graphics_init_pair(COLOR_TOKEN, COLOR_BLUE, COLOR_BLACK);
     Graphics_init_pair(COLOR_NUM, COLOR_RED, COLOR_BLACK);
     Graphics_init_pair(COLOR_FUNCTION, COLOR_YELLOW, COLOR_BLACK);
     Graphics_init_pair(COLOR_STRING, COLOR_MAGENTA, COLOR_BLACK);
 
-    Graphics_init_pair(COLOR_SELECTED, COLOR_BLACK ,COLOR_YELLOW);
+    Graphics_init_pair(COLOR_SELECTED, COLOR_BLACK ,COLOR_CYAN);
     Graphics_init_pair(COLOR_AUTO_COMPLETE, COLOR_BLACK, COLOR_WHITE);
     Graphics_init_pair(COLOR_CURSOR, COLOR_BLACK ,COLOR_MAGENTA);
     Graphics_init_pair(COLOR_FIND, COLOR_BLACK ,COLOR_WHITE);
     Graphics_init_pair(COLOR_LINE_NUM, COLOR_GREY ,COLOR_BLACK);
+
+    Graphics_init_pair(TE_COLOR_BLACK, COLOR_BLACK ,COLOR_WHITE);
+    Graphics_init_pair(TE_COLOR_WHITE, COLOR_WHITE ,COLOR_BLACK);
+    Graphics_init_pair(TE_COLOR_CYAN, COLOR_CYAN ,COLOR_BLACK);
+    Graphics_init_pair(TE_COLOR_RED, COLOR_RED ,COLOR_BLACK);
+    Graphics_init_pair(TE_COLOR_YELLOW, COLOR_YELLOW ,COLOR_BLACK);
+    Graphics_init_pair(TE_COLOR_BLUE, COLOR_BLUE ,COLOR_BLACK);
+    Graphics_init_pair(TE_COLOR_GREEN, COLOR_GREEN ,COLOR_BLACK);
+    Graphics_init_pair(TE_COLOR_MAGENTA, COLOR_MAGENTA ,COLOR_BLACK);
 
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_UP  , 0}, "", -1, MoveLinesText, UndoMoveLinesText));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_DOWN  , 0}, "", 1, MoveLinesText, UndoMoveLinesText));
@@ -2278,7 +2312,7 @@ void TextEditor_Init(TextEditor *t){
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'w'  , 0}, "", 0, SaveFile, NULL));
 
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'/'  , 0}, "", 0, ToggleComment, ToggleComment));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'/'  , 0}, "", 0, ToggleComment, ToggleComment));
+    // AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'/'  , 0}, "", 0, ToggleComment, ToggleComment));
 
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'m'  , 0}, "", 0, MoveBrackets, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'j'  , 0}, "", 0, SelectBrackets, NULL));
@@ -2351,35 +2385,130 @@ void TextEditor_Draw(TextEditor *t){
 
     if(t->logging == LOGMODE_CONSOLE){
 
-        FILE *logfp = fopen("thothlog.txt", "r");
-        fseek(logfp, 0, SEEK_END);
-        int len = ftell(logfp);
-        rewind(logfp);
-        if(t->loggingText) free(t->loggingText);
-        t->loggingText = (char *)malloc(len);
-        t->loggingText[len] = 0;
-        fread(t->loggingText, 1, len, logfp);
-        fclose(logfp);
+        fd_set rfds;
+        struct timeval tv = {0, 0};
+        char buf[4097];
+
+        int logLen = strlen(t->loggingText);
+
+        // while (1) {
+        // if (waitpid(t->ttyPid, NULL, WNOHANG) == pid) {
+        //   break;
+        // }
+        FD_ZERO(&rfds);
+        FD_SET(t->ttyMaster, &rfds);
+        if (select(t->ttyMaster + 1, &rfds, NULL, NULL, &tv)) {
+          int size = read(t->ttyMaster, buf, 4096);
+
+          t->loggingText = realloc(t->loggingText, logLen+size);
+          memcpy(&t->loggingText[logLen], buf, size);
+
+          logLen += size;
+          t->loggingText[logLen] = 0;
+        }
+
+        // FILE *logfp = fopen("thothlog.txt", "rb");
+        // fseek(logfp, 0, SEEK_END);
+        // int logLen = ftell(logfp);
+        // rewind(logfp);
+        // t->loggingText = (char *)malloc(logLen+1);
+        // t->loggingText[logLen] = 0;
+        // fread(t->loggingText, 1, logLen, logfp);
 
         Graphics_attron(COLOR_NORMAL);
-        int logLen = strlen(t->loggingText);
+        // int logLen = strlen(log);
+
 
         int last = 0;
         for(k = 0; k < logLen; k++){
+
+            if(t->loggingText[k] == 0x1b){ // ansi
+
+                // Graphics_mvprintw(x, y, &t->loggingText[last], (k-last));
+                // x += k - last;
+                // if(x >= Graphics_TextRows()){
+                //     y++;
+                //     x = 0;
+                // }
+
+                if(t->loggingText[k+1] == '['){
+                    k += 2;
+
+                    last = k;
+                    // params
+                    int params[2] = {-1,-1};
+                    int nParams = 0;
+                    int lastParam = k;
+                    while(k < logLen && t->loggingText[k] >= 0x30 && t->loggingText[k] <= 0x3F){
+                        if(t->loggingText[k] == ';'){
+                            t->loggingText[k] = 0;
+                            params[nParams++] = atoi(&t->loggingText[lastParam]);
+                            t->loggingText[k] = ';';
+                            lastParam = k+1;
+                        }
+                        k++;
+                    }
+
+                    if(last != k){
+                        char tmp = t->loggingText[k];
+                        t->loggingText[k] = 0;
+                        params[nParams++] = atoi(&t->loggingText[lastParam]);
+                        t->loggingText[k] = tmp;
+                    }
+
+
+                    while(k < logLen && t->loggingText[k] >= 0x20 && t->loggingText[k] <= 0x2F){ k++; }
+                    
+                    last = k;
+                    // ending
+
+                    if(k < logLen && t->loggingText[k] >= 0x40 && t->loggingText[k] <= 0x7e){ k++; }
+
+                    if(t->loggingText[k-1] == 'm'){
+                        int m;
+                        for(m = 0; m < nParams; m++){
+                            
+                            if(params[m] >= 30){
+                                int ansi = params[m]-30;
+                                if(ansi >= 7) ansi = 7;
+                                Graphics_attron(TE_COLOR_BLACK + ansi);
+                            } 
+                            // if(params[m] == 01){
+                            //     Graphics_attron(BOLD);
+                            // }
+                        }
+
+                        if(nParams == 0){
+                            Graphics_attron(TE_COLOR_WHITE);
+                        }
+                    }
+
+                }
+
+
+                last = k;
+                k--;
+                continue;
+            }
+
+
             if(x >= Graphics_TextRows() || t->loggingText[k] == '\n'){
-                Graphics_mvprintw(0, y, &t->loggingText[last], (k-last));
-                if(t->loggingText[k] == '\n' || t->loggingText[k] == '\r') k++;
                 last = k;
                 y++;
                 x = 0;
+            // if(Graphics_TextRows() != x) k++;
+                if(x < Graphics_TextRows())
+                    continue;
             }
+
+            Graphics_mvprintw(x, y, &t->loggingText[k], 1);
             x++;
         }
 
-        if(k != logLen){
-            Graphics_mvprintw(0, y, &t->loggingText[last], (logLen-last));
-            y++;
-        }
+
+        // fclose(logfp);
+        // free(t->loggingText);
+        // t->loggingText = NULL;
 
         logY = y;
     }
@@ -2838,11 +2967,24 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         if(key == ((( unsigned int)'b') | EDIT_CTRL_KEY)){
             
             if(t->loggingText) free(t->loggingText);
-            t->loggingText = NULL;
-        
+            t->loggingText = malloc(1);
+            t->loggingText[0] = 0;
+            
 
+            openpty(&t->ttyMaster, &t->ttySlave, NULL, NULL, NULL);
 
-            system("make > thothlog.txt 2>&1 &");
+            t->_stderr = dup(STDERR_FILENO);
+            t->_stdout = dup(STDOUT_FILENO);
+            dup2(t->ttySlave, STDERR_FILENO);
+            dup2(t->ttySlave, STDOUT_FILENO);
+
+            t->ttyPid = fork();
+            if (t->ttyPid == 0) {
+                char *args[] = {"make",NULL};
+                execvp(args[0], args);
+            }
+
+            // system("make > thothlog.txt 2>&1 &");
 
             t->logging = LOGMODE_CONSOLE;
             return;
