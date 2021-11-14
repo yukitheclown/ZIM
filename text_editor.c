@@ -70,6 +70,7 @@ static void MoveLineDown(TextEditor *t, TextEditorCursor *c);
 static void RemoveSelections(TextEditor *t);
 static void SetCursorToSelection(TextEditorCursor *cursor, int n);
 static void MoveByChars(TextEditor *t, TextEditorCommand *c);
+static void SelectAll(TextEditor *t, TextEditorCommand *c);
 static void MoveByWords(TextEditor *t, TextEditorCommand *c);
 static void FreeCursors(TextEditor *t);
 static void MoveCursorUpLine(TextEditor *t, TextEditorCursor *cursor);
@@ -1465,6 +1466,18 @@ static void ExpandSelectionLines(TextEditor *t, TextEditorCommand *c){
     }
 }
 
+static void SelectAll(TextEditor *t, TextEditorCommand *c){
+
+    if(t->text == NULL) return;
+
+    RemoveExtraCursors(t);
+
+    t->textLen = strlen(t->text);
+    t->cursors[0].selection.len = t->textLen;
+    t->cursors[0].selection.startCursorPos = 0;
+    t->cursors[0].pos = 0;
+}
+
 static void UndoDeleteLine(TextEditor *t, TextEditorCommand *c){
 
     UNUSED(c);
@@ -2118,6 +2131,10 @@ static void FreeCommand(TextEditorCommand *c){
 
     if(c->savedCursors){
 
+        int k;
+        for(k = 0; k < c->nSavedCursors; k++){
+            if(c->savedCursors[k].savedText) free(c->savedCursors[k].savedText);
+        }
         free(c->savedCursors);
     }
     
@@ -2222,6 +2239,11 @@ static void RedoCommands(TextEditor *t, int num){
 }
 
 static void RemoveExtraCursors(TextEditor *t){
+    int k;
+    for(k = 1; k < t->nCursors; k++){
+        if(t->cursors[k].savedText) free(t->cursors[k].savedText);
+        t->cursors[k].savedText = NULL;
+    }
     t->cursors = (TextEditorCursor *)realloc(t->cursors, sizeof(TextEditorCursor));
     t->nCursors = 1;
 }
@@ -2352,6 +2374,7 @@ void TextEditor_Init(TextEditor *t){
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_LEFT  , 0}, "", -1, MoveByChars, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_RIGHT  , 0}, "", 1, MoveByChars, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_UP  , 0}, "", -1, MoveLines, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'a'  , 0}, "", 0, SelectAll, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_DOWN  , 0}, "", 1, MoveLines, NULL));
 
     AddCommand(t, CreateCommand((unsigned int[]){'z'|EDIT_CTRL_KEY  , 0}, "", 1, Undo, NULL));
@@ -2407,29 +2430,12 @@ void TextEditor_Draw(TextEditor *t){
           t->loggingText[logLen] = 0;
         }
 
-        // FILE *logfp = fopen("thothlog.txt", "rb");
-        // fseek(logfp, 0, SEEK_END);
-        // int logLen = ftell(logfp);
-        // rewind(logfp);
-        // t->loggingText = (char *)malloc(logLen+1);
-        // t->loggingText[logLen] = 0;
-        // fread(t->loggingText, 1, logLen, logfp);
-
         Graphics_attron(COLOR_NORMAL);
-        // int logLen = strlen(log);
-
 
         int last = 0;
         for(k = 0; k < logLen; k++){
 
             if(t->loggingText[k] == 0x1b){ // ansi
-
-                // Graphics_mvprintw(x, y, &t->loggingText[last], (k-last));
-                // x += k - last;
-                // if(x >= Graphics_TextRows()){
-                //     y++;
-                //     x = 0;
-                // }
 
                 if(t->loggingText[k+1] == '['){
                     k += 2;
