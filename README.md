@@ -1,18 +1,18 @@
-![Screenshot](Screenshot.png)
+![Screenshot](Screenshots/Screenshot.png)
 <br>
     <b>SelectNextWord</b> Find/Replace, CTRL+D In sublime text ||| <b>AddCursorCommand</b> Up/Down<br>
-    ![Screenshot](selectcursors.gif) ![Screenshot](cursors.gif)<br>
+    ![Screenshot](Screenshots/selectcursors.gif) ![Screenshot](Screenshots/cursors.gif)<br>
     <b>MoveLines</b> Up/Down ||| <b>MoveByWords</b> Left/Right <b>MoveByChars</b> Left/Right/Up/Down<br>
-    ![Screenshot](movelines.gif)  ![Screenshot](navigation.gif)<br>
+    ![Screenshot](Screenshots/movelines.gif)  ![Screenshot](Screenshots/navigation.gif)<br>
     <b>ExpandSelectionWords</b> Left/Right ||| <b>IndentLine</b> Left/Right<br>
-   ![Screenshot](selections.gif) ![Screenshot](indenting.gif)<br>
+   ![Screenshot](Screenshots/selections.gif) ![Screenshot](Screenshots/indenting.gif)<br>
     <b>Undo Redo Cut Copy Paste</b>  ||| <b>AutoComplete</b><br>
-    ![Screenshot](undo.gif) ![Screenshot](autocomplete.gif)<br>
+    ![Screenshot](Screenshots/undo.gif) ![Screenshot](Screenshots/autocomplete.gif)<br>
     
     
     
 
-![Screenshot](Screenshot.gif)<br>
+![Screenshot](Screenshots/Screenshot.gif)<br>
 
 <b>TODO</b>:<br>
 files save open etc<br>
