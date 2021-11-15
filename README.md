@@ -1,6 +1,6 @@
+New <b>colorscheme</b>(not in screenshots yet) is: https://github.com/morhetz/gruvbox<br>
+<b>font</b>: https://github.com/larsenwork/monoid<br>
 ![Screenshot](Screenshots/Screenshot.png)
-New colorscheme(not in screenshots yet) is https://github.com/morhetz/gruvbox
-New font https://github.com/larsenwork/monoid
 <br>
     <b>SelectNextWord</b> Find/Replace, CTRL+D In sublime text ||| <b>AddCursorCommand</b> Up/Down<br>
     ![Screenshot](Screenshots/selectcursors.gif) ![Screenshot](Screenshots/cursors.gif)<br>
