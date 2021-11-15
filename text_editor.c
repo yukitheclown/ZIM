@@ -2,12 +2,14 @@
 #include "text_editor.h"
 #include <stdio.h>
 #include <fcntl.h>
-#include <SDL.h>
+#include <SDL2/SDL.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef LINUX_COMPILE
 #include <termios.h>
 #include <pty.h>
+#endif
 #include <math.h>
 
 #ifndef UNUSED
@@ -60,7 +62,7 @@ static int GetStartOfPrevLine(char *text, int cPos);
 static void DoOpenFile(TextEditor *t);
 static void DoSaveFile(TextEditor *t);
 static void OpenFile(TextEditor *t, TextEditorCommand *c);
-static void LoadFile(TextEditor *t, char *path);
+void TextEditor_LoadFile(TextEditor *t, char *path);
 static void SaveFile(TextEditor *t, TextEditorCommand *c);
 // static void RefreshEditorCommand(TextEditorCommand *c);
 static void ResolveCursorCollisions(TextEditor *t, int *cursorIndex);
@@ -159,17 +161,20 @@ static int GetCharsIntoLine(char *text, int cPos){
 
 static void EndLogging(TextEditor *t){
     if(t->loggingText) free(t->loggingText);
-    t->logging = 0;
-    t->loggingText = NULL;
 
     if(t->logging == LOGMODE_CONSOLE){
+#ifdef LINUX_COMPILE
         fsync(STDERR_FILENO);
         fsync(STDOUT_FILENO);
         dup2(t->_stderr, STDERR_FILENO);
         dup2(t->_stdout, STDOUT_FILENO);
         close(t->ttyMaster);
         close(t->ttySlave);
+#endif
     }
+
+    t->logging = 0;
+    t->loggingText = NULL;
 }
 
 static void FindTextGoto(TextEditor *t, int dir){
@@ -830,7 +835,7 @@ static void GotoLine(TextEditor *t, TextEditorCommand *c){
 }
 
 static void DoOpenFile(TextEditor *t){
-    LoadFile(t, t->loggingText);
+    TextEditor_LoadFile(t, t->loggingText);
     EndLogging(t);
 }
 static void DoSaveFile(TextEditor *t){
@@ -1471,7 +1476,6 @@ static void SelectAll(TextEditor *t, TextEditorCommand *c){
     if(t->text == NULL) return;
 
     RemoveExtraCursors(t);
-
     t->textLen = strlen(t->text);
     t->cursors[0].selection.len = t->textLen;
     t->cursors[0].selection.startCursorPos = 0;
@@ -2250,7 +2254,6 @@ static void RemoveExtraCursors(TextEditor *t){
 
 static void ExecuteCommand(TextEditor *t, TextEditorCommand *c){
 
-
     if(c->Undo == NULL || t->logging){
         c->Execute(t, c);
         return;
@@ -2279,7 +2282,7 @@ static void AddCommand(TextEditor *t, TextEditorCommand *c){
     t->commands[t->nCommands-1] = c;
 }
 
-static void LoadFile(TextEditor *t, char *path){
+void TextEditor_LoadFile(TextEditor *t, char *path){
     FILE *fp = fopen(path, "r");
 
     fseek(fp, 0, SEEK_END);
@@ -2388,16 +2391,13 @@ void TextEditor_Init(TextEditor *t){
     t->cursors = (TextEditorCursor *)malloc(sizeof(TextEditorCursor) * ++t->nCursors);
     memset(&t->cursors[0], 0, sizeof(TextEditorCursor));
 
-    LoadFile(t, "text_editor.c");
+    // TextEditor_LoadFile(t, "text_editor.c");
 }
 
 void TextEditor_Draw(TextEditor *t){
 
-    if(!t->text) return;
-
     int screenHeight = Graphics_TextCollumns();
     int screenWidth = Graphics_TextRows();
-    t->textLen = strlen(t->text);
 
     int logY = 0, logX = 4;
     if(t->logging) logY = 1;
@@ -2406,8 +2406,35 @@ void TextEditor_Draw(TextEditor *t){
     int y = 0;
     int x = 0;
 
+    Graphics_attron(COLOR_LINE_NUM);        
+    // draw line numbers
+    for(k = 0; k < Graphics_TextCollumns(); k++){
+        char buffer[10];
+        sprintf(buffer, "%i", t->scroll+k);
+        Graphics_mvprintw(0, logY+k, buffer, strlen(buffer));
+    }
+
+    if(t->logging && t->logging != LOGMODE_CONSOLE){
+
+        Graphics_attron(COLOR_FIND);
+        char buffer[4];
+        buffer[3] = 0;
+        sprintf(buffer, "ERR");
+        if(t->logging == LOGMODE_NUM){ sprintf(buffer, "g: "); }        
+        else if(t->logging == LOGMODE_TEXT){ sprintf(buffer, "f: "); }        
+        else if(t->logging == LOGMODE_OPEN){ sprintf(buffer, "o: "); }        
+        else if(t->logging == LOGMODE_SAVE){ sprintf(buffer, "w: "); }        
+        Graphics_mvprintw(0, 0, buffer, strlen(buffer));
+    
+        if(t->loggingText)        
+            Graphics_mvprintw(3, 0, t->loggingText, strlen(t->loggingText));
+
+    }
+
+
     if(t->logging == LOGMODE_CONSOLE){
 
+#ifdef LINUX_COMPILE
         fd_set rfds;
         struct timeval tv = {0, 0};
         char buf[4097];
@@ -2418,6 +2445,7 @@ void TextEditor_Draw(TextEditor *t){
         // if (waitpid(t->ttyPid, NULL, WNOHANG) == pid) {
         //   break;
         // }
+
         FD_ZERO(&rfds);
         FD_SET(t->ttyMaster, &rfds);
         if (select(t->ttyMaster + 1, &rfds, NULL, NULL, &tv)) {
@@ -2429,6 +2457,21 @@ void TextEditor_Draw(TextEditor *t){
           logLen += size;
           t->loggingText[logLen] = 0;
         }
+#endif
+#ifdef WINDOWS_COMPILE
+        FILE *fp = fopen("thothlog.txt", "r");
+
+        if(t->loggingText) free(t->loggingText);
+
+        fseek(fp, 0, SEEK_END);
+        int logLen = ftell(fp);
+        rewind(fp);
+
+        t->loggingText = malloc(logLen+1);
+        fread(t->loggingText, 1, logLen, fp);
+        t->loggingText[logLen] = 0;
+        fclose(fp);
+#endif
 
         Graphics_attron(COLOR_NORMAL);
 
@@ -2510,8 +2553,6 @@ void TextEditor_Draw(TextEditor *t){
             Graphics_mvprintw(x, y, &t->loggingText[k], 1);
             x++;
         }
-
-
         // fclose(logfp);
         // free(t->loggingText);
         // t->loggingText = NULL;
@@ -2519,6 +2560,12 @@ void TextEditor_Draw(TextEditor *t){
         logY = y;
     }
 
+    if(!t->text){
+         Graphics_RenderNCurses();
+        return;
+    }
+
+    t->textLen = strlen(t->text);
 
     int nLinesToLastCursor = 0;
     if(t->nCursors > 1)
@@ -2858,31 +2905,6 @@ void TextEditor_Draw(TextEditor *t){
 
     int j;
 
-    Graphics_attron(COLOR_LINE_NUM);        
-    // draw line numbers
-    for(k = 0; k < Graphics_TextCollumns(); k++){
-        char buffer[10];
-        sprintf(buffer, "%i", t->scroll+k);
-        Graphics_mvprintw(0, logY+k, buffer, strlen(buffer));
-    }
-
-    if(t->logging && t->logging != LOGMODE_CONSOLE){
-
-        Graphics_attron(COLOR_FIND);
-        char buffer[4];
-        buffer[3] = 0;
-        sprintf(buffer, "ERR");
-        if(t->logging == LOGMODE_NUM){ sprintf(buffer, "g: "); }        
-        else if(t->logging == LOGMODE_TEXT){ sprintf(buffer, "f: "); }        
-        else if(t->logging == LOGMODE_OPEN){ sprintf(buffer, "o: "); }        
-        else if(t->logging == LOGMODE_SAVE){ sprintf(buffer, "w: "); }        
-        Graphics_mvprintw(0, 0, buffer, strlen(buffer));
-    
-        if(t->loggingText)        
-            Graphics_mvprintw(3, 0, t->loggingText, strlen(t->loggingText));
-
-    }
-
     Graphics_RenderNCurses();
 
     k = 0;
@@ -2937,7 +2959,6 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         EndLogging(t);
         t->autoCompleteIndex = 0;
 
-
         return;
     }
 
@@ -2976,7 +2997,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
             t->loggingText = malloc(1);
             t->loggingText[0] = 0;
             
-
+#ifdef LINUX_COMPILE
             openpty(&t->ttyMaster, &t->ttySlave, NULL, NULL, NULL);
 
             t->_stderr = dup(STDERR_FILENO);
@@ -2989,9 +3010,10 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
                 char *args[] = {"make",NULL};
                 execvp(args[0], args);
             }
-
-            // system("make > thothlog.txt 2>&1 &");
-
+#endif
+#ifdef WINDOWS_COMPILE
+            system("make > thothlog.txt 2>&1 &");
+#endif
             t->logging = LOGMODE_CONSOLE;
             return;
         }
@@ -3008,6 +3030,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         for(k = 0; k < t->nCommands; k++){
 
             if(t->commands[k]->keyBinding[0] == key){
+
                 ExecuteCommand(t,t->commands[k]);
                 break;
             }

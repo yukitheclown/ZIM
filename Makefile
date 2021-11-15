@@ -1,31 +1,40 @@
-CC=gcc
 
-CFLAGS = -g -Wall -lm  $(shell pkg-config --cflags sdl2) $(shell pkg-config --cflags freetype2)
- 
+# linux
+# CC=gcc
+# EXECUTABLE=thoth
+# CFLAGS = -g -Wall -lm  -DLINUX_COMPILE $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2)
+# FREETYPELIBS = $(shell pkg-config --libs freetype2)
+# GLEWLIBS = $(shell pkg-config --static --libs glew)
+# SDLLIBS = $(shell pkg-config --libs sdl2)
+# LDLIBS =-lm -pg -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
+
+# windows
+CC=i686-w64-mingw32-gcc
+EXECUTABLE=thoth.exe
+CFLAGS = -w -Wl,-subsystem,windows -w -fpermissive -Wl,--no-undefined -O0 -g -DWINDOWS_COMPILE -I/usr/i686-w64-mingw32/include/freetype2/ -DGLEW_STATIC -Dmain=SDL_main
+LDLIBS = -L/usr/i686-w64-mingw32/lib/ -lmingw32 -lSDL2main -lSDL2 -mwindows \
+ -lm -lcomctl32 -lwinmm -lmingw32 \
+ -mwindows -lglu32 -lglew32 -lopengl32 -L./libglew32.dll.a -L./libglew32.a -lfreetype -lpng -lz
 
 
-# GTKLIBS = $(shell pkg-config --libs gtk+-3.0)
-FREETYPELIBS = $(shell pkg-config --libs freetype2)
-GLEWLIBS = $(shell pkg-config --static --libs glew)
-SDLLIBS = $(shell pkg-config --libs sdl2)
-PNGLIBS = $(shell pkg-config --libs libpng)
-# NCURSELIBS = $(shell pkg-config --static --libs ncurses)
-# XLIBS       = $(shell pkg-config --libs x11)
-# XLIBS       = $(shell pkg-config --libs glew)
-# XLIBS      ?= $(shell pkg-config --libs libva-x11)
-# XLIBS      ?= $(shell pkg-config --libs x11-xcb)
-
-LDLIBS =-lm -pg -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(PNGLIBS) $(FREETYPELIBS)
-
-SOURCES=main.c text_editor.c window.c graphics.c log.c utils.c freetype.c
+SOURCES=main.c text_editor.c window.c graphics.c log.c freetype.c
 
 OBJECTS=$(SOURCES:.c=.o)
-EXECUTABLE=thoth
+
 
 all: $(SOURCES) $(EXECUTABLE)
 	
 $(EXECUTABLE): $(OBJECTS) 
 	$(CC) $(OBJECTS) $(LDLIBS) -o $@
+
+# wihndows unused right now
+# all: createResourcesO $(SOURCES) $(EXECUTABLE)
+
+# $(EXECUTABLE): $(OBJECTS) resources.o
+# 	$(CC) $(OBJECTS) resources.o $(LDLIBS) -o $@
+
+# createResourcesO: resources.rc
+# 	i686-w64-mingw32-windres resources.rc -o resources.o
 
 .c.o:
 	$(CC) -c $(CFLAGS) $< -o $@

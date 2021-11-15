@@ -1,3 +1,6 @@
+#ifdef WINDOWS_COMPILE
+#define GLEW_STATIC
+#endif
 #include <GL/glew.h>
 #include <stdio.h>
 #include "freetype.h"

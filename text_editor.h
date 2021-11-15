@@ -121,6 +121,7 @@ typedef struct {
   int                     _stderr;
  };
 
+ void TextEditor_LoadFile(TextEditor *t, char *path);
  void TextEditor_Draw(TextEditor *t);
  void TextEditor_Event(TextEditor *t,unsigned int key);
  void TextEditor_Destroy(TextEditor *t);

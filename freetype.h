@@ -1,6 +1,5 @@
 #ifndef FREETYPE_DEF
 #define FREETYPE_DEF
-
 #include "math.h"
 #include <ft2build.h>
 #include <string.h>

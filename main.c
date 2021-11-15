@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <SDL2/SDL.h>
@@ -83,6 +82,10 @@ int main(int argc, char **argv){
     memset(&gc,0,sizeof(GodCode_t));
 
     TextEditor_Init(&gc.te);
+
+    if(argc > 1){
+        TextEditor_LoadFile(&gc.te, argv[1]);
+    }
 
     SDL_StartTextInput();
     u32 currTime;
