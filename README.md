@@ -1,4 +1,6 @@
 ![Screenshot](Screenshots/Screenshot.png)
+New colorscheme(not in screenshots yet) is https://github.com/morhetz/gruvbox
+New font https://github.com/larsenwork/monoid
 <br>
     <b>SelectNextWord</b> Find/Replace, CTRL+D In sublime text ||| <b>AddCursorCommand</b> Up/Down<br>
     ![Screenshot](Screenshots/selectcursors.gif) ![Screenshot](Screenshots/cursors.gif)<br>
@@ -22,6 +24,7 @@ make libthoth for text editor embed for opengl games<br>
 <br>
 <br>
 <b>COMMANDS</b>:<br>
+ctrl+a (select all)<br>
 ctrl+- (zoom out)<br>
 ctrl+= (zoom in)<br>
 ctrl+q (quit)<br>
