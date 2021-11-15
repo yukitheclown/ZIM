@@ -3038,13 +3038,13 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         return;
     }
 
-    // if(key >= 32 && key <= 126){
+    if(key >= 32 && key <= 126){
 
         TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, (const char[]){(char)key, 0}, 0, AddCharacters, UndoAddCharacters);
         ExecuteCommand(t,command);
         FreeCommand(command);
-        // return;
-    // }
+        return;
+    }
 
 }
 
