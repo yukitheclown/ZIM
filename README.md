@@ -17,6 +17,7 @@ New <b>colorscheme</b>(not in screenshots yet) is: https://github.com/morhetz/gr
 ![Screenshot](Screenshots/Screenshot.gif)<br>
 
 <b>TODO</b>:<br>
+Swap files<br>
 files save open etc<br>
 config files<br>
 windows/tabs<br>
