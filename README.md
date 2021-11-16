@@ -1,7 +1,7 @@
 New <b>colorscheme</b>(not in screenshots yet) is: https://github.com/morhetz/gruvbox<br>
 <b>font</b>: https://github.com/larsenwork/monoid<br>
 ![Screenshot](Screenshots/Screenshot.png)
-<br>
+<br><hr>
     <b>SelectNextWord</b> Find/Replace, CTRL+D In sublime text ||| <b>AddCursorCommand</b> Up/Down<br>
     ![Screenshot](Screenshots/selectcursors.gif) ![Screenshot](Screenshots/cursors.gif)<br>
     <b>MoveLines</b> Up/Down ||| <b>MoveByWords</b> Left/Right <b>MoveByChars</b> Left/Right/Up/Down<br>
@@ -15,15 +15,14 @@ New <b>colorscheme</b>(not in screenshots yet) is: https://github.com/morhetz/gr
     
 
 ![Screenshot](Screenshots/Screenshot.gif)<br>
-
+<hr>
 <b>TODO</b>:<br>
 Swap files<br>
 files save open etc<br>
 config files<br>
 windows/tabs<br>
 make libthoth for text editor embed for opengl games<br>
-<br>
-<br>
+<hr>
 <b>COMMANDS</b>:<br>
 ctrl+a (select all)<br>
 ctrl+- (zoom out)<br>
