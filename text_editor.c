@@ -521,7 +521,6 @@ static void MoveByChars(TextEditor *t, TextEditorCommand *c){
 
     ResolveCursorCollisions(t, 0);
 }
-
 static int MoveByWordsFunc(char *text, int len, int start, int dir){
 
     if((start > len && dir > 0) || (start == 0 && dir < 0)) return start;
@@ -533,36 +532,50 @@ static int MoveByWordsFunc(char *text, int len, int start, int dir){
         } else {
 
             // @#$|(a)sdff             
-            if(!IsToken(text[start] && IsToken(text[start-1]))){
-                --start;
-            }
-            
-            if(IsToken(text[start])){
-                while(start >= 0){
-                    char c = text[--start];
-                    if(c == '\n') { start++; break; }
-                    if(!IsToken(c)) { break; }
-                }
+            // if(!IsToken(text[start] && IsToken(text[start-1]))){
+            if(text[start] == '\n'){
+                start--;
             } else {
-                start = GetWordStart(text, start); 
+
+                if(IsToken(text[start-1]))
+                    start -= 2;
+
+                if(text[start] != '\n' && IsToken(text[start])){
+                    while(start >= 0){
+                        char c = text[--start];
+                        if(c == '\n') break;
+                        if(!IsToken(c)) { break; }
+                    }
+                } else {
+                    start = GetWordStart(text, start); 
+                }
             }
         }
 
     } else {
-        if(!IsToken(text[start] && IsToken(text[start+1])))
-            ++start;
 
-        if(IsToken(text[start])){
-            while(start < len){
-                char c = text[++start];
-                if(!IsToken(c) || c == '\n') break;
-            }
+        // if(!IsToken(text[start] && IsToken(text[start+1])))
+        if(text[start] == '\n'){
+
+            start++;
+
         } else {
-            int  end = GetWordEnd(text, start);
-            start = end;
+
+            if(IsToken(text[start]))
+                start++;
+
+            if(text[start] != '\n' && text[start-1] != '\n' && IsToken(text[start])){
+                while(start < len){
+                    char c = text[++start];
+                    if(c == '\n') break;
+                    if(!IsToken(c)) break;
+                }
+            } else {
+                int  end = GetWordEnd(text, start);
+                start = end;
+            }
         }
     }
-
 
 
     if(start < 0) start = 0;
@@ -1894,6 +1907,7 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
         return;
     }
 
+    if(t->text == NULL) return;
 
     LoadCursors(t, c);
 
@@ -1928,6 +1942,7 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
 static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c){
     
     if(t->logging) return;
+    if(t->text == NULL) return;
 
     LoadCursors(t, c);
 
@@ -2088,6 +2103,8 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
 
         return;
     }
+
+    if(t->text == NULL) return;
 
     LoadCursors(t, c);
 
@@ -2818,7 +2835,8 @@ void TextEditor_Draw(TextEditor *t){
 
 
                     }
-                    k++;
+                    if(t->text[k] != '\n')
+                        k++;
                     
                     if(k == renderTo) break;
 
@@ -2967,22 +2985,6 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         return;
     }
 
-    if(key == 9){ // tab
-        if(t->logging) return;
-        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0, AddCharacters, UndoAddCharacters);
-        ExecuteCommand(t,command);
-        FreeCommand(command);
-        return;
-    }
-
-    if(key == 127){ // backspace
-
-        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, RemoveCharacters, UndoRemoveCharacters);
-        ExecuteCommand(t, command);
-        FreeCommand(command);
-        return;
-    }
-
     if(key>>8){
 
         //ctrl/shift/alt or arrowkeys
@@ -3035,6 +3037,21 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
                 break;
             }
         }
+        return;
+    }
+    if(key == 9){ // tab
+        if(t->logging) return;
+        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0, AddCharacters, UndoAddCharacters);
+        ExecuteCommand(t,command);
+        FreeCommand(command);
+        return;
+    }
+
+    if(key == 127){ // backspace
+
+        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, RemoveCharacters, UndoRemoveCharacters);
+        ExecuteCommand(t, command);
+        FreeCommand(command);
         return;
     }
 

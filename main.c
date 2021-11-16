@@ -111,6 +111,10 @@ int main(int argc, char **argv){
 
        ++frames;
 
+       Graphics_Clear();
+       TextEditor_Draw(&gc.te);        
+       Graphics_Render();
+       Window_Swap();
 
        Event(&gc);
 
@@ -123,19 +127,18 @@ int main(int argc, char **argv){
            } 
 
            TextEditor_Event(&gc.te,key);
+           if(gc.te.quit) break;
 
            gc.key = gc.key & 0xff00;
 
            gc.state = GODCODE_STATE_RUNNING;
+    
+           Graphics_Clear();
+           TextEditor_Draw(&gc.te);        
+           Graphics_Render();
+           Window_Swap();
        }
 
-       Graphics_Clear();
-       TextEditor_Draw(&gc.te);        
-
-
-       if(gc.te.quit) break;
-       Graphics_Render();
-       Window_Swap();
     }
 
     TextEditor_Destroy(&gc.te);
