@@ -47,10 +47,8 @@ void Event(GodCode_t *gc){
             else if(key & EDIT_CTRL_KEY)
                 key = (gc->key&0xFF00) | (ev.key.keysym.sym & 0xFF);
 
-            if(key != gc->key){
-                gc->key = key;
-                gc->state = GODCODE_STATE_UPDATE;
-            }
+            gc->key = key;
+            gc->state = GODCODE_STATE_UPDATE;
 
             if(ev.key.keysym.sym == 'q'){
                 gc->state = GODCODE_STATE_QUIT;
