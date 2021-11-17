@@ -26,7 +26,7 @@ int Window_Open(){
     );
 
     context = SDL_GL_CreateContext(window);
-    SDL_GL_SetSwapInterval(0);
+    SDL_GL_SetSwapInterval(1);
 
     glewExperimental = GL_TRUE;
 
@@ -36,17 +36,13 @@ int Window_Open(){
     }
 
     glDisable(GL_DITHER);
-    // glEnable(GL_DEPTH_TEST);
     glDisable(GL_DEPTH_TEST);
     // glEnable(GL_STENCIL_TEST);
     // glStencilOp(GL_REPLACE, GL_KEEP, GL_KEEP);
-    // glDepthFunc(GL_LESS);
     glEnable(GL_CULL_FACE);
     glDisable(GL_LINE_SMOOTH);
     glCullFace(GL_BACK);
     glDisable(GL_BLEND);
-    // glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-    // glEnable(GL_SCISSOR_TEST);
     
     return 1;
 }

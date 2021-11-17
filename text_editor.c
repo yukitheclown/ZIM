@@ -274,11 +274,12 @@ static void ScrollToLine(TextEditor *t){
     free(t->loggingText);
     t->loggingText = NULL;
 
-
     if(line == 0){
-    t->cursors[0].pos = 0;
-    return;
+        t->cursors[0].pos = 0;
+        return;
     }
+    if(!t->text) return;
+
     t->textLen = strlen(t->text);
 
     int scroll = 0, scrollPos = 0;
