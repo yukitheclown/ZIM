@@ -1,15 +1,15 @@
-New <b>colorscheme</b>(not in screenshots yet) is: https://github.com/morhetz/gruvbox<br>
+New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 <b>font</b>: https://github.com/larsenwork/monoid<br>
 ![Screenshot](Screenshots/Screenshot.png)
 <br><hr>
     <b>SelectNextWord</b> Find/Replace, CTRL+D In sublime text ||| <b>AddCursorCommand</b> Up/Down<br>
-    ![Screenshot](Screenshots/selectcursors.gif) ![Screenshot](Screenshots/cursors.gif)<br>
+    <p>![Screenshot](Screenshots/selectcursors.gif) ![Screenshot](Screenshots/cursors.gif)<br></p>
     <b>MoveLines</b> Up/Down ||| <b>MoveByWords</b> Left/Right <b>MoveByChars</b> Left/Right/Up/Down<br>
-    ![Screenshot](Screenshots/movelines.gif)  ![Screenshot](Screenshots/navigation.gif)<br>
+    <p>![Screenshot](Screenshots/movelines.gif)  ![Screenshot](Screenshots/navigation.gif)<br></p>
     <b>ExpandSelectionWords</b> Left/Right ||| <b>IndentLine</b> Left/Right<br>
-   ![Screenshot](Screenshots/selections.gif) ![Screenshot](Screenshots/indenting.gif)<br>
+    <p>![Screenshot](Screenshots/selections.gif) ![Screenshot](Screenshots/indenting.gif)<br></p>
     <b>Undo Redo Cut Copy Paste</b>  ||| <b>AutoComplete</b><br>
-    ![Screenshot](Screenshots/undo.gif) ![Screenshot](Screenshots/autocomplete.gif)<br>
+    <p>![Screenshot](Screenshots/undo.gif) ![Screenshot](Screenshots/autocomplete.gif)<br></p>
     
     
     
