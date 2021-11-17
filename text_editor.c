@@ -2303,6 +2303,8 @@ static void AddCommand(TextEditor *t, TextEditorCommand *c){
 void TextEditor_LoadFile(TextEditor *t, char *path){
     FILE *fp = fopen(path, "r");
 
+    if(!fp) return;
+    
     fseek(fp, 0, SEEK_END);
 
     int len = ftell(fp);
@@ -2412,6 +2414,23 @@ void TextEditor_Init(TextEditor *t){
     // TextEditor_LoadFile(t, "text_editor.c");
 }
 
+static void UpdateScroll(TextEditor *t){
+
+    if(t->text == NULL) return;
+
+    int nLinesToLastCursor = 0;
+    
+    if(t->nCursors > 1)
+        nLinesToLastCursor = GetNumLinesToPos(t->text,t->cursors[t->nCursors-1].pos);
+    else
+        nLinesToLastCursor = GetNumLinesToPos(t->text,t->cursors[0].pos);
+
+    if(nLinesToLastCursor < t->scroll)
+        t->scroll = nLinesToLastCursor;
+    else if(nLinesToLastCursor >= t->scroll + (Graphics_TextCollumns()-1)/2)
+        t->scroll = nLinesToLastCursor - (Graphics_TextCollumns()-1)/2;
+}
+
 void TextEditor_Draw(TextEditor *t){
 
     int screenHeight = Graphics_TextCollumns();
@@ -2419,6 +2438,7 @@ void TextEditor_Draw(TextEditor *t){
 
     int logY = 0, logX = 4;
     if(t->logging) logY = 1;
+    UpdateScroll(t);
 
     int k = 0;
     int y = 0;
@@ -2585,17 +2605,6 @@ void TextEditor_Draw(TextEditor *t){
 
     t->textLen = strlen(t->text);
 
-    int nLinesToLastCursor = 0;
-    if(t->nCursors > 1)
-        nLinesToLastCursor = GetNumLinesToPos(t->text,t->cursors[t->nCursors-1].pos);
-    else
-        nLinesToLastCursor = GetNumLinesToPos(t->text,t->cursors[0].pos);
-
-    if(nLinesToLastCursor < t->scroll)
-        t->scroll = nLinesToLastCursor;
-    else if(nLinesToLastCursor >= t->scroll + (screenHeight-1)/2)
-        t->scroll = nLinesToLastCursor - (screenHeight-1)/2;
-    
     int ctOffset = 0;
     x = 0;
     y = 0;
