@@ -2032,8 +2032,8 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
 
             if(t->text[prev] != '\n')
                 t->cursors[k].pos = prev - GetCharsIntoLine(t->text, t->cursors[k].pos);
-            else
-                t->cursors[k].pos++;
+            // else
+            //     t->cursors[k].pos++;
 
             if(c->num > 0){
                 TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0, SCR_NORM, AddCharacters, UndoAddCharacters);
@@ -2062,8 +2062,8 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
 
             if(t->text[next] != '\n')
                 next = startCursorPos - GetCharsIntoLine(t->text, next);
-            else
-                next++;
+            // else
+            //     next++;
 
             do {
                 t->cursors[k].pos = next;
