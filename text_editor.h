@@ -9,6 +9,7 @@
 #define EDIT_ARROW_DOWN  (unsigned int)0x1000
 #define EDIT_ARROW_LEFT  (unsigned int)0x2000
 #define EDIT_ARROW_RIGHT (unsigned int)0x4000
+#define EDIT_ENTER_KEY   (unsigned int)0x8000
 
 // #include "window.h"
 // #include "text.h"
@@ -47,7 +48,8 @@
   unsigned int *keyBinding;
   char *keys;
   int num;
-
+  unsigned char scroll;
+  
   TextEditorCursor *savedCursors;
   int nSavedCursors;
 

@@ -41,6 +41,10 @@ enum {
     TE_COLOR_NUM_STANDARD,
 };
 
+enum {
+  SCR_NORM = 0,
+  SCR_CENT,
+};
 
 static void EndLogging(TextEditor *t);
 static void FindTextGoto(TextEditor *t, int dir);
@@ -104,8 +108,10 @@ static void UndoDeleteLine(TextEditor *t, TextEditorCommand *c);
 static void Cut(TextEditor *t, TextEditorCommand *c);
 static void Redo(TextEditor *t, TextEditorCommand *c);
 static void FreeCommand(TextEditorCommand *c);
+static void UpdateScrollCenter(TextEditor *t);
+static void UpdateScroll(TextEditor *t);
 static TextEditorCommand *CopyCommand(TextEditorCommand *c);
-static TextEditorCommand *CreateCommand(const unsigned int binding[], const char *keys, int n,
+static TextEditorCommand *CreateCommand(const unsigned int binding[], const char *keys, int n, int scroll,
     void (*E)(TextEditor *, TextEditorCommand *), void (*U)(TextEditor *, TextEditorCommand *));
 static void UndoCommands(TextEditor *t, int num);
 static void RedoCommands(TextEditor *t, int num);
@@ -218,9 +224,6 @@ static void FindTextGoto(TextEditor *t, int dir){
         }
 
         t->cursors[0].selection.startCursorPos = t->cursors[0].pos;
-
-
-        return;
     }
 
     if(dir < 0){
@@ -242,7 +245,7 @@ static void FindTextGoto(TextEditor *t, int dir){
         } while(next > 0 && curr+next+searchLen < t->cursors[0].pos && curr+next+searchLen < t->textLen);
 
 
-        if(curr-searchLen == start){ // find last occurance
+        if(curr-searchLen == start && t->cursors[0].pos == curr-searchLen){ // find last occurance
             do{
                 curr += next+searchLen;
                 next = Find(&t->text[curr], t->loggingText, searchLen);
@@ -254,11 +257,38 @@ static void FindTextGoto(TextEditor *t, int dir){
         t->cursors[0].pos = curr-searchLen;            
         t->cursors[0].selection.startCursorPos = t->cursors[0].pos;
         t->cursors[0].selection.len = searchLen;
-
-
-        return;
     }
     
+    UpdateScrollCenter(t);
+}
+static void UpdateScroll(TextEditor *t){
+
+    if(t->text == NULL) return;
+
+    int nLinesToCursor = GetNumLinesToPos(t->text,t->cursors[t->nCursors-1].pos);
+
+    if(nLinesToCursor < t->scroll)
+        t->scroll = nLinesToCursor;
+    else if(nLinesToCursor >= (t->scroll + Graphics_TextCollumns())  )
+        t->scroll = (nLinesToCursor - Graphics_TextCollumns())+1;
+}
+
+
+static void UpdateScrollCenter(TextEditor *t){
+
+    int nLinesToCursor = GetNumLinesToPos(t->text,t->cursors[t->nCursors-1].pos);
+
+    if(nLinesToCursor < t->scroll)
+        t->scroll = nLinesToCursor  - (Graphics_TextCollumns()/2);
+    else if(nLinesToCursor >= t->scroll + Graphics_TextCollumns())
+        t->scroll = (nLinesToCursor - (Graphics_TextCollumns()/2));
+    // else if(nLinesToCursor >= (t->scroll + Graphics_TextCollumns())  )
+    //     t->scroll = (nLinesToCursor - Graphics_TextCollumns())+1;
+    // else if(nLinesToCursor < Graphics_TextCollumns()/2)
+    //     t->scroll = 0;
+
+    if(t->scroll < 0) t->scroll = 0;
+
 }
 
 static void ScrollToLine(TextEditor *t){
@@ -302,7 +332,7 @@ static void ScrollToLine(TextEditor *t){
         scrollPos = t->textLen-1;
 
     t->cursors[0].pos = scrollPos;
-
+    UpdateScrollCenter(t);
 }
 
 static void EventCtrlEnter(TextEditor *t, TextEditorCommand *c){
@@ -340,7 +370,7 @@ static void EventEnter(TextEditor *t){
 
 
         TextEditorCommand *command = 
-        CreateCommand((const unsigned int[]){0}, buffer, 0, AddCharacters, UndoAddCharacters);
+        CreateCommand((const unsigned int[]){0}, buffer, 0, SCR_NORM, AddCharacters, UndoAddCharacters);
         ExecuteCommand(t,command);
         FreeCommand(command);
 
@@ -351,7 +381,7 @@ static void EventEnter(TextEditor *t){
     }
 
     TextEditorCommand *command = 
-    CreateCommand((const unsigned int[]){0}, (const char[]){'\n', 0}, 0, AddCharacters, UndoAddCharacters);
+    CreateCommand((const unsigned int[]){0}, (const char[]){'\n', 0}, 0, SCR_NORM, AddCharacters, UndoAddCharacters);
     ExecuteCommand(t,command);
     FreeCommand(command);
 }
@@ -544,7 +574,7 @@ static int MoveByWordsFunc(char *text, int len, int start, int dir){
                 if(text[start] != '\n' && IsToken(text[start])){
                     while(start >= 0){
                         char c = text[--start];
-                        if(c == '\n') break;
+                        if(c == '\n') { ++start; break; }
                         if(!IsToken(c)) { break; }
                     }
                 } else {
@@ -568,7 +598,7 @@ static int MoveByWordsFunc(char *text, int len, int start, int dir){
             if(text[start] != '\n' && text[start-1] != '\n' && IsToken(text[start])){
                 while(start < len){
                     char c = text[++start];
-                    if(c == '\n') break;
+                    if(c == '\n') { --start; break; }
                     if(!IsToken(c)) break;
                 }
             } else {
@@ -1424,6 +1454,7 @@ static void MoveBrackets(TextEditor *t, TextEditorCommand *c){
         }
     }
 
+
     ResolveCursorCollisions(t,0);
 }
 
@@ -1605,11 +1636,11 @@ static void Cut(TextEditor *t, TextEditorCommand *c){
 
     UNUSED(c);
 
-    TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, Copy, NULL);
+    TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_NORM, Copy, NULL);
     ExecuteCommand(t, command);
     FreeCommand(command);
 
-    command = CreateCommand((const unsigned int[]){0}, 0, 0, RemoveCharacters, UndoRemoveCharacters);
+    command = CreateCommand((const unsigned int[]){0}, 0, 0, SCR_NORM, RemoveCharacters, UndoRemoveCharacters);
     ExecuteCommand(t, command);
     FreeCommand(command);
 }
@@ -1866,6 +1897,7 @@ static void ScrollScreen(TextEditor *t, TextEditorCommand *c){
             if(t->text[k] == '\n'){
                 scroll--;
                 if(scroll == 0) { 
+                    k++;
                     break; 
                 }
             }
@@ -1894,7 +1926,7 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
             if(searchLen - c->num <= 0){
                 free(t->loggingText);
                 t->loggingText = NULL;
-                t->logging = 0;
+                // t->logging = 0;
                 return;
             } else {
                 char *tmp = malloc(searchLen - c->num + 1);
@@ -2004,14 +2036,14 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
                 t->cursors[k].pos++;
 
             if(c->num > 0){
-                TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0, AddCharacters, UndoAddCharacters);
+                TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0, SCR_NORM, AddCharacters, UndoAddCharacters);
                 ExecuteCommand(t,command);
                 FreeCommand(command);
                 // prev++;
             } else {
                 if (t->text[t->cursors[k].pos] == '\t' || t->text[t->cursors[k].pos] == ' '){
                     t->cursors[k].pos++;
-                    TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, 
+                    TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_NORM,
                         RemoveCharacters, UndoRemoveCharacters);
                     ExecuteCommand(t,command);
                     FreeCommand(command);
@@ -2043,7 +2075,7 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
                         selection.len++;
                     }
                     TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 
-                        "\t", 0, AddCharacters, UndoAddCharacters);
+                        "\t", 0, SCR_NORM, AddCharacters, UndoAddCharacters);
                     ExecuteCommand(t,command);
                     FreeCommand(command);
                     prev++;
@@ -2057,7 +2089,7 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
                         }
     
                         t->cursors[k].pos++;
-                        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, 
+                        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_NORM, 
                             RemoveCharacters, UndoRemoveCharacters);
                         ExecuteCommand(t,command);
                         FreeCommand(command);
@@ -2176,7 +2208,7 @@ static void FreeCommand(TextEditorCommand *c){
 
 static TextEditorCommand *CopyCommand(TextEditorCommand *c){
 
-    TextEditorCommand *ret = CreateCommand((const unsigned int *)c->keyBinding, c->keys, c->num, c->Execute, c->Undo);
+    TextEditorCommand *ret = CreateCommand((const unsigned int *)c->keyBinding, c->keys, c->num, SCR_NORM,c->Execute, c->Undo);
 
     ret->savedCursors = (TextEditorCursor *)malloc(sizeof(TextEditorCursor) * c->nSavedCursors);
     ret->nSavedCursors = c->nSavedCursors;
@@ -2197,12 +2229,13 @@ static TextEditorCommand *CopyCommand(TextEditorCommand *c){
     return ret;
 }
 
-static TextEditorCommand *CreateCommand(const unsigned int binding[], const char *keys, int n,
+static TextEditorCommand *CreateCommand(const unsigned int binding[], const char *keys, int n, int scroll,
     void (*E)(TextEditor *, TextEditorCommand *), void (*U)(TextEditor *, TextEditorCommand *)){
 
     TextEditorCommand *res = (TextEditorCommand *)malloc(sizeof(TextEditorCommand));
     memset(res, 0, sizeof(TextEditorCommand));
 
+    res->scroll = scroll;
     res->num = n;
 
     if(binding){
@@ -2237,6 +2270,10 @@ static void UndoCommands(TextEditor *t, int num){
     for(k = 0; k < num; k++){
         if(t->history[(t->historyPos-1)-k]->Undo){
             t->history[(t->historyPos-1)-k]->Undo(t, t->history[(t->historyPos-1)-k]);
+            if(t->history[(t->historyPos-1)-k]->scroll == SCR_CENT)
+                UpdateScrollCenter(t);
+            else
+                UpdateScroll(t);
         }
     }
 
@@ -2254,6 +2291,10 @@ static void RedoCommands(TextEditor *t, int num){
     int k;
     for(k = 0; k < num; k++){
         t->history[(t->historyPos)+k]->Execute(t, t->history[(t->historyPos)+k]);
+        if(t->history[(t->historyPos)+k]->scroll == SCR_CENT)
+            UpdateScrollCenter(t);
+        else
+            UpdateScroll(t);
     }
 
     t->historyPos += num;
@@ -2274,6 +2315,10 @@ static void ExecuteCommand(TextEditor *t, TextEditorCommand *c){
 
     if(c->Undo == NULL || t->logging){
         c->Execute(t, c);
+        if(c->scroll == SCR_CENT)
+            UpdateScrollCenter(t);
+        else
+            UpdateScroll(t);
         return;
     }
 
@@ -2291,7 +2336,10 @@ static void ExecuteCommand(TextEditor *t, TextEditorCommand *c){
     t->history = (TextEditorCommand **)realloc(t->history, ++t->sHistory * sizeof(TextEditorCommand));
     t->history[t->sHistory-1] = CopyCommand(c);
     t->history[t->sHistory-1]->Execute(t,t->history[t->sHistory-1]);
-
+    if(c->scroll == SCR_CENT)
+        UpdateScrollCenter(t);
+    else
+        UpdateScroll(t);
     t->historyPos++;
 }
 
@@ -2304,7 +2352,7 @@ void TextEditor_LoadFile(TextEditor *t, char *path){
     FILE *fp = fopen(path, "r");
 
     if(!fp) return;
-    
+
     fseek(fp, 0, SEEK_END);
 
     int len = ftell(fp);
@@ -2350,61 +2398,61 @@ void TextEditor_Init(TextEditor *t){
     Graphics_init_pair(TE_COLOR_GREEN, COLOR_GREEN ,COLOR_BLACK);
     Graphics_init_pair(TE_COLOR_MAGENTA, COLOR_MAGENTA ,COLOR_BLACK);
 
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_UP  , 0}, "", -1, MoveLinesText, UndoMoveLinesText));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_DOWN  , 0}, "", 1, MoveLinesText, UndoMoveLinesText));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_UP  , 0}, "", -1, SCR_NORM, MoveLinesText, UndoMoveLinesText));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_DOWN  , 0}, "", 1, SCR_NORM, MoveLinesText, UndoMoveLinesText));
 
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'o'  , 0}, "", 0, OpenFile, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'w'  , 0}, "", 0, SaveFile, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'o'  , 0}, "", 0, SCR_NORM, OpenFile, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'w'  , 0}, "", 0, SCR_NORM, SaveFile, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'/'  , 0}, "", 0, ToggleComment, ToggleComment));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'/'  , 0}, "", 0, SCR_NORM, ToggleComment, ToggleComment));
     // AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'/'  , 0}, "", 0, ToggleComment, ToggleComment));
 
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'m'  , 0}, "", 0, MoveBrackets, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'j'  , 0}, "", 0, SelectBrackets, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'m'  , 0}, "", 0, SCR_NORM, MoveBrackets, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'j'  , 0}, "", 0, SCR_NORM, SelectBrackets, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'g'  , 0}, "", 0, GotoLine, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'f'  , 0}, "", 0, FindText, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){10|EDIT_CTRL_KEY  , 0}, "", 0, EventCtrlEnter, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'g'  , 0}, "", 0, SCR_NORM, GotoLine, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'f'  , 0}, "", 0, SCR_NORM, FindText, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ENTER_KEY|EDIT_CTRL_KEY  , 0}, "", 0, SCR_CENT, EventCtrlEnter, NULL));
     // AddCommand(t, CreateCommand((unsigned int[]){'d'|EDIT_CTRL_KEY  , 0}, "", 0, SelectNextWord, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){'d'|EDIT_CTRL_KEY  , 0}, "", 0, SelectNextWord, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_UP|EDIT_CTRL_KEY  , 0}, "", -1, AddCursorCommand, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_DOWN|EDIT_CTRL_KEY  , 0}, "", 1, AddCursorCommand, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'d'|EDIT_CTRL_KEY  , 0}, "", 0, SCR_CENT, SelectNextWord, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_UP|EDIT_CTRL_KEY  , 0}, "", -1, SCR_NORM, AddCursorCommand, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_DOWN|EDIT_CTRL_KEY  , 0}, "", 1, SCR_NORM, AddCursorCommand, NULL));
 
     // AddCommand(t, CreateCommand((unsigned int[]){unbound, 0}, "", -1, ExpandSelectionChars, NULL));
     // AddCommand(t, CreateCommand((unsigned int[]){unbound, 0}, "", 1, ExpandSelectionChars, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'l'|EDIT_SHIFT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, ExpandSelectionLines, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'k'|EDIT_SHIFT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, DeleteLine, UndoDeleteLine));
+    AddCommand(t, CreateCommand((unsigned int[]){'l'|EDIT_SHIFT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, SCR_NORM, ExpandSelectionLines, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'k'|EDIT_SHIFT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, SCR_NORM, DeleteLine, UndoDeleteLine));
 
-    AddCommand(t, CreateCommand((unsigned int[]){'h'|EDIT_CTRL_KEY  , 0}, "", -1, MoveByChars, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'l'|EDIT_CTRL_KEY  , 0}, "", 1, MoveByChars, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'j'|EDIT_CTRL_KEY  , 0}, "", -1, MoveLines, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'k'|EDIT_CTRL_KEY  , 0}, "", 1, MoveLines, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'h'|EDIT_CTRL_KEY  , 0}, "", -1, SCR_NORM, MoveByChars, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'l'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_NORM, MoveByChars, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'j'|EDIT_CTRL_KEY  , 0}, "", -1, SCR_NORM, MoveLines, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'k'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_NORM, MoveLines, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){'h'|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", -1, MoveByWords, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'l'|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, MoveByWords, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'h'|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", -1, SCR_NORM, MoveByWords, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'l'|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, SCR_NORM, MoveByWords, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){']'|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, IndentLine, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'['|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", -1, IndentLine, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){']'|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, SCR_NORM, IndentLine, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'['|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", -1, SCR_NORM, IndentLine, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_LEFT|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", -1, ExpandSelectionWords, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_RIGHT|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, ExpandSelectionWords, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_LEFT|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", -1, SCR_NORM, ExpandSelectionWords, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_RIGHT|EDIT_ALT_KEY|EDIT_CTRL_KEY  , 0}, "", 1, SCR_NORM, ExpandSelectionWords, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_UP|EDIT_SHIFT_KEY  , 0}, "", -1, ScrollScreen, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_DOWN|EDIT_SHIFT_KEY  , 0}, "", 1, ScrollScreen, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_UP|EDIT_SHIFT_KEY  , 0}, "", -1, SCR_CENT, ScrollScreen, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_DOWN|EDIT_SHIFT_KEY  , 0}, "", 1, SCR_CENT, ScrollScreen, NULL));
     
 
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_LEFT  , 0}, "", -1, MoveByChars, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_RIGHT  , 0}, "", 1, MoveByChars, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_UP  , 0}, "", -1, MoveLines, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'a'  , 0}, "", 0, SelectAll, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_DOWN  , 0}, "", 1, MoveLines, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_LEFT  , 0}, "", -1, SCR_NORM, MoveByChars, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_RIGHT  , 0}, "", 1, SCR_NORM, MoveByChars, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_UP  , 0}, "", -1, SCR_NORM, MoveLines, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'a'  , 0}, "", 0, SCR_NORM, SelectAll, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_ARROW_DOWN  , 0}, "", 1, SCR_NORM, MoveLines, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){'z'|EDIT_CTRL_KEY  , 0}, "", 1, Undo, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'y'|EDIT_CTRL_KEY  , 0}, "", 1, Redo, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'x'|EDIT_CTRL_KEY  , 0}, "", 1, Cut, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'c'|EDIT_CTRL_KEY  , 0}, "", 1, Copy, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){'v'|EDIT_CTRL_KEY  , 0}, "", 1, Paste, UndoPaste));
+    AddCommand(t, CreateCommand((unsigned int[]){'z'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_CENT, Undo, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'y'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_CENT, Redo, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'x'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_CENT, Cut, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'c'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_CENT, Copy, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){'v'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_CENT, Paste, UndoPaste));
     // AddCommand(t, CreateCommand((unsigned int[]){31 /* ctrl + / */, 0}, "", 1, FindCommand, NULL));
 
 
@@ -2414,23 +2462,6 @@ void TextEditor_Init(TextEditor *t){
     // TextEditor_LoadFile(t, "text_editor.c");
 }
 
-static void UpdateScroll(TextEditor *t){
-
-    if(t->text == NULL) return;
-
-    int nLinesToLastCursor = 0;
-    
-    if(t->nCursors > 1)
-        nLinesToLastCursor = GetNumLinesToPos(t->text,t->cursors[t->nCursors-1].pos);
-    else
-        nLinesToLastCursor = GetNumLinesToPos(t->text,t->cursors[0].pos);
-
-    if(nLinesToLastCursor < t->scroll)
-        t->scroll = nLinesToLastCursor;
-    else if(nLinesToLastCursor >= t->scroll + (Graphics_TextCollumns()-1)/2)
-        t->scroll = nLinesToLastCursor - (Graphics_TextCollumns()-1)/2;
-}
-
 void TextEditor_Draw(TextEditor *t){
 
     int screenHeight = Graphics_TextCollumns();
@@ -2438,7 +2469,6 @@ void TextEditor_Draw(TextEditor *t){
 
     int logY = 0, logX = 4;
     if(t->logging) logY = 1;
-    UpdateScroll(t);
 
     int k = 0;
     int y = 0;
@@ -2889,6 +2919,8 @@ void TextEditor_Draw(TextEditor *t){
                     x = 0;
                     continue;
                 } else if(t->text[k] == '\t'){
+                    if(k >= renderStart)
+                        Graphics_mvprintw(logX+x, logY+y, "    ", 4);
                     x += 4;
                     continue;
                 }
@@ -2986,11 +3018,11 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         RemoveExtraCursors(t);
         EndLogging(t);
         t->autoCompleteIndex = 0;
-
+        UpdateScrollCenter(t);
         return;
     }
 
-    if(key == 10){ // enter
+    if(key == EDIT_ENTER_KEY){ // enter
         EventEnter(t);
         return;
     }
@@ -3051,7 +3083,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
     }
     if(key == 9){ // tab
         if(t->logging) return;
-        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0, AddCharacters, UndoAddCharacters);
+        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0,SCR_NORM, AddCharacters, UndoAddCharacters);
         ExecuteCommand(t,command);
         FreeCommand(command);
         return;
@@ -3059,7 +3091,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
 
     if(key == 127){ // backspace
 
-        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, RemoveCharacters, UndoRemoveCharacters);
+        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_NORM, RemoveCharacters, UndoRemoveCharacters);
         ExecuteCommand(t, command);
         FreeCommand(command);
         return;
@@ -3067,7 +3099,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
 
     if(key >= 32 && key <= 126){
 
-        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, (const char[]){(char)key, 0}, 0, AddCharacters, UndoAddCharacters);
+        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, (const char[]){(char)key, 0}, 0, SCR_NORM, AddCharacters, UndoAddCharacters);
         ExecuteCommand(t,command);
         FreeCommand(command);
         return;

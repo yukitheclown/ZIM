@@ -33,7 +33,7 @@ void Event(GodCode_t *gc){
             
             int key = gc->key;
 
-            if(ev.key.keysym.sym == SDLK_RETURN) key |= 10;
+            if(ev.key.keysym.sym == SDLK_RETURN) key |= EDIT_ENTER_KEY;
             else if(ev.key.keysym.sym == SDLK_TAB) key = 9;
             else if(ev.key.keysym.sym == SDLK_ESCAPE) key = 27;
             else if(ev.key.keysym.sym == SDLK_BACKSPACE) key = 127;
@@ -59,7 +59,7 @@ void Event(GodCode_t *gc){
             if(ev.key.keysym.sym == SDLK_LSHIFT || ev.key.keysym.sym == SDLK_RSHIFT) gc->key ^= EDIT_SHIFT_KEY;
             else if(ev.key.keysym.sym == SDLK_LALT || ev.key.keysym.sym == SDLK_RALT) gc->key ^= EDIT_ALT_KEY;
             else if(ev.key.keysym.sym == SDLK_LCTRL || ev.key.keysym.sym == SDLK_RCTRL) gc->key ^= EDIT_CTRL_KEY;
-            else if(ev.key.keysym.sym == SDLK_RETURN) gc->key ^= 10;
+            else if(ev.key.keysym.sym == SDLK_RETURN) gc->key ^= EDIT_ENTER_KEY;
             else if(ev.key.keysym.sym == SDLK_RIGHT) gc->key ^= EDIT_ARROW_RIGHT;
             else if(ev.key.keysym.sym == SDLK_UP) gc->key ^= EDIT_ARROW_UP;
             else if(ev.key.keysym.sym == SDLK_LEFT) gc->key ^= EDIT_ARROW_LEFT;
