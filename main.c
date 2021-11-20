@@ -50,9 +50,6 @@ void Event(GodCode_t *gc){
             gc->key = key;
             gc->state = GODCODE_STATE_UPDATE;
 
-            if(ev.key.keysym.sym == 'q'){
-                gc->state = GODCODE_STATE_QUIT;
-            }
 
         } else if(ev.type == SDL_KEYUP) {
 
