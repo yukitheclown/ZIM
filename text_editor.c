@@ -2032,14 +2032,11 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
 
             if(t->text[prev] != '\n')
                 t->cursors[k].pos = prev - GetCharsIntoLine(t->text, t->cursors[k].pos);
-            // else
-            //     t->cursors[k].pos++;
 
             if(c->num > 0){
                 TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0, SCR_NORM, AddCharacters, UndoAddCharacters);
                 ExecuteCommand(t,command);
                 FreeCommand(command);
-                // prev++;
             } else {
                 if (t->text[t->cursors[k].pos] == '\t' || t->text[t->cursors[k].pos] == ' '){
                     t->cursors[k].pos++;
@@ -2047,7 +2044,6 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
                         RemoveCharacters, UndoRemoveCharacters);
                     ExecuteCommand(t,command);
                     FreeCommand(command);
-                    // prev--;
                 } 
             }
 
@@ -2062,8 +2058,6 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
 
             if(t->text[next] != '\n')
                 next = startCursorPos - GetCharsIntoLine(t->text, next);
-            // else
-            //     next++;
 
             do {
                 t->cursors[k].pos = next;
@@ -2349,9 +2343,20 @@ static void AddCommand(TextEditor *t, TextEditorCommand *c){
 }
 
 void TextEditor_LoadFile(TextEditor *t, char *path){
+    
+    if(path == NULL){
+        t->text = malloc(1);
+        t->text[0] = 0;
+        return;
+    }
+
     FILE *fp = fopen(path, "r");
 
-    if(!fp) return;
+    if(!fp){
+        t->text = malloc(1);
+        t->text[0] = 0;
+        return;
+    }
 
     fseek(fp, 0, SEEK_END);
 
@@ -2481,6 +2486,8 @@ void TextEditor_Draw(TextEditor *t){
         sprintf(buffer, "%i", t->scroll+k);
         Graphics_mvprintw(0, logY+k, buffer, strlen(buffer));
     }
+
+    // logs
 
     if(t->logging && t->logging != LOGMODE_CONSOLE){
 
@@ -2632,6 +2639,8 @@ void TextEditor_Draw(TextEditor *t){
          Graphics_RenderNCurses();
         return;
     }
+
+    // end logs
 
     t->textLen = strlen(t->text);
 
@@ -2894,6 +2903,12 @@ void TextEditor_Draw(TextEditor *t){
                 ctOffset = ++k;
             }
         }
+
+        if(k - ctOffset > 0){
+            Graphics_attron(COLOR_NORMAL);
+            Graphics_mvprintw(logX+x, logY+y, &t->text[ctOffset], k - ctOffset);
+        }
+
     // } else { // easy selections have no highlighting
     // }
     int cur;
