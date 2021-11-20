@@ -79,8 +79,8 @@ static void MoveByChars(TextEditor *t, TextEditorCommand *c);
 static void SelectAll(TextEditor *t, TextEditorCommand *c);
 static void MoveByWords(TextEditor *t, TextEditorCommand *c);
 static void FreeCursors(TextEditor *t);
-static void MoveCursorUpLine(TextEditor *t, TextEditorCursor *cursor);
-static void MoveCursorDownLine(TextEditor *t, TextEditorCursor *cursor);
+static int MoveCursorUpLine(TextEditor *t, TextEditorCursor *cursor);
+static int MoveCursorDownLine(TextEditor *t, TextEditorCursor *cursor);
 static void MoveLines(TextEditor *t, TextEditorCommand *c);
 // static void ExpandSelectionChars(TextEditor *t,TextEditorCommand *c);
 static void ExpandSelectionWords(TextEditor *t,TextEditorCommand *c);
@@ -904,10 +904,10 @@ static void FindText(TextEditor *t, TextEditorCommand *c){
 }
 
 
-static void MoveCursorUpLine(TextEditor *t, TextEditorCursor *cursor){
+static int MoveCursorUpLine(TextEditor *t, TextEditorCursor *cursor){
 
-    if(t->text == NULL) return;
-    if(GetNumLinesToPos(t->text, cursor->pos) == 0) return;
+    if(t->text == NULL) return 0;
+    if(GetNumLinesToPos(t->text, cursor->pos) == 0) return 0;
 
     int charsIntoLine = GetCharsIntoLine(t->text, cursor->pos);
     int startOfPrevLine = GetStartOfPrevLine(t->text, cursor->pos);
@@ -918,6 +918,8 @@ static void MoveCursorUpLine(TextEditor *t, TextEditorCursor *cursor){
 
     int charsOnPrevLine = (k - startOfPrevLine);
     cursor->pos = charsIntoLine <= charsOnPrevLine ? startOfPrevLine + charsIntoLine: startOfPrevLine + charsOnPrevLine; 
+
+    return 1;
 }
 
 static int GetStartOfNextLine(char *text, int textLen, int cPos){
@@ -929,14 +931,16 @@ static int GetStartOfNextLine(char *text, int textLen, int cPos){
     return k;
 }
 
-static void MoveCursorDownLine(TextEditor *t, TextEditorCursor *cursor){
+static int MoveCursorDownLine(TextEditor *t, TextEditorCursor *cursor){
 
-    if(t->text == NULL) return;
+    if(t->text == NULL) return 0;
+
+    t->textLen = strlen(t->text);
 
     int charsIntoLine = GetCharsIntoLine(t->text, cursor->pos);
     int startOfNextLine = GetStartOfNextLine(t->text, t->textLen, cursor->pos);
 
-    if(startOfNextLine == (int)t->textLen) return;
+    if(startOfNextLine == (int)t->textLen) return 0;
 
     int k;
     for(k = startOfNextLine; k < (int)t->textLen; k++)
@@ -945,6 +949,7 @@ static void MoveCursorDownLine(TextEditor *t, TextEditorCursor *cursor){
     int charsOnNextLine = (k - startOfNextLine);
 
     cursor->pos = charsIntoLine <= charsOnNextLine ? startOfNextLine + charsIntoLine : startOfNextLine + charsOnNextLine;
+    return 1;
 }
 
 static void MoveLines(TextEditor *t, TextEditorCommand *c){
@@ -1050,17 +1055,36 @@ static void AddCursorCommand(TextEditor *t, TextEditorCommand *c){
             maxCursor = t->cursors[k].pos;
     }
 
-    if(c->num < 0 && GetNumLinesToPos(t->text, minCursor) > 0){
+    if(c->num < 0){
 
         cursor->pos = minCursor;
 
-        MoveCursorUpLine(t, cursor);
+        if(!MoveCursorUpLine(t, cursor)){
+            t->cursors = (TextEditorCursor *)realloc(t->cursors, --t->nCursors * sizeof(TextEditorCursor));
+        }
 
     } else if(c->num > 0) {
 
         cursor->pos = maxCursor;
 
-        MoveCursorDownLine(t, cursor);
+        if(!MoveCursorDownLine(t, cursor)){
+
+            t->textLen = strlen(t->text);
+            if(t->textLen == 0){
+                t->text = realloc(t->text, t->textLen+3);
+                t->text[t->textLen] = '\n';
+                t->text[t->textLen+1] = '\n';
+                t->text[t->textLen+2] = '\0';
+            } else{
+                t->text = realloc(t->text, t->textLen+2);
+                t->text[t->textLen] = '\n';
+                t->text[t->textLen+1] = '\0';
+            }
+            MoveCursorDownLine(t, cursor);
+
+            // t->cursors = (TextEditorCursor *)realloc(t->cursors, --t->nCursors * sizeof(TextEditorCursor));
+
+        }
     }
 }
 
