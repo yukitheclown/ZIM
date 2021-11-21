@@ -17,8 +17,10 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 ![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
+Mouse support<br>
+Case insensitive search<br>
 Swap files<br>
-files save open etc<br>
+files save open etc ctrl+shift+f maybe?<br>
 config files<br>
 windows/tabs<br>
 make libthoth for text editor embed for opengl games<br>
