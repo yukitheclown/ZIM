@@ -1,4 +1,3 @@
-![Screenshot](Screenshots/praisekek.jpg)<br>
 New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 <b>font</b>: https://github.com/larsenwork/monoid<br>
 ![Screenshot](Screenshots/Screenshot.png)
@@ -14,8 +13,7 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
     
     
     
-
-![Screenshot](Screenshots/Screenshot.gif)<br>
+![Screenshot](Screenshots/praisekek.jpg) ![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
 Mouse support<br>
@@ -58,7 +56,6 @@ ctrl+/ (toggle comment) (adds or removes // for the line to comment) (todo: mutl
 ctrl+shift+arrow up/down (move line up/down) (moves the entire line the cursors on, or every line in the selection by a line)<br>
 ctrl+o (open file)<br>
 ctrl+w (save file)<br>
-
 <br>
-Deveoloped while bedridden after I got hit by a car on a moped. I'll be fully recovered soon.
-Praise kek orz
+Deveoloped while bedridden after I got hit by a car on a moped. I'll be fully recovered soon.<br>
+
