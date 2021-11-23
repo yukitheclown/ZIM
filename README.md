@@ -50,6 +50,7 @@ ctrl+arrow down (add cursor down)<br>
 ctrl+d (select word under cursor if no selection. continued pressing selects the next occurance of word or selection)<br>
 ctrl+g (goto line)<br>
 ctrl+f (search) (enter to search forward, ctrl+enter to search backward)<br>
+ctrl+F (case senstive search)<br>
 ctrl+m (move brackets) (moves cursor between the { }, ( ), [ ], of the current scope) (either to the end, or to the beginning if its at the end)<br>
 ctrl+shift+j (select brackets) (selects everything between the brackets)<br>
 ctrl+/ (toggle comment) (adds or removes // for the line to comment) (todo: mutli-line)<br>
