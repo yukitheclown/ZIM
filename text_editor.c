@@ -47,12 +47,13 @@ enum {
 };
 
 static void EndLogging(TextEditor *t);
-static void FindTextGoto(TextEditor *t, int dir);
+static int FindInsensitive(char *text, char *str, int len);
+static void FindTextGoto(TextEditor *t, int dir, int insensitive);
 static void ScrollToLine(TextEditor *t);
 static int MoveByWordsFunc(char *text, int len, int start, int dir);
-static void FindCommand(TextEditor *t, TextEditorCommand *command);
+static void FindTextInsensitive(TextEditor *t, TextEditorCommand *c);
 static void AddSavedText(TextEditor *t, char *str, int len, int *cursorIndex);
-static void EraseAllSelectedText(TextEditor *t, int *cursorIndex, TextEditorCommand *command);
+static void EraseAllSelectedText(TextEditor *t, int *cursorIndex, TextEditorCommand *c);
 static void AutoComplete(TextEditor *t);
 static int IsToken(char c);
 static int IsDigit(char c);
@@ -183,20 +184,26 @@ static void EndLogging(TextEditor *t){
     t->loggingText = NULL;
 }
 
-static void FindTextGoto(TextEditor *t, int dir){
+static void FindTextGoto(TextEditor *t, int dir, int insensitive){
 
     RemoveSelections(t);
     RemoveExtraCursors(t);
     if(!t->loggingText) return;
     int searchLen = strlen(t->loggingText);
 
+    int (*sensitiveFind)(char *text, char *str, int len);
+    if(insensitive)
+        sensitiveFind = FindInsensitive;
+    else
+        sensitiveFind = Find;
+
     if(dir > 0){
 
-        int next = Find(&t->text[t->cursors[0].pos], t->loggingText, searchLen);
+        int next = sensitiveFind(&t->text[t->cursors[0].pos], t->loggingText, searchLen);
 
         if(next < 0 || t->cursors[0].pos == strlen(t->text)){
     
-            next = Find(&t->text[0], t->loggingText, searchLen);
+            next = sensitiveFind(&t->text[0], t->loggingText, searchLen);
     
             if(next < 0)
                 next = 0;
@@ -206,10 +213,10 @@ static void FindTextGoto(TextEditor *t, int dir){
             t->cursors[0].pos = next;
         
         } else if(next == 0){
-            next = Find(&t->text[t->cursors[0].pos+searchLen], t->loggingText, searchLen);
+            next = sensitiveFind(&t->text[t->cursors[0].pos+searchLen], t->loggingText, searchLen);
 
             if(next < 0){
-                next = Find(&t->text[0], t->loggingText, searchLen);
+                next = sensitiveFind(&t->text[0], t->loggingText, searchLen);
                 t->cursors[0].pos = next;
                 
                 if(next >= 0)
@@ -230,7 +237,7 @@ static void FindTextGoto(TextEditor *t, int dir){
 
         t->textLen = strlen(t->text);
 
-        int curr = Find(&t->text[0], t->loggingText, searchLen);
+        int curr = sensitiveFind(&t->text[0], t->loggingText, searchLen);
         if(curr < 0) {
             return;
         }
@@ -240,15 +247,15 @@ static void FindTextGoto(TextEditor *t, int dir){
 
         do{
             curr += next+searchLen;
-            next = Find(&t->text[curr], t->loggingText, searchLen);
+            next = sensitiveFind(&t->text[curr], t->loggingText, searchLen);
 
         } while(next > 0 && curr+next+searchLen < t->cursors[0].pos && curr+next+searchLen < t->textLen);
 
 
-        if(curr-searchLen == start && t->cursors[0].pos == curr-searchLen){ // find last occurance
+        if(curr-searchLen == start && t->cursors[0].pos == curr-searchLen){ // sensitiveFind last occurance
             do{
                 curr += next+searchLen;
-                next = Find(&t->text[curr], t->loggingText, searchLen);
+                next = sensitiveFind(&t->text[curr], t->loggingText, searchLen);
 
             } while(next > 0 && curr+next+searchLen < t->textLen);
 
@@ -278,14 +285,7 @@ static void UpdateScrollCenter(TextEditor *t){
 
     int nLinesToCursor = GetNumLinesToPos(t->text,t->cursors[t->nCursors-1].pos);
 
-    if(nLinesToCursor < t->scroll)
-        t->scroll = nLinesToCursor  - (Graphics_TextCollumns()/2);
-    else if(nLinesToCursor >= t->scroll + Graphics_TextCollumns())
-        t->scroll = (nLinesToCursor - (Graphics_TextCollumns()/2));
-    // else if(nLinesToCursor >= (t->scroll + Graphics_TextCollumns())  )
-    //     t->scroll = (nLinesToCursor - Graphics_TextCollumns())+1;
-    // else if(nLinesToCursor < Graphics_TextCollumns()/2)
-    //     t->scroll = 0;
+    t->scroll = nLinesToCursor  - (Graphics_TextCollumns()/2);
 
     if(t->scroll < 0) t->scroll = 0;
 
@@ -336,8 +336,8 @@ static void ScrollToLine(TextEditor *t){
 }
 
 static void EventCtrlEnter(TextEditor *t, TextEditorCommand *c){
-    if(t->logging != LOGMODE_TEXT) return;
-    FindTextGoto(t, -1);
+    if(t->logging == LOGMODE_TEXT) FindTextGoto(t, -1, 0);
+    if(t->logging == LOGMODE_TEXT_INSENSITIVE) FindTextGoto(t, -1, 1);
 }
 
 static void EventEnter(TextEditor *t){
@@ -355,7 +355,11 @@ static void EventEnter(TextEditor *t){
         return;
     }
     if(t->logging == LOGMODE_TEXT){
-        FindTextGoto(t, 1);
+        FindTextGoto(t, 1, 0);
+        return;
+    }
+    if(t->logging == LOGMODE_TEXT_INSENSITIVE){
+        FindTextGoto(t, 1, 1);
         return;
     }
 
@@ -903,6 +907,10 @@ static void FindText(TextEditor *t, TextEditorCommand *c){
     t->logging = LOGMODE_TEXT;
 }
 
+static void FindTextInsensitive(TextEditor *t, TextEditorCommand *c){
+    EndLogging(t);
+    t->logging = LOGMODE_TEXT_INSENSITIVE;
+}
 
 static int MoveCursorUpLine(TextEditor *t, TextEditorCursor *cursor){
 
@@ -1089,16 +1097,41 @@ static void AddCursorCommand(TextEditor *t, TextEditorCommand *c){
 }
 
 static int Find(char *text, char *str, int len){
-
     char *res = (char *)malloc(len + 1);
     res[len] = 0;
     memcpy(res, str, len);
-
     char *pch = strstr(text, res);
-
     free(res);
-
     return pch == NULL ? -1 : pch - text;
+}
+
+static int FindInsensitive(char *text, char *str, int len){
+
+    int k;
+    for(k = 0; k < len; k++){
+        if(str[k] > 'A' && str[k] < 'Z')
+            str[k] -= 'A' - 'a';
+    }
+
+    int textLen = strlen(text);
+
+    int match = 0;
+    for(k = 0; k < textLen; k++){
+
+        char c = text[k];
+        if(c > 'A' && c < 'Z')
+            c -= 'A' - 'a';
+
+        if(str[match] == c){
+            match++;
+            if(match == len)
+                break;
+        } else {
+            match = 0;
+        }
+    }
+
+    return match == len ? (k-len)+1 : -1;
 }
 
 static void SelectNextWord(TextEditor *t, TextEditorCommand *c){
@@ -1713,13 +1746,6 @@ static void EraseAllSelectedText(TextEditor *t, int *cursorIndex, TextEditorComm
     AddSavedText(t, &t->text[startCursorPos], cursor->selection.len, cursorIndex);
     cursor->pos = endCursorPos;
     RemoveStrFromText(t, cursorIndex, cursor->selection.len);
-}
-
-static void FindCommand(TextEditor *t, TextEditorCommand *c){
-
-    UNUSED(c);
-
-    t->logging = 1;
 }
 
 static void SaveCursors(TextEditor *t, TextEditorCommand *c){
@@ -2439,8 +2465,9 @@ void TextEditor_Init(TextEditor *t){
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'m'  , 0}, "", 0, SCR_NORM, MoveBrackets, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'j'  , 0}, "", 0, SCR_NORM, SelectBrackets, NULL));
 
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'g'  , 0}, "", 0, SCR_NORM, GotoLine, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'f'  , 0}, "", 0, SCR_NORM, FindText, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'g'  , 0}, "", 0, SCR_CENT, GotoLine, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'f'  , 0}, "", 0, SCR_CENT, FindTextInsensitive, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'f'  , 0}, "", 0, SCR_CENT, FindText, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_ENTER_KEY|EDIT_CTRL_KEY  , 0}, "", 0, SCR_CENT, EventCtrlEnter, NULL));
     // AddCommand(t, CreateCommand((unsigned int[]){'d'|EDIT_CTRL_KEY  , 0}, "", 0, SelectNextWord, NULL));
 
@@ -2482,7 +2509,6 @@ void TextEditor_Init(TextEditor *t){
     AddCommand(t, CreateCommand((unsigned int[]){'x'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_CENT, Cut, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){'c'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_CENT, Copy, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){'v'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_CENT, Paste, UndoPaste));
-    // AddCommand(t, CreateCommand((unsigned int[]){31 /* ctrl + / */, 0}, "", 1, FindCommand, NULL));
 
 
     t->cursors = (TextEditorCursor *)malloc(sizeof(TextEditorCursor) * ++t->nCursors);
@@ -2520,7 +2546,8 @@ void TextEditor_Draw(TextEditor *t){
         buffer[3] = 0;
         sprintf(buffer, "ERR");
         if(t->logging == LOGMODE_NUM){ sprintf(buffer, "g: "); }        
-        else if(t->logging == LOGMODE_TEXT){ sprintf(buffer, "f: "); }        
+        else if(t->logging == LOGMODE_TEXT){ sprintf(buffer, "F: "); }        
+        else if(t->logging == LOGMODE_TEXT_INSENSITIVE){ sprintf(buffer, "f: "); }        
         else if(t->logging == LOGMODE_OPEN){ sprintf(buffer, "o: "); }        
         else if(t->logging == LOGMODE_SAVE){ sprintf(buffer, "w: "); }        
         Graphics_mvprintw(0, 0, buffer, strlen(buffer));
@@ -2660,7 +2687,7 @@ void TextEditor_Draw(TextEditor *t){
     }
 
     if(!t->text){
-         Graphics_RenderNCurses();
+        Graphics_RenderNCurses();
         return;
     }
 
