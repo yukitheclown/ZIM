@@ -1,7 +1,7 @@
 #ifndef WINDOW_DEF
 #define WINDOW_DEF
 
-#define WINDOW_TITLE "GODCODE"
+#define WINDOW_TITLE "KEK"
 #define WINDOW_INIT_WIDTH 			960
 #define WINDOW_INIT_HEIGHT 			540
 // #define WINDOW_INIT_WIDTH 			300

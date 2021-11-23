@@ -1,7 +1,7 @@
 
 # linux
 CC=gcc
-EXECUTABLE=thoth
+EXECUTABLE=kek
 CFLAGS = -g -Wall -lm  -DLINUX_COMPILE $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2)
 FREETYPELIBS = $(shell pkg-config --libs freetype2)
 GLEWLIBS = $(shell pkg-config --static --libs glew)
@@ -11,7 +11,7 @@ LDLIBS =-lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
 
 # windows
 # CC=i686-w64-mingw32-gcc
-# EXECUTABLE=thoth.exe
+# EXECUTABLE=kek.exe
 # CFLAGS = -w -Wl,-subsystem,windows -w -fpermissive -Wl,--no-undefined -O0 -g -DWINDOWS_COMPILE -I/usr/i686-w64-mingw32/include/freetype2/ -DGLEW_STATIC -Dmain=SDL_main
 # LDLIBS = -L/usr/i686-w64-mingw32/lib/ -lmingw32 -lSDL2main -lSDL2 -mwindows \
 #  -lm -lcomctl32 -lwinmm -lmingw32 \
