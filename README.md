@@ -1,3 +1,4 @@
+![Screenshot](Screenshots/praisekek.jpg)<br>
 New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 <b>font</b>: https://github.com/larsenwork/monoid<br>
 ![Screenshot](Screenshots/Screenshot.png)
@@ -60,3 +61,4 @@ ctrl+w (save file)<br>
 
 <br>
 Deveoloped while bedridden after I got hit by a car on a moped. I'll be fully recovered soon.
+Praise kek orz
