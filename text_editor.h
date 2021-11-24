@@ -80,6 +80,7 @@
   LOGMODE_TEXT_INSENSITIVE,
   LOGMODE_SAVE,
   LOGMODE_OPEN,
+  LOGMODE_SWITCH_FILE,
   LOGMODE_CONSOLE,
  };
 
@@ -88,10 +89,25 @@ typedef struct {
   int len;
 } AutoCompleteOffset;
 
- struct TextEditor {
+typedef struct {
+  int                     scroll;
+  int                     cursorPos;
+  int                     historyPos;
 
   TextEditorCommand       **history;
   int                     sHistory;
+
+
+  char                    *text;
+  int                     textLen;
+  char                    name[128];
+  char                    path[512];
+} TextEditorFile;
+
+ struct TextEditor {
+
+  TextEditorCommand       **commands;
+  int                     nCommands;
 
   int                     selectNextWordTerminator; // "select" not get it in the phrase selecting
 
@@ -101,19 +117,15 @@ typedef struct {
   int                     autoCompleteIndex;
 
   int                     logging;
+  int                     logIndex;
   char                    *loggingText;
-  int                     scroll;
-  int                     historyPos;
 
-
-  TextEditorCommand       **commands;
-  int                     nCommands;
+  TextEditorFile          **files;
+  int                     nFiles;
+  TextEditorFile          *file;
 
   TextEditorCursor        *cursors;
   int                     nCursors;
-
-  char                    *text;
-  int                     textLen;
 
   int                     quit;
 

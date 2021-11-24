@@ -46,16 +46,23 @@ enum {
   SCR_CENT,
 };
 
+static void FreeFile(TextEditorFile *f);
+static void RefreshFile(TextEditor *t);
+static int AddFile(TextEditor *t, TextEditorFile *f);
+static TextEditorFile *CreateFile(char *path);
 static void EndLogging(TextEditor *t);
 static int FindInsensitive(char *text, char *str, int len);
 static void FindTextGoto(TextEditor *t, int dir, int insensitive);
 static void ScrollToLine(TextEditor *t);
 static int MoveByWordsFunc(char *text, int len, int start, int dir);
+static void DoSwitchFile(TextEditor *t);
 static void FindTextInsensitive(TextEditor *t, TextEditorCommand *c);
+static void CloseFile(TextEditor *t, TextEditorCommand *c);
 static void AddSavedText(TextEditor *t, char *str, int len, int *cursorIndex);
 static void EraseAllSelectedText(TextEditor *t, int *cursorIndex, TextEditorCommand *c);
 static void AutoComplete(TextEditor *t);
 static int IsToken(char c);
+static char CaseLower(char c);
 static int IsDigit(char c);
 static int GetStartOfNextLine(char *text, int textLen, int cPos);
 static int GetNumLinesToPos(char *text, int cPos);
@@ -67,7 +74,10 @@ static int GetStartOfPrevLine(char *text, int cPos);
 static void DoOpenFile(TextEditor *t);
 static void DoSaveFile(TextEditor *t);
 static void OpenFile(TextEditor *t, TextEditorCommand *c);
+static void NewFile(TextEditor *t, TextEditorCommand *c);
+static void SwitchFile(TextEditor *t, TextEditorCommand *c);
 void TextEditor_LoadFile(TextEditor *t, char *path);
+static void SaveAsFile(TextEditor *t, TextEditorCommand *c);
 static void SaveFile(TextEditor *t, TextEditorCommand *c);
 // static void RefreshEditorCommand(TextEditorCommand *c);
 static void ResolveCursorCollisions(TextEditor *t, int *cursorIndex);
@@ -80,6 +90,7 @@ static void MoveByChars(TextEditor *t, TextEditorCommand *c);
 static void SelectAll(TextEditor *t, TextEditorCommand *c);
 static void MoveByWords(TextEditor *t, TextEditorCommand *c);
 static void FreeCursors(TextEditor *t);
+static void InitCursors(TextEditor *t);
 static int MoveCursorUpLine(TextEditor *t, TextEditorCursor *cursor);
 static int MoveCursorDownLine(TextEditor *t, TextEditorCursor *cursor);
 static void MoveLines(TextEditor *t, TextEditorCommand *c);
@@ -136,6 +147,19 @@ static int IsDigit(char c){
     return 0;
 
 }
+static char CaseLower(char c){
+    if(c > 'A' && c < 'Z')
+        c -= 'A' - 'a';
+    return c;
+}
+static int CaseLowerStrnCmp(char *str, char *cmp, int len){
+    int k;
+    for(k = 0; k < len; k++){
+        if(CaseLower(str[k]) != CaseLower(cmp[k])) break;
+    }
+    return len == k;
+
+}
 
 static int IsToken(char c){
     if(c == '(' || c == ' ' || c == '\n'|| c == ',' || c == '+' || c == '=' || c == '~' || c == '<' || 
@@ -167,6 +191,7 @@ static int GetCharsIntoLine(char *text, int cPos){
 }
 
 static void EndLogging(TextEditor *t){
+    t->logIndex = -1;
     if(t->loggingText) free(t->loggingText);
 
     if(t->logging == LOGMODE_CONSOLE){
@@ -199,11 +224,11 @@ static void FindTextGoto(TextEditor *t, int dir, int insensitive){
 
     if(dir > 0){
 
-        int next = sensitiveFind(&t->text[t->cursors[0].pos], t->loggingText, searchLen);
+        int next = sensitiveFind(&t->file->text[t->cursors[0].pos], t->loggingText, searchLen);
 
-        if(next < 0 || t->cursors[0].pos == strlen(t->text)){
+        if(next < 0 || t->cursors[0].pos == strlen(t->file->text)){
     
-            next = sensitiveFind(&t->text[0], t->loggingText, searchLen);
+            next = sensitiveFind(&t->file->text[0], t->loggingText, searchLen);
     
             if(next < 0)
                 next = 0;
@@ -213,10 +238,10 @@ static void FindTextGoto(TextEditor *t, int dir, int insensitive){
             t->cursors[0].pos = next;
         
         } else if(next == 0){
-            next = sensitiveFind(&t->text[t->cursors[0].pos+searchLen], t->loggingText, searchLen);
+            next = sensitiveFind(&t->file->text[t->cursors[0].pos+searchLen], t->loggingText, searchLen);
 
             if(next < 0){
-                next = sensitiveFind(&t->text[0], t->loggingText, searchLen);
+                next = sensitiveFind(&t->file->text[0], t->loggingText, searchLen);
                 t->cursors[0].pos = next;
                 
                 if(next >= 0)
@@ -235,9 +260,9 @@ static void FindTextGoto(TextEditor *t, int dir, int insensitive){
 
     if(dir < 0){
 
-        t->textLen = strlen(t->text);
+        t->file->textLen = strlen(t->file->text);
 
-        int curr = sensitiveFind(&t->text[0], t->loggingText, searchLen);
+        int curr = sensitiveFind(&t->file->text[0], t->loggingText, searchLen);
         if(curr < 0) {
             return;
         }
@@ -247,17 +272,17 @@ static void FindTextGoto(TextEditor *t, int dir, int insensitive){
 
         do{
             curr += next+searchLen;
-            next = sensitiveFind(&t->text[curr], t->loggingText, searchLen);
+            next = sensitiveFind(&t->file->text[curr], t->loggingText, searchLen);
 
-        } while(next > 0 && curr+next+searchLen < t->cursors[0].pos && curr+next+searchLen < t->textLen);
+        } while(next > 0 && curr+next+searchLen < t->cursors[0].pos && curr+next+searchLen < t->file->textLen);
 
 
         if(curr-searchLen == start && t->cursors[0].pos == curr-searchLen){ // sensitiveFind last occurance
             do{
                 curr += next+searchLen;
-                next = sensitiveFind(&t->text[curr], t->loggingText, searchLen);
+                next = sensitiveFind(&t->file->text[curr], t->loggingText, searchLen);
 
-            } while(next > 0 && curr+next+searchLen < t->textLen);
+            } while(next > 0 && curr+next+searchLen < t->file->textLen);
 
         }
 
@@ -270,28 +295,28 @@ static void FindTextGoto(TextEditor *t, int dir, int insensitive){
 }
 static void UpdateScroll(TextEditor *t){
 
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
-    int nLinesToCursor = GetNumLinesToPos(t->text,t->cursors[t->nCursors-1].pos);
+    int nLinesToCursor = GetNumLinesToPos(t->file->text,t->cursors[t->nCursors-1].pos);
 
-    if(nLinesToCursor < t->scroll)
-        t->scroll = nLinesToCursor;
-    else if(nLinesToCursor >= (t->scroll + Graphics_TextCollumns())  )
-        t->scroll = (nLinesToCursor - Graphics_TextCollumns())+1;
+    if(nLinesToCursor < t->file->scroll)
+        t->file->scroll = nLinesToCursor;
+    else if(nLinesToCursor >= (t->file->scroll + Graphics_TextCollumns())  )
+        t->file->scroll = (nLinesToCursor - Graphics_TextCollumns())+1;
 }
 
 
 static void UpdateScrollCenter(TextEditor *t){
 
-    int nLinesToCursor = GetNumLinesToPos(t->text,t->cursors[t->nCursors-1].pos);
+    int nLinesToCursor = GetNumLinesToPos(t->file->text,t->cursors[t->nCursors-1].pos);
 
-	if(nLinesToCursor >= t->scroll && nLinesToCursor < t->scroll + Graphics_TextCollumns()){
+	if(nLinesToCursor >= t->file->scroll && nLinesToCursor < t->file->scroll + Graphics_TextCollumns()){
 		return;
 	}	
 
-    t->scroll = nLinesToCursor  - (Graphics_TextCollumns()/2);
+    t->file->scroll = nLinesToCursor  - (Graphics_TextCollumns()/2);
 
-    if(t->scroll < 0) t->scroll = 0;
+    if(t->file->scroll < 0) t->file->scroll = 0;
 
 
 }
@@ -313,16 +338,16 @@ static void ScrollToLine(TextEditor *t){
         t->cursors[0].pos = 0;
         return;
     }
-    if(!t->text) return;
+    if(!t->file->text) return;
 
-    t->textLen = strlen(t->text);
+    t->file->textLen = strlen(t->file->text);
 
     int scroll = 0, scrollPos = 0;
 
     int k;
-    for(k = 0; k < t->textLen; k++){
+    for(k = 0; k < t->file->textLen; k++){
 
-        if(t->text[k] == '\n'){
+        if(t->file->text[k] == '\n'){
             scroll++;
             if(scroll == line+1){
                 break;
@@ -333,8 +358,8 @@ static void ScrollToLine(TextEditor *t){
 
     if(scroll == 0) return;
 
-    if(scrollPos >= t->textLen)
-        scrollPos = t->textLen-1;
+    if(scrollPos >= t->file->textLen)
+        scrollPos = t->file->textLen-1;
 
     t->cursors[0].pos = scrollPos;
     UpdateScrollCenter(t);
@@ -348,11 +373,17 @@ static void EventCtrlEnter(TextEditor *t, TextEditorCommand *c){
 static void EventEnter(TextEditor *t){
 
     if(t->logging == LOGMODE_SAVE){
+        if(!t->loggingText) return;
+        strcpy(t->file->path,t->loggingText);
         DoSaveFile(t);
         return;
     }
     if(t->logging == LOGMODE_OPEN){
         DoOpenFile(t);
+        return;
+    }
+    if(t->logging == LOGMODE_SWITCH_FILE){
+        DoSwitchFile(t);
         return;
     }
     if(t->logging == LOGMODE_NUM){
@@ -374,7 +405,7 @@ static void EventEnter(TextEditor *t){
         char buffer[MAX_AUTO_COMPLETE_STRLEN];
         int len = ac->len - t->autoCompleteSearchLen;
         int offset = ac->offset+t->autoCompleteSearchLen;
-        memcpy(buffer, &t->text[offset], len);
+        memcpy(buffer, &t->file->text[offset], len);
         buffer[len] = 0;
 
 
@@ -541,7 +572,7 @@ static void SetCursorToSelection(TextEditorCursor *cursor, int n){
 
 static void MoveByChars(TextEditor *t, TextEditorCommand *c){
 
-    int textLen = t->textLen;
+    int textLen = t->file->textLen;
 
     int k;
     for(k = 0; k < t->nCursors; k++){
@@ -637,13 +668,15 @@ static void MoveByWords(TextEditor *t, TextEditorCommand *c){
         memset(&t->cursors[k].selection, 0, sizeof(TextEditorSelection));
 
 
-        t->cursors[k].pos = MoveByWordsFunc(t->text, t->textLen,t->cursors[k].pos,c->num);
+        t->cursors[k].pos = MoveByWordsFunc(t->file->text, t->file->textLen,t->cursors[k].pos,c->num);
     }
 
     ResolveCursorCollisions(t,0);
 }
-
-
+static void InitCursors(TextEditor *t){
+    t->cursors = (TextEditorCursor *)malloc(sizeof(TextEditorCursor) * ++t->nCursors);
+    memset(&t->cursors[0], 0, sizeof(TextEditorCursor));
+}
 static void FreeCursors(TextEditor *t){
 
     int k;
@@ -660,7 +693,7 @@ static void FreeCursors(TextEditor *t){
 }
 
 static void MoveLineUp(TextEditor *t, TextEditorCursor *cursor){
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     // int k;
     // for(k = 0; k < t->nCursors; k++){
@@ -671,36 +704,36 @@ static void MoveLineUp(TextEditor *t, TextEditorCursor *cursor){
     if(cursor->selection.len == 0){
 
         int lineStart = cursor->pos == 0 ? 0 : cursor->pos-1;
-        for(; lineStart > 0 && t->text[lineStart] != '\n'; lineStart--);
+        for(; lineStart > 0 && t->file->text[lineStart] != '\n'; lineStart--);
         if(lineStart == 0) return; // already top line
         lineStart++; // skip \n of prev line
 
         int charsOnLine = cursor->pos;
-        for(; charsOnLine < t->textLen && t->text[charsOnLine] != '\n'; charsOnLine++);
+        for(; charsOnLine < t->file->textLen && t->file->text[charsOnLine] != '\n'; charsOnLine++);
         charsOnLine = (charsOnLine - lineStart);
 
         int startOfPrevLine = lineStart-2;
-        for(; startOfPrevLine > 0 && t->text[startOfPrevLine] != '\n'; startOfPrevLine--);
+        for(; startOfPrevLine > 0 && t->file->text[startOfPrevLine] != '\n'; startOfPrevLine--);
         if(startOfPrevLine > 0) startOfPrevLine++;
         int prevLineLen = lineStart - startOfPrevLine;
 
         if(prevLineLen > charsOnLine){
 
             char *tmp = malloc(charsOnLine);
-            memcpy(tmp, &t->text[lineStart], charsOnLine);
+            memcpy(tmp, &t->file->text[lineStart], charsOnLine);
 
-            memcpy(&t->text[startOfPrevLine+charsOnLine+1], &t->text[startOfPrevLine], prevLineLen);
-            t->text[startOfPrevLine+charsOnLine] = '\n';
-            memcpy(&t->text[startOfPrevLine], tmp, charsOnLine);
+            memcpy(&t->file->text[startOfPrevLine+charsOnLine+1], &t->file->text[startOfPrevLine], prevLineLen);
+            t->file->text[startOfPrevLine+charsOnLine] = '\n';
+            memcpy(&t->file->text[startOfPrevLine], tmp, charsOnLine);
 
             free(tmp);
         } else {
             char *tmp = malloc(prevLineLen);
-            memcpy(tmp, &t->text[startOfPrevLine], prevLineLen);
+            memcpy(tmp, &t->file->text[startOfPrevLine], prevLineLen);
 
-            memcpy(&t->text[startOfPrevLine], &t->text[lineStart], charsOnLine);
-            t->text[startOfPrevLine+charsOnLine] = '\n';
-            memcpy(&t->text[startOfPrevLine+charsOnLine+1], tmp, prevLineLen);
+            memcpy(&t->file->text[startOfPrevLine], &t->file->text[lineStart], charsOnLine);
+            t->file->text[startOfPrevLine+charsOnLine] = '\n';
+            memcpy(&t->file->text[startOfPrevLine+charsOnLine+1], tmp, prevLineLen);
             free(tmp);
         }
 
@@ -708,37 +741,37 @@ static void MoveLineUp(TextEditor *t, TextEditorCursor *cursor){
     } else {
 
         int lineStart = cursor->selection.startCursorPos == 0 ? 0 : cursor->selection.startCursorPos-1;
-        for(; lineStart > 0 && t->text[lineStart] != '\n'; lineStart--);
+        for(; lineStart > 0 && t->file->text[lineStart] != '\n'; lineStart--);
         if(lineStart > 0) lineStart++; // skip \n of prev line
 
         int charsOnLine = cursor->selection.startCursorPos+cursor->selection.len-1;
-        for(; charsOnLine < t->textLen && t->text[charsOnLine] != '\n'; charsOnLine++);
-        if(charsOnLine >= t->textLen || t->text[charsOnLine] != '\n') return; // end of file dont move down
+        for(; charsOnLine < t->file->textLen && t->file->text[charsOnLine] != '\n'; charsOnLine++);
+        if(charsOnLine >= t->file->textLen || t->file->text[charsOnLine] != '\n') return; // end of file dont move down
         charsOnLine = (charsOnLine - lineStart);
 
         int startOfPrevLine = lineStart-2;
-        for(; startOfPrevLine > 0 && t->text[startOfPrevLine] != '\n'; startOfPrevLine--);
+        for(; startOfPrevLine > 0 && t->file->text[startOfPrevLine] != '\n'; startOfPrevLine--);
         if(startOfPrevLine > 0) startOfPrevLine++;
         int prevLineLen = lineStart - startOfPrevLine;
 
         if(prevLineLen > charsOnLine){
 
             char *tmp = malloc(charsOnLine);
-            memcpy(tmp, &t->text[lineStart], charsOnLine);
+            memcpy(tmp, &t->file->text[lineStart], charsOnLine);
 
-            memcpy(&t->text[startOfPrevLine+charsOnLine+1], &t->text[startOfPrevLine], prevLineLen);
-            t->text[startOfPrevLine+charsOnLine] = '\n';
-            memcpy(&t->text[startOfPrevLine], tmp, charsOnLine);
+            memcpy(&t->file->text[startOfPrevLine+charsOnLine+1], &t->file->text[startOfPrevLine], prevLineLen);
+            t->file->text[startOfPrevLine+charsOnLine] = '\n';
+            memcpy(&t->file->text[startOfPrevLine], tmp, charsOnLine);
 
             free(tmp);
 
         } else {
             char *tmp = malloc(prevLineLen);
-            memcpy(tmp, &t->text[startOfPrevLine], prevLineLen);
+            memcpy(tmp, &t->file->text[startOfPrevLine], prevLineLen);
 
-            memcpy(&t->text[startOfPrevLine], &t->text[lineStart], charsOnLine);
-            t->text[startOfPrevLine+charsOnLine] = '\n';
-            memcpy(&t->text[startOfPrevLine+charsOnLine+1], tmp, prevLineLen);
+            memcpy(&t->file->text[startOfPrevLine], &t->file->text[lineStart], charsOnLine);
+            t->file->text[startOfPrevLine+charsOnLine] = '\n';
+            memcpy(&t->file->text[startOfPrevLine+charsOnLine+1], tmp, prevLineLen);
             free(tmp);
 
         }
@@ -751,7 +784,7 @@ static void MoveLineUp(TextEditor *t, TextEditorCursor *cursor){
 }
 
 static void MoveLineDown(TextEditor *t, TextEditorCursor *cursor){
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     // int k;
     // for(k = 0; k < t->nCursors; k++){
@@ -762,35 +795,35 @@ static void MoveLineDown(TextEditor *t, TextEditorCursor *cursor){
     if(cursor->selection.len == 0){
 
         int lineStart = cursor->pos == 0 ? 0 : cursor->pos-1;
-        for(; lineStart > 0 && t->text[lineStart] != '\n'; lineStart--);
+        for(; lineStart > 0 && t->file->text[lineStart] != '\n'; lineStart--);
         if(lineStart > 0) lineStart++; // skip \n of prev line
 
         int charsOnLine = cursor->pos;
-        for(; charsOnLine < t->textLen && t->text[charsOnLine] != '\n'; charsOnLine++);
-        if(charsOnLine >= t->textLen || t->text[charsOnLine] != '\n') return; // end of file dont move down
+        for(; charsOnLine < t->file->textLen && t->file->text[charsOnLine] != '\n'; charsOnLine++);
+        if(charsOnLine >= t->file->textLen || t->file->text[charsOnLine] != '\n') return; // end of file dont move down
         charsOnLine = (charsOnLine - lineStart);
 
         int startOfNextLine = lineStart+charsOnLine+1;
         int nextLineLen = startOfNextLine;
-        for(; nextLineLen < t->textLen && t->text[nextLineLen] != '\n'; nextLineLen++);
+        for(; nextLineLen < t->file->textLen && t->file->text[nextLineLen] != '\n'; nextLineLen++);
 
         nextLineLen = (nextLineLen - startOfNextLine);
 
         if(nextLineLen > charsOnLine){
             char *tmp = malloc(charsOnLine);
-            memcpy(tmp, &t->text[lineStart], charsOnLine);
-            memcpy(&t->text[lineStart], &t->text[startOfNextLine], nextLineLen);
-            t->text[lineStart+nextLineLen] = '\n';
-            memcpy(&t->text[lineStart+nextLineLen+1], tmp, charsOnLine);
+            memcpy(tmp, &t->file->text[lineStart], charsOnLine);
+            memcpy(&t->file->text[lineStart], &t->file->text[startOfNextLine], nextLineLen);
+            t->file->text[lineStart+nextLineLen] = '\n';
+            memcpy(&t->file->text[lineStart+nextLineLen+1], tmp, charsOnLine);
 
             free(tmp);
         } else {
             char *tmp = malloc(nextLineLen);
-            memcpy(tmp, &t->text[startOfNextLine], nextLineLen);
+            memcpy(tmp, &t->file->text[startOfNextLine], nextLineLen);
 
-            memcpy(&t->text[lineStart+nextLineLen+1], &t->text[lineStart], charsOnLine);
-            t->text[lineStart+nextLineLen] = '\n';
-            memcpy(&t->text[lineStart], tmp, nextLineLen);
+            memcpy(&t->file->text[lineStart+nextLineLen+1], &t->file->text[lineStart], charsOnLine);
+            t->file->text[lineStart+nextLineLen] = '\n';
+            memcpy(&t->file->text[lineStart], tmp, nextLineLen);
             free(tmp);
         }
 
@@ -798,36 +831,36 @@ static void MoveLineDown(TextEditor *t, TextEditorCursor *cursor){
     } else {
 
         int lineStart = cursor->selection.startCursorPos == 0 ? 0 : cursor->selection.startCursorPos-1;
-        for(; lineStart > 0 && t->text[lineStart] != '\n'; lineStart--);
+        for(; lineStart > 0 && t->file->text[lineStart] != '\n'; lineStart--);
         if(lineStart > 0) lineStart++; // skip \n of prev line
 
         int charsOnLine = cursor->selection.startCursorPos+cursor->selection.len-1;
-        for(; charsOnLine < t->textLen && t->text[charsOnLine] != '\n'; charsOnLine++);
-        if(charsOnLine >= t->textLen || t->text[charsOnLine] != '\n') return; // end of file dont move down
+        for(; charsOnLine < t->file->textLen && t->file->text[charsOnLine] != '\n'; charsOnLine++);
+        if(charsOnLine >= t->file->textLen || t->file->text[charsOnLine] != '\n') return; // end of file dont move down
 
         charsOnLine = (charsOnLine - lineStart);
 
         int startOfNextLine = lineStart+charsOnLine+1;
         int nextLineLen = startOfNextLine;
-        for(; nextLineLen < t->textLen && t->text[nextLineLen] != '\n'; nextLineLen++);
+        for(; nextLineLen < t->file->textLen && t->file->text[nextLineLen] != '\n'; nextLineLen++);
 
         nextLineLen = (nextLineLen - startOfNextLine);
 
         if(nextLineLen > charsOnLine){
             char *tmp = malloc(charsOnLine);
-            memcpy(tmp, &t->text[lineStart], charsOnLine);
-            memcpy(&t->text[lineStart], &t->text[startOfNextLine], nextLineLen);
-            t->text[lineStart+nextLineLen] = '\n';
-            memcpy(&t->text[lineStart+nextLineLen+1], tmp, charsOnLine);
+            memcpy(tmp, &t->file->text[lineStart], charsOnLine);
+            memcpy(&t->file->text[lineStart], &t->file->text[startOfNextLine], nextLineLen);
+            t->file->text[lineStart+nextLineLen] = '\n';
+            memcpy(&t->file->text[lineStart+nextLineLen+1], tmp, charsOnLine);
 
             free(tmp);
         } else {
             char *tmp = malloc(nextLineLen);
-            memcpy(tmp, &t->text[startOfNextLine], nextLineLen);
+            memcpy(tmp, &t->file->text[startOfNextLine], nextLineLen);
 
-            memcpy(&t->text[lineStart+nextLineLen+1], &t->text[lineStart], charsOnLine);
-            t->text[lineStart+nextLineLen] = '\n';
-            memcpy(&t->text[lineStart], tmp, nextLineLen);
+            memcpy(&t->file->text[lineStart+nextLineLen+1], &t->file->text[lineStart], charsOnLine);
+            t->file->text[lineStart+nextLineLen] = '\n';
+            memcpy(&t->file->text[lineStart], tmp, nextLineLen);
             free(tmp);
         }
 
@@ -842,7 +875,7 @@ static void MoveLinesText(TextEditor *t, TextEditorCommand *c){
     LoadCursors(t,c);
     int k;
 
-    if(t->text == NULL || !t->textLen)
+    if(t->file->text == NULL || !t->file->textLen)
         return;
 
     for(k = 0; k < t->nCursors; k++){
@@ -851,7 +884,7 @@ static void MoveLinesText(TextEditor *t, TextEditorCommand *c){
 
         if(c->num > 0)
             MoveLineDown(t, cursor);
-        else if(c->num < 0 && GetNumLinesToPos(t->text, cursor->pos) > 0)
+        else if(c->num < 0 && GetNumLinesToPos(t->file->text, cursor->pos) > 0)
             MoveLineUp(t, cursor);
     }
 
@@ -864,7 +897,7 @@ static void UndoMoveLinesText(TextEditor *t, TextEditorCommand *c){
     int k;
     LoadCursors(t,c);
 
-    if(t->text == NULL || !t->textLen)
+    if(t->file->text == NULL || !t->file->textLen)
         return;
 
     for(k = 0; k < t->nCursors; k++){
@@ -873,7 +906,7 @@ static void UndoMoveLinesText(TextEditor *t, TextEditorCommand *c){
 
         if(c->num > 0)
             MoveLineUp(t, cursor);
-        else if(c->num < 0 && GetNumLinesToPos(t->text, cursor->pos) > 0)
+        else if(c->num < 0 && GetNumLinesToPos(t->file->text, cursor->pos) > 0)
             MoveLineDown(t, cursor);
     }
 
@@ -889,22 +922,103 @@ static void GotoLine(TextEditor *t, TextEditorCommand *c){
 
 static void DoOpenFile(TextEditor *t){
     TextEditor_LoadFile(t, t->loggingText);
-    EndLogging(t);
-}
-static void DoSaveFile(TextEditor *t){
-    FILE *fp = fopen(t->loggingText, "w");
-    fwrite(t->text,1,strlen(t->text),fp);
-    fclose(fp);
+    RefreshFile(t);
     EndLogging(t);
 }
 
+static void DoSwitchFile(TextEditor *t){
+
+    t->file->cursorPos = t->cursors[0].pos;
+
+    if(t->loggingText && strlen(t->loggingText) > 0){
+        int matches = 0;
+        int k;
+        for(k = 0; k < t->nFiles; k++){
+            int nameLen = strlen(t->files[k]->name);
+            int logNameLen = strlen(t->loggingText);
+            
+            if(nameLen > 0 && logNameLen <= nameLen){
+                if(CaseLowerStrnCmp(t->loggingText, t->files[k]->name, logNameLen)){
+                    if(t->logIndex == matches){
+
+                        t->file = t->files[k];
+
+                        if(t->file != t->files[k]){
+                            int j;
+                            for(j = 1; j <= k; j++){
+                                t->files[j] = t->files[j-1];
+                            }
+                            t->files[0] = t->file; // stack like
+                        }
+                        break;
+                    }
+                    matches++;
+                }
+            }
+        }
+    }
+
+    RefreshFile(t);
+    EndLogging(t);
+}
+
+static void DoSaveFile(TextEditor *t){
+    FILE *fp = fopen(t->file->path, "w");
+    fwrite(t->file->text,1,strlen(t->file->text),fp);
+    fclose(fp);
+    EndLogging(t);
+}
+static void RefreshFile(TextEditor *t){
+    FreeCursors(t);
+    InitCursors(t);
+    t->cursors[0].pos = t->file->cursorPos;
+    t->autoCompleteSearchLen = 0;
+    t->autoCompleteLen = 0;
+    t->autoCompleteIndex = 0;
+    t->selectNextWordTerminator = 0;
+}
+static void NewFile(TextEditor *t, TextEditorCommand *c){
+    TextEditor_LoadFile(t, NULL);
+    RefreshFile(t);
+}
+static void CloseFile(TextEditor *t, TextEditorCommand *c){
+    int k;
+    for(k = 0; k < t->nFiles; k++){
+        if(t->files[k] == t->file){
+            FreeFile(t->file);
+            for(; k < t->nFiles-1; k++)
+                t->files[k] = t->files[k+1];
+            
+            t->files = (TextEditorFile **)realloc(t->files,sizeof(TextEditorFile*) * t->nFiles--);
+            break;
+        }
+    }
+    if(t->nFiles == 0)
+        TextEditor_LoadFile(t, NULL);
+    else
+        t->file = t->files[0];
+
+    RefreshFile(t);
+}
 static void OpenFile(TextEditor *t, TextEditorCommand *c){
     EndLogging(t);
     t->logging = LOGMODE_OPEN;
 }
-static void SaveFile(TextEditor *t, TextEditorCommand *c){
+static void SwitchFile(TextEditor *t, TextEditorCommand *c){
+    EndLogging(t);
+    t->logging = LOGMODE_SWITCH_FILE;
+}
+static void SaveAsFile(TextEditor *t, TextEditorCommand *c){
     EndLogging(t);
     t->logging = LOGMODE_SAVE;
+}
+static void SaveFile(TextEditor *t, TextEditorCommand *c){
+    EndLogging(t);
+    if(strlen(t->file->path) == 0){
+        t->logging = LOGMODE_SAVE;
+        return;
+    }
+    DoSaveFile(t);
 }
 
 static void FindText(TextEditor *t, TextEditorCommand *c){
@@ -919,15 +1033,15 @@ static void FindTextInsensitive(TextEditor *t, TextEditorCommand *c){
 
 static int MoveCursorUpLine(TextEditor *t, TextEditorCursor *cursor){
 
-    if(t->text == NULL) return 0;
-    if(GetNumLinesToPos(t->text, cursor->pos) == 0) return 0;
+    if(t->file->text == NULL) return 0;
+    if(GetNumLinesToPos(t->file->text, cursor->pos) == 0) return 0;
 
-    int charsIntoLine = GetCharsIntoLine(t->text, cursor->pos);
-    int startOfPrevLine = GetStartOfPrevLine(t->text, cursor->pos);
+    int charsIntoLine = GetCharsIntoLine(t->file->text, cursor->pos);
+    int startOfPrevLine = GetStartOfPrevLine(t->file->text, cursor->pos);
 
     int k;
-    for(k = startOfPrevLine; k < (int)t->textLen; k++)
-        if(t->text[k] == '\n') break;
+    for(k = startOfPrevLine; k < (int)t->file->textLen; k++)
+        if(t->file->text[k] == '\n') break;
 
     int charsOnPrevLine = (k - startOfPrevLine);
     cursor->pos = charsIntoLine <= charsOnPrevLine ? startOfPrevLine + charsIntoLine: startOfPrevLine + charsOnPrevLine; 
@@ -946,18 +1060,18 @@ static int GetStartOfNextLine(char *text, int textLen, int cPos){
 
 static int MoveCursorDownLine(TextEditor *t, TextEditorCursor *cursor){
 
-    if(t->text == NULL) return 0;
+    if(t->file->text == NULL) return 0;
 
-    t->textLen = strlen(t->text);
+    t->file->textLen = strlen(t->file->text);
 
-    int charsIntoLine = GetCharsIntoLine(t->text, cursor->pos);
-    int startOfNextLine = GetStartOfNextLine(t->text, t->textLen, cursor->pos);
+    int charsIntoLine = GetCharsIntoLine(t->file->text, cursor->pos);
+    int startOfNextLine = GetStartOfNextLine(t->file->text, t->file->textLen, cursor->pos);
 
-    if(startOfNextLine == (int)t->textLen) return 0;
+    if(startOfNextLine == (int)t->file->textLen) return 0;
 
     int k;
-    for(k = startOfNextLine; k < (int)t->textLen; k++)
-        if(t->text[k] == '\n') break;
+    for(k = startOfNextLine; k < (int)t->file->textLen; k++)
+        if(t->file->text[k] == '\n') break;
 
     int charsOnNextLine = (k - startOfNextLine);
 
@@ -974,9 +1088,33 @@ static void MoveLines(TextEditor *t, TextEditorCommand *c){
         return;
     }
 
+    if(t->logging == LOGMODE_SWITCH_FILE){
+
+        if(t->loggingText && strlen(t->loggingText)> 0){
+            t->logIndex += c->num;
+            if(t->logIndex < 0) t->logIndex = 0;
+    
+            int nMatching = 0;
+            int k;
+            for(k = 0; k < t->nFiles; k++){
+                int nameLen = strlen(t->files[k]->name);
+                int logNameLen = strlen(t->loggingText);
+                if(nameLen > 0 && logNameLen <= nameLen){
+                    if(CaseLowerStrnCmp(t->loggingText, t->files[k]->name, logNameLen))
+                        nMatching++;
+
+                }
+            }
+            if(t->logIndex >= nMatching) t->logIndex = nMatching-1;
+
+        }
+
+        return;
+    }
+
     int k;
 
-    if(t->text == NULL || !t->textLen){
+    if(t->file->text == NULL || !t->file->textLen){
         // FreeCursors(t);
         return;
     }
@@ -990,7 +1128,7 @@ static void MoveLines(TextEditor *t, TextEditorCommand *c){
 
             MoveCursorDownLine(t, cursor);
 
-        } else if(c->num < 0 && GetNumLinesToPos(t->text, cursor->pos) > 0){
+        } else if(c->num < 0 && GetNumLinesToPos(t->file->text, cursor->pos) > 0){
 
             MoveCursorUpLine(t, cursor);
         }
@@ -1006,7 +1144,7 @@ static void ExpandSelectionWords(TextEditor *t,TextEditorCommand *c){
     for(k = 0; k < t->nCursors; k++){
 
         int prev = t->cursors[k].pos;
-        t->cursors[k].pos = MoveByWordsFunc(t->text, t->textLen, t->cursors[k].pos,c->num);
+        t->cursors[k].pos = MoveByWordsFunc(t->file->text, t->file->textLen, t->cursors[k].pos,c->num);
         
         if(t->cursors[k].selection.len == 0)
             t->cursors[k].selection.startCursorPos = prev;
@@ -1051,7 +1189,7 @@ static TextEditorCursor *AddCursor(TextEditor *t){
 
 static void AddCursorCommand(TextEditor *t, TextEditorCommand *c){
 
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     TextEditorCursor *cursor = AddCursor(t);
 
@@ -1082,16 +1220,16 @@ static void AddCursorCommand(TextEditor *t, TextEditorCommand *c){
 
         if(!MoveCursorDownLine(t, cursor)){
 
-            t->textLen = strlen(t->text);
-            if(t->textLen == 0){
-                t->text = realloc(t->text, t->textLen+3);
-                t->text[t->textLen] = '\n';
-                t->text[t->textLen+1] = '\n';
-                t->text[t->textLen+2] = '\0';
+            t->file->textLen = strlen(t->file->text);
+            if(t->file->textLen == 0){
+                t->file->text = realloc(t->file->text, t->file->textLen+3);
+                t->file->text[t->file->textLen] = '\n';
+                t->file->text[t->file->textLen+1] = '\n';
+                t->file->text[t->file->textLen+2] = '\0';
             } else{
-                t->text = realloc(t->text, t->textLen+2);
-                t->text[t->textLen] = '\n';
-                t->text[t->textLen+1] = '\0';
+                t->file->text = realloc(t->file->text, t->file->textLen+2);
+                t->file->text[t->file->textLen] = '\n';
+                t->file->text[t->file->textLen+1] = '\0';
             }
             MoveCursorDownLine(t, cursor);
 
@@ -1113,19 +1251,15 @@ static int Find(char *text, char *str, int len){
 static int FindInsensitive(char *text, char *str, int len){
 
     int k;
-    for(k = 0; k < len; k++){
-        if(str[k] > 'A' && str[k] < 'Z')
-            str[k] -= 'A' - 'a';
-    }
+    for(k = 0; k < len; k++)
+        str[k] = CaseLower(str[k]);
 
     int textLen = strlen(text);
 
     int match = 0;
     for(k = 0; k < textLen; k++){
 
-        char c = text[k];
-        if(c > 'A' && c < 'Z')
-            c -= 'A' - 'a';
+        char c = CaseLower(text[k]);
 
         if(str[match] == c){
             match++;
@@ -1143,7 +1277,7 @@ static void SelectNextWord(TextEditor *t, TextEditorCommand *c){
 
     UNUSED(c);
 
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     if(t->nCursors <= 0) return;
 
@@ -1156,7 +1290,7 @@ static void SelectNextWord(TextEditor *t, TextEditorCommand *c){
             TextEditorCursor *cursor = &t->cursors[f];
 
             int start = 0;
-            GetWordStartEnd(t->text, cursor->pos, &start, &cursor->pos);
+            GetWordStartEnd(t->file->text, cursor->pos, &start, &cursor->pos);
 
             t->selectNextWordTerminator = 1;
 
@@ -1179,10 +1313,10 @@ static void SelectNextWord(TextEditor *t, TextEditorCommand *c){
 
         while(next >= 0){
 
-            next = Find(&t->text[end], &t->text[startPos], len);
+            next = Find(&t->file->text[end], &t->file->text[startPos], len);
 
             if(next >= 0){
-                if(t->selectNextWordTerminator && !IsToken(t->text[end+next+len])){
+                if(t->selectNextWordTerminator && !IsToken(t->file->text[end+next+len])){
                     end += next+len;
                     continue;
                 }
@@ -1197,7 +1331,7 @@ static void SelectNextWord(TextEditor *t, TextEditorCommand *c){
             cursor->selection.startCursorPos = next;
             cursor->selection.len = len;
         } else {
-            next = Find(&t->text[0], &t->text[startPos], len);
+            next = Find(&t->file->text[0], &t->file->text[startPos], len);
             if(next >= 0 && next != startPos){
                 TextEditorCursor *cursor = AddCursor(t);
                 cursor->pos = next+len;
@@ -1423,9 +1557,9 @@ static int GetBetweenBrackets(char *text, int len, int pos, int *first, int *las
 
 static void ToggleComment(TextEditor *t, TextEditorCommand *c){
 
-    if(!t->text) return;
+    if(!t->file->text) return;
 
-    t->textLen = strlen(t->text);
+    t->file->textLen = strlen(t->file->text);
 
     LoadCursors(t,c);
 
@@ -1435,14 +1569,14 @@ static void ToggleComment(TextEditor *t, TextEditorCommand *c){
 
         if(t->cursors[k].selection.len == 0){
 
-            int lineEnd = GetStartOfNextLine(t->text, t->textLen, t->cursors[k].pos)-1;
-            int lineStart = t->cursors[k].pos - GetCharsIntoLine(t->text, t->cursors[k].pos);
+            int lineEnd = GetStartOfNextLine(t->file->text, t->file->textLen, t->cursors[k].pos)-1;
+            int lineStart = t->cursors[k].pos - GetCharsIntoLine(t->file->text, t->cursors[k].pos);
 
             int j;
             int toggled = 0;
             for(j = lineEnd-1; j >= lineStart+1; j--){
 
-                if(t->text[j] == '/' && t->text[j-1] == '/') {
+                if(t->file->text[j] == '/' && t->file->text[j-1] == '/') {
                     t->cursors[k].pos = j+1;
                     RemoveStrFromText(t, &k, 2);
                     toggled = 1;
@@ -1459,24 +1593,24 @@ static void ToggleComment(TextEditor *t, TextEditorCommand *c){
 
 
         int startSelection = t->cursors[k].selection.startCursorPos - 
-        GetCharsIntoLine(t->text, t->cursors[k].selection.startCursorPos);
+        GetCharsIntoLine(t->file->text, t->cursors[k].selection.startCursorPos);
         int endSelection = t->cursors[k].selection.startCursorPos + t->cursors[k].selection.len;
 
         int toggled = 0;
 
         int m;
         for(m = startSelection; m < endSelection; m++){
-            if(t->text[m] == '/' && t->text[m-1] == '/') {
+            if(t->file->text[m] == '/' && t->file->text[m-1] == '/') {
                 toggled = 1;    
                 break;
             }
-            if(t->text[m] == '\n')
+            if(t->file->text[m] == '\n')
                 break;
         }
 
         if(toggled == 1){
             for(m = startSelection; m < endSelection; m++){
-                if(t->text[m] == '/' && t->text[m-1] == '/') {
+                if(t->file->text[m] == '/' && t->file->text[m-1] == '/') {
                     t->cursors[k].pos = m+1;
                     RemoveStrFromText(t, &k, 2);
                     t->cursors[k].selection.len -= 2;
@@ -1493,7 +1627,7 @@ static void ToggleComment(TextEditor *t, TextEditorCommand *c){
         t->cursors[k].selection.len += 2;
 
         for(m = startSelection; m < endSelection; m++){
-            if(t->text[m] == '\n'){
+            if(t->file->text[m] == '\n'){
                 t->cursors[k].pos = m+1;
                 t->cursors[k].selection.len += 2;
                 AddStrToText(t, &k, "//");
@@ -1506,14 +1640,14 @@ static void ToggleComment(TextEditor *t, TextEditorCommand *c){
 
 static void MoveBrackets(TextEditor *t, TextEditorCommand *c){
 
-    if(!t->text) return;
+    if(!t->file->text) return;
 
-    t->textLen = strlen(t->text);
+    t->file->textLen = strlen(t->file->text);
 
     int k;
     for(k = 0; k < t->nCursors; k++){
         int first, last;
-        if(GetBetweenBrackets(t->text, t->textLen, t->cursors[k].pos, &first, &last)){
+        if(GetBetweenBrackets(t->file->text, t->file->textLen, t->cursors[k].pos, &first, &last)){
             if(last == t->cursors[k].pos){
                 t->cursors[k].pos = first+1; 
             } else {
@@ -1528,16 +1662,16 @@ static void MoveBrackets(TextEditor *t, TextEditorCommand *c){
 
 static void SelectBrackets(TextEditor *t, TextEditorCommand *c){
 
-    if(!t->text) return;
+    if(!t->file->text) return;
 
-    t->textLen = strlen(t->text);
+    t->file->textLen = strlen(t->file->text);
 
     int k;
     for(k = 0; k < t->nCursors; k++){
 
         TextEditorCursor *cursor = &t->cursors[k];
         int first, last;
-        if(GetBetweenBrackets(t->text, t->textLen, cursor->pos, &first, &last)){
+        if(GetBetweenBrackets(t->file->text, t->file->textLen, cursor->pos, &first, &last)){
             if(last == cursor->pos){
                 cursor->pos = first; 
             } else {
@@ -1553,10 +1687,10 @@ static void SelectBrackets(TextEditor *t, TextEditorCommand *c){
 
 static void ExpandSelectionLines(TextEditor *t, TextEditorCommand *c){
 
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     RemoveExtraCursors(t);
-    t->textLen = strlen(t->text);
+    t->file->textLen = strlen(t->file->text);
 
     int f;
     for(f = 0; f < t->nCursors; f++){
@@ -1564,33 +1698,33 @@ static void ExpandSelectionLines(TextEditor *t, TextEditorCommand *c){
         TextEditorCursor *cursor = &t->cursors[f];
 
         if(cursor->selection.len == 0){
-            cursor->selection.startCursorPos = cursor->pos - GetCharsIntoLine(t->text, cursor->pos);
+            cursor->selection.startCursorPos = cursor->pos - GetCharsIntoLine(t->file->text, cursor->pos);
         }
 
         if(c->num < 0)
-            cursor->pos = GetStartOfPrevLine(t->text, cursor->pos);
+            cursor->pos = GetStartOfPrevLine(t->file->text, cursor->pos);
         else
-            cursor->pos = GetStartOfNextLine(t->text, t->textLen, cursor->pos);         
+            cursor->pos = GetStartOfNextLine(t->file->text, t->file->textLen, cursor->pos);         
 
         if(cursor->pos < 0) cursor->pos = 0;
-        if(cursor->pos > (int)t->textLen) cursor->pos = t->textLen;
+        if(cursor->pos > (int)t->file->textLen) cursor->pos = t->file->textLen;
 
         cursor->selection.len = cursor->pos - cursor->selection.startCursorPos;
         if(cursor->selection.startCursorPos+cursor->selection.len < 0)
             cursor->selection.len -= c->num;
 
-        if(cursor->selection.startCursorPos+cursor->selection.len > (int)t->textLen)
+        if(cursor->selection.startCursorPos+cursor->selection.len > (int)t->file->textLen)
             cursor->selection.len -= c->num;
     }
 }
 
 static void SelectAll(TextEditor *t, TextEditorCommand *c){
 
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     RemoveExtraCursors(t);
-    t->textLen = strlen(t->text);
-    t->cursors[0].selection.len = t->textLen;
+    t->file->textLen = strlen(t->file->text);
+    t->cursors[0].selection.len = t->file->textLen;
     t->cursors[0].selection.startCursorPos = 0;
     t->cursors[0].pos = 0;
 }
@@ -1599,7 +1733,7 @@ static void UndoDeleteLine(TextEditor *t, TextEditorCommand *c){
 
     UNUSED(c);
 
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     // RemoveSelections(t);
     LoadCursors(t, c);
@@ -1620,7 +1754,7 @@ static void DeleteLine(TextEditor *t, TextEditorCommand *c){
 
     UNUSED(c);
 
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     LoadCursors(t,c);
     // RefreshEditorCommand(c);
@@ -1639,16 +1773,16 @@ static void DeleteLine(TextEditor *t, TextEditorCommand *c){
         int end;
 
         if(cursor->selection.len){
-            start = cursor->selection.startCursorPos - GetCharsIntoLine(t->text, cursor->selection.startCursorPos);
-            end = GetStartOfNextLine(t->text,t->textLen, cursor->selection.startCursorPos+cursor->selection.len - 1);
+            start = cursor->selection.startCursorPos - GetCharsIntoLine(t->file->text, cursor->selection.startCursorPos);
+            end = GetStartOfNextLine(t->file->text,t->file->textLen, cursor->selection.startCursorPos+cursor->selection.len - 1);
         } else {
-            start = cursor->pos - GetCharsIntoLine(t->text, cursor->pos);
-            end = GetStartOfNextLine(t->text,t->textLen, cursor->pos);
+            start = cursor->pos - GetCharsIntoLine(t->file->text, cursor->pos);
+            end = GetStartOfNextLine(t->file->text,t->file->textLen, cursor->pos);
         }
 
 
         cursor->pos = end;
-        AddSavedText(t, &t->text[start], end-start, &k);
+        AddSavedText(t, &t->file->text[start], end-start, &k);
         RemoveStrFromText(t, &k, end-start);
     }
 
@@ -1661,7 +1795,7 @@ static void Copy(TextEditor *t, TextEditorCommand *c){
 
     UNUSED(c);
 
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     char *buffer = NULL;
     int bufferLen = 0;
@@ -1679,14 +1813,14 @@ static void Copy(TextEditor *t, TextEditorCommand *c){
             bufferLen += (end-start)+1;
             buffer = realloc(buffer, bufferLen+1);
             buffer[bufferLen] = 0;
-            memcpy(&buffer[bufferLen-((end-start)+1)], &t->text[start], end-start);
+            memcpy(&buffer[bufferLen-((end-start)+1)], &t->file->text[start], end-start);
             buffer[bufferLen - 1] = '\n';
         } else {
             bufferLen = (end-start) + 1;
             buffer = malloc(bufferLen+1);
             buffer[bufferLen] = 0;
             buffer[bufferLen - 1] = '\n';
-            memcpy(buffer, &t->text[start], end-start);
+            memcpy(buffer, &t->file->text[start], end-start);
         }
 
         // if(t->cursors[k].clipboard) free(t->cursors[k].clipboard);
@@ -1694,7 +1828,7 @@ static void Copy(TextEditor *t, TextEditorCommand *c){
         // t->cursors[k].clipboard = (char *)malloc((end-start) + 1);
         // t->cursors[k].clipboard[end-start] = 0;
 
-        // memcpy(t->cursors[k].clipboard, &t->text[start], end-start);
+        // memcpy(t->cursors[k].clipboard, &t->file->text[start], end-start);
     }
     if(buffer)
         SDL_SetClipboardText(buffer);
@@ -1732,13 +1866,13 @@ static void AddSavedText(TextEditor *t, char *str, int len, int *cursorIndex){
 static void EraseAllSelectedText(TextEditor *t, int *cursorIndex, TextEditorCommand *command){
         
 
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     TextEditorCursor *cursor = &t->cursors[*cursorIndex];
 
-    if(t->text == NULL || cursor->selection.len == 0) return;
+    if(t->file->text == NULL || cursor->selection.len == 0) return;
 
-    int textLen = t->textLen;
+    int textLen = t->file->textLen;
 
     int startCursorPos, endCursorPos;
 
@@ -1748,13 +1882,13 @@ static void EraseAllSelectedText(TextEditor *t, int *cursorIndex, TextEditorComm
     int newSize = textLen - (endCursorPos - startCursorPos);
 
     if(newSize <= 0){
-        if(t->text) free(t->text);
-        t->text = malloc(1);
-        t->text[0] = 0;
+        if(t->file->text) free(t->file->text);
+        t->file->text = malloc(1);
+        t->file->text[0] = 0;
         return;
     }
 
-    AddSavedText(t, &t->text[startCursorPos], cursor->selection.len, cursorIndex);
+    AddSavedText(t, &t->file->text[startCursorPos], cursor->selection.len, cursorIndex);
     cursor->pos = endCursorPos;
     RemoveStrFromText(t, cursorIndex, cursor->selection.len);
 }
@@ -1811,7 +1945,7 @@ static void LoadCursors(TextEditor *t, TextEditorCommand *c){
 static void AddStrToText(TextEditor *t, int *cursorIndex, char *text){
 
 
-    int textLen = strlen(t->text);
+    int textLen = strlen(t->file->text);
 
     int len = strlen(text);
 
@@ -1819,25 +1953,25 @@ static void AddStrToText(TextEditor *t, int *cursorIndex, char *text){
 
     char *text1 = (char *)malloc(textLen);
 
-    memcpy(text1,t->text,textLen);
-    free(t->text);
+    memcpy(text1,t->file->text,textLen);
+    free(t->file->text);
 
-    t->text = malloc(textLen+len+1);
-    memcpy(t->text, text1, pos);
-    t->text[textLen + len] = 0;
+    t->file->text = (char *)malloc(textLen+len+1);
+    memcpy(t->file->text, text1, pos);
+    t->file->text[textLen + len] = 0;
 
     // if(textLen - pos > 0)
-    memcpy(&t->text[pos + len], &text1[pos], (textLen - pos));
-    memcpy(&t->text[pos], text, len);
+    memcpy(&t->file->text[pos + len], &text1[pos], (textLen - pos));
+    memcpy(&t->file->text[pos], text, len);
     free(text1);
 
-    t->textLen = strlen(t->text);
+    t->file->textLen = strlen(t->file->text);
     t->cursors[*cursorIndex].pos += len;
     MoveCursorsAndSelection(t, pos, len, cursorIndex);
 }
 
 static void RemoveStrFromText(TextEditor *t, int *cursorIndex, int len){
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     int pos = t->cursors[*cursorIndex].pos;
     if(pos < 0) return;
@@ -1846,16 +1980,16 @@ static void RemoveStrFromText(TextEditor *t, int *cursorIndex, int len){
     pos -= len;
 
 
-    int textLen = strlen(t->text);
+    int textLen = strlen(t->file->text);
 
     if(pos < textLen){
-        memcpy(&t->text[pos], &t->text[pos+len], textLen - (pos + len));
+        memcpy(&t->file->text[pos], &t->file->text[pos+len], textLen - (pos + len));
     }
 
-    t->text = (char *)realloc(t->text, (textLen - len) + 1);
+    t->file->text = (char *)realloc(t->file->text, (textLen - len) + 1);
 
-    t->text[textLen - len] = 0;
-    t->textLen = strlen(t->text);
+    t->file->text[textLen - len] = 0;
+    t->file->textLen = strlen(t->file->text);
     t->cursors[*cursorIndex].pos = pos;
     MoveCursorsAndSelection(t, pos, -len, cursorIndex);
 }
@@ -1892,8 +2026,8 @@ static void AutoComplete(TextEditor *t){
             int findEnd = 0;
             int res;
 
-            while(findEnd+t->autoCompleteSearchLen < t->textLen &&
-                (res = Find(&t->text[findEnd], &t->text[search], t->autoCompleteSearchLen)) != -1){
+            while(findEnd+t->autoCompleteSearchLen < t->file->textLen &&
+                (res = Find(&t->file->text[findEnd], &t->file->text[search], t->autoCompleteSearchLen)) != -1){
 
                 if(findEnd+res == search){
                     findEnd = c->pos;
@@ -1901,14 +2035,14 @@ static void AutoComplete(TextEditor *t){
                 }
 
                 int j;
-                for(j = 0; findEnd + res + j < t->textLen && 
-                    j < MAX_AUTO_COMPLETE_STRLEN && !IsToken(t->text[findEnd+res+j]); j++);
+                for(j = 0; findEnd + res + j < t->file->textLen && 
+                    j < MAX_AUTO_COMPLETE_STRLEN && !IsToken(t->file->text[findEnd+res+j]); j++);
 
 
                 int m;
                 for(m = 0; m < t->autoCompleteLen; m++){
                     if(t->autoComplete[m].len == j && 
-                        memcmp(&t->text[t->autoComplete[m].offset], &t->text[findEnd+res],j) == 0){
+                        memcmp(&t->file->text[t->autoComplete[m].offset], &t->file->text[findEnd+res],j) == 0){
         
                         break;
                     }
@@ -1939,7 +2073,7 @@ static void ScrollScreen(TextEditor *t, TextEditorCommand *c){
 
     if(c->num < 0){
         for(k = t->cursors[0].pos; k > 0; k--){
-            if(t->text[k] == '\n'){
+            if(t->file->text[k] == '\n'){
                 scroll--;
                 if(scroll == 0) { 
                     k++;
@@ -1948,8 +2082,8 @@ static void ScrollScreen(TextEditor *t, TextEditorCommand *c){
             }
         }
     }else{
-        for(k = t->cursors[0].pos; k < strlen(t->text); k++){
-            if(t->text[k] == '\n'){
+        for(k = t->cursors[0].pos; k < strlen(t->file->text); k++){
+            if(t->file->text[k] == '\n'){
                 scroll--;
                 if(scroll == 1) {
                     k++;
@@ -1966,26 +2100,31 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
 
     if(t->logging){
 
-        if(t->loggingText){
-            int searchLen = strlen(t->loggingText);
-            if(searchLen - c->num <= 0){
-                free(t->loggingText);
-                t->loggingText = NULL;
-                // t->logging = 0;
-                return;
-            } else {
-                char *tmp = malloc(searchLen - c->num + 1);
-                memcpy(tmp, t->loggingText, searchLen - c->num);
-                tmp[searchLen - c->num] = 0;
-                free(t->loggingText);
-                t->loggingText = tmp;
+        if(t->logging != LOGMODE_CONSOLE){
+            
+            t->logIndex = -1;
+
+            if(t->loggingText){
+                int searchLen = strlen(t->loggingText);
+                if(searchLen - c->num <= 0){
+                    free(t->loggingText);
+                    t->loggingText = NULL;
+                    // t->logging = 0;
+                    return;
+                } else {
+                    char *tmp = malloc(searchLen - c->num + 1);
+                    memcpy(tmp, t->loggingText, searchLen - c->num);
+                    tmp[searchLen - c->num] = 0;
+                    free(t->loggingText);
+                    t->loggingText = tmp;
+                }
             }
         }
 
         return;
     }
 
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     LoadCursors(t, c);
 
@@ -1997,7 +2136,7 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
     for(k = 0; k < t->nCursors; k++){
 
         if(t->cursors[k].selection.len == 0){
-            AddSavedText(t, &t->text[t->cursors[k].pos-c->num], c->num, &k);
+            AddSavedText(t, &t->file->text[t->cursors[k].pos-c->num], c->num, &k);
             RemoveStrFromText(t, &k, c->num);
         } else {
 
@@ -2020,7 +2159,7 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
 static void UndoAddCharacters(TextEditor *t, TextEditorCommand *c){
     
     if(t->logging) return;
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     LoadCursors(t, c);
 
@@ -2075,15 +2214,15 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
         int prev = t->cursors[k].pos;
         if(t->cursors[k].selection.len == 0){
 
-            if(t->text[prev] != '\n')
-                t->cursors[k].pos = prev - GetCharsIntoLine(t->text, t->cursors[k].pos);
+            if(t->file->text[prev] != '\n')
+                t->cursors[k].pos = prev - GetCharsIntoLine(t->file->text, t->cursors[k].pos);
 
             if(c->num > 0){
                 TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0, SCR_CENT, AddCharacters, UndoAddCharacters);
                 ExecuteCommand(t,command);
                 FreeCommand(command);
             } else {
-                if (t->text[t->cursors[k].pos] == '\t' || t->text[t->cursors[k].pos] == ' '){
+                if (t->file->text[t->cursors[k].pos] == '\t' || t->file->text[t->cursors[k].pos] == ' '){
                     t->cursors[k].pos++;
                     TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_CENT,
                         RemoveCharacters, UndoRemoveCharacters);
@@ -2101,8 +2240,8 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
 
             int next = startCursorPos;
 
-            if(t->text[next] != '\n')
-                next = startCursorPos - GetCharsIntoLine(t->text, next);
+            if(t->file->text[next] != '\n')
+                next = startCursorPos - GetCharsIntoLine(t->file->text, next);
 
             do {
                 t->cursors[k].pos = next;
@@ -2119,7 +2258,7 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
                     FreeCommand(command);
                     prev++;
                 } else {
-                    if (t->text[t->cursors[k].pos] == '\t' || t->text[t->cursors[k].pos] == ' '){
+                    if (t->file->text[t->cursors[k].pos] == '\t' || t->file->text[t->cursors[k].pos] == ' '){
     
                         if(next == selection.startCursorPos){
                             selection.startCursorPos--;
@@ -2136,7 +2275,7 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
                     } 
                 }
 
-                next = GetStartOfNextLine(t->text, t->textLen, next);
+                next = GetStartOfNextLine(t->file->text, t->file->textLen, next);
 
     
             } while(next < selection.startCursorPos+selection.len);
@@ -2160,23 +2299,25 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
             int k;
             for(k = 0; k < nKeys; k++) if(!IsDigit(c->keys[k])) return;
         }
+        if(t->logging != LOGMODE_CONSOLE){
 
-        if(t->loggingText){
-            int searchLen = strlen(t->loggingText);
-            t->loggingText = realloc(t->loggingText, searchLen+nKeys+1);
-            memcpy(&t->loggingText[searchLen], c->keys, nKeys);
-            t->loggingText[searchLen+nKeys] = 0;
+            if(t->loggingText){
+                int searchLen = strlen(t->loggingText);
+                t->loggingText = realloc(t->loggingText, searchLen+nKeys+1);
+                memcpy(&t->loggingText[searchLen], c->keys, nKeys);
+                t->loggingText[searchLen+nKeys] = 0;
+            }
+            else{
+                t->logIndex = 0;
+                t->loggingText = malloc(nKeys);
+                memcpy(t->loggingText, c->keys, nKeys);
+                t->loggingText[nKeys] = 0;
+            }
         }
-        else{
-            t->loggingText = malloc(nKeys);
-            memcpy(t->loggingText, c->keys, nKeys);
-            t->loggingText[nKeys] = 0;
-        }
-
         return;
     }
 
-    if(t->text == NULL) return;
+    if(t->file->text == NULL) return;
 
     LoadCursors(t, c);
 
@@ -2302,41 +2443,41 @@ static TextEditorCommand *CreateCommand(const unsigned int binding[], const char
 
 static void UndoCommands(TextEditor *t, int num){
 
-    if(t->historyPos == 0 || t->historyPos - num < 0)
+    if(t->file->historyPos == 0 || t->file->historyPos - num < 0)
         return;
 
     int k;
     for(k = 0; k < num; k++){
-        if(t->history[(t->historyPos-1)-k]->Undo){
-            t->history[(t->historyPos-1)-k]->Undo(t, t->history[(t->historyPos-1)-k]);
-            if(t->history[(t->historyPos-1)-k]->scroll == SCR_CENT)
+        if(t->file->history[(t->file->historyPos-1)-k]->Undo){
+            t->file->history[(t->file->historyPos-1)-k]->Undo(t, t->file->history[(t->file->historyPos-1)-k]);
+            if(t->file->history[(t->file->historyPos-1)-k]->scroll == SCR_CENT)
                 UpdateScrollCenter(t);
             else
                 UpdateScroll(t);
         }
     }
 
-    t->historyPos -= num;
+    t->file->historyPos -= num;
 }
 
 static void RedoCommands(TextEditor *t, int num){
 
-    if(t->historyPos + num > t->sHistory)
-        num = t->sHistory - t->historyPos;
+    if(t->file->historyPos + num > t->file->sHistory)
+        num = t->file->sHistory - t->file->historyPos;
 
     if(num <= 0) return;
 
 
     int k;
     for(k = 0; k < num; k++){
-        t->history[(t->historyPos)+k]->Execute(t, t->history[(t->historyPos)+k]);
-        if(t->history[(t->historyPos)+k]->scroll == SCR_CENT)
+        t->file->history[(t->file->historyPos)+k]->Execute(t, t->file->history[(t->file->historyPos)+k]);
+        if(t->file->history[(t->file->historyPos)+k]->scroll == SCR_CENT)
             UpdateScrollCenter(t);
         else
             UpdateScroll(t);
     }
 
-    t->historyPos += num;
+    t->file->historyPos += num;
 
 }
 
@@ -2363,44 +2504,102 @@ static void ExecuteCommand(TextEditor *t, TextEditorCommand *c){
     }
 
 
-    if(t->historyPos <= t->sHistory){
+    if(t->file->historyPos <= t->file->sHistory){
 
         int k;
-        for(k = t->historyPos; k < t->sHistory; k++){
-            FreeCommand(t->history[k]);
+        for(k = t->file->historyPos; k < t->file->sHistory; k++){
+            FreeCommand(t->file->history[k]);
         }
 
-        t->sHistory = t->historyPos;
+        t->file->sHistory = t->file->historyPos;
     }
 
-    t->history = (TextEditorCommand **)realloc(t->history, ++t->sHistory * sizeof(TextEditorCommand));
-    t->history[t->sHistory-1] = CopyCommand(c);
-    t->history[t->sHistory-1]->Execute(t,t->history[t->sHistory-1]);
+    t->file->history = (TextEditorCommand **)realloc(t->file->history, ++t->file->sHistory * sizeof(TextEditorCommand *));
+    t->file->history[t->file->sHistory-1] = CopyCommand(c);
+    t->file->history[t->file->sHistory-1]->Execute(t,t->file->history[t->file->sHistory-1]);
     if(c->scroll == SCR_CENT)
         UpdateScrollCenter(t);
     else
         UpdateScroll(t);
-    t->historyPos++;
+    t->file->historyPos++;
 }
 
 static void AddCommand(TextEditor *t, TextEditorCommand *c){
-    t->commands = (TextEditorCommand **)realloc(t->commands, ++t->nCommands * sizeof(TextEditorCommand));
+    t->commands = (TextEditorCommand **)realloc(t->commands, ++t->nCommands * sizeof(TextEditorCommand *));
     t->commands[t->nCommands-1] = c;
 }
 
+static int AddFile(TextEditor *t, TextEditorFile *f){
+
+    if(strlen(f->path) > 0){
+        int k;
+        for(k = 0; k < t->nFiles; k++){
+            if(strlen(t->files[k]->path) > 0 && strcmp(t->files[k]->path, f->path) == 0)
+                return k;
+
+        }
+    }
+
+    t->files = (TextEditorFile **)realloc(t->files, ++t->nFiles * sizeof(TextEditorFile *));
+    t->files[t->nFiles-1] = f;
+    return -1;
+}
+
+static void FreeFile(TextEditorFile *f){
+    if(f->text) free(f->text);
+    int k;
+    for(k = 0; k < f->sHistory; k++)
+        FreeCommand(f->history[k]);
+
+    if(f->history) free(f->history);
+    free(f);
+}
+
+static TextEditorFile *CreateFile(char *path){
+    TextEditorFile *ret = malloc(sizeof(TextEditorFile));
+    memset(ret, 0, sizeof(TextEditorFile));
+    if(path != NULL){
+        strcpy(ret->path, path);
+        int k = strlen(path);
+        for(; k >= 0; k--){
+            if(path[k] == '/'){
+                break;
+            }
+        }
+        if(k < 0) k++;
+        strcpy(ret->name, &path[k]);
+    }
+    return ret;
+}
+
 void TextEditor_LoadFile(TextEditor *t, char *path){
+
+    if(t->file && t->cursors)
+        t->file->cursorPos = t->cursors[0].pos;
+
+    TextEditorFile *file = CreateFile(path);
+    int exists = -1;
+    if((exists = AddFile(t, file)) >= 0){
+        FreeFile(file);
+        t->file = t->files[exists];
+        // check to reload?
+        return;
+    } else {
+        t->file = file;
+    }
     
     if(path == NULL){
-        t->text = malloc(1);
-        t->text[0] = 0;
+        t->file->text = malloc(1);
+        t->file->text[0] = 0;
+        strcpy(t->file->name, "new file");
         return;
     }
 
     FILE *fp = fopen(path, "r");
 
     if(!fp){
-        t->text = malloc(1);
-        t->text[0] = 0;
+        t->file->text = malloc(1);
+        t->file->text[0] = 0;
         return;
     }
 
@@ -2410,12 +2609,12 @@ void TextEditor_LoadFile(TextEditor *t, char *path){
 
     rewind(fp);
 
-    t->text = (char *)malloc(len + 1);
-    t->text[len] = 0;
+    t->file->text = (char *)malloc(len + 1);
+    t->file->text[len] = 0;
 
-    t->textLen = len;
+    t->file->textLen = len;
 
-    fread(t->text, sizeof(char), len, fp);
+    fread(t->file->text, sizeof(char), len, fp);
 
     fclose(fp);
 
@@ -2453,7 +2652,11 @@ void TextEditor_Init(TextEditor *t){
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_DOWN  , 0}, "", 1, SCR_NORM, MoveLinesText, UndoMoveLinesText));
 
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'o'  , 0}, "", 0, SCR_NORM, OpenFile, NULL));
-    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'w'  , 0}, "", 0, SCR_NORM, SaveFile, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'n'  , 0}, "", 0, SCR_NORM, NewFile, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'w'  , 0}, "", 0, SCR_NORM, CloseFile, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'p'  , 0}, "", 0, SCR_NORM, SwitchFile, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'s'  , 0}, "", 0, SCR_NORM, SaveAsFile, NULL));
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'s'  , 0}, "", 0, SCR_NORM, SaveFile, NULL));
 
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'/'  , 0}, "", 0, SCR_NORM, ToggleComment, ToggleComment));
     // AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'/'  , 0}, "", 0, ToggleComment, ToggleComment));
@@ -2506,9 +2709,7 @@ void TextEditor_Init(TextEditor *t){
     AddCommand(t, CreateCommand((unsigned int[]){'c'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_CENT, Copy, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){'v'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_CENT, Paste, UndoPaste));
 
-
-    t->cursors = (TextEditorCursor *)malloc(sizeof(TextEditorCursor) * ++t->nCursors);
-    memset(&t->cursors[0], 0, sizeof(TextEditorCursor));
+    InitCursors(t);
 
     // TextEditor_LoadFile(t, "text_editor.c");
 }
@@ -2529,7 +2730,7 @@ void TextEditor_Draw(TextEditor *t){
     // draw line numbers
     for(k = 0; k < Graphics_TextCollumns(); k++){
         char buffer[10];
-        sprintf(buffer, "%i", t->scroll+k);
+        sprintf(buffer, "%i", t->file->scroll+k);
         Graphics_mvprintw(0, logY+k, buffer, strlen(buffer));
     }
 
@@ -2546,12 +2747,46 @@ void TextEditor_Draw(TextEditor *t){
         else if(t->logging == LOGMODE_TEXT_INSENSITIVE){ sprintf(buffer, "f: "); }        
         else if(t->logging == LOGMODE_OPEN){ sprintf(buffer, "o: "); }        
         else if(t->logging == LOGMODE_SAVE){ sprintf(buffer, "w: "); }        
+        else if(t->logging == LOGMODE_SWITCH_FILE){ sprintf(buffer, "p: "); }        
         Graphics_mvprintw(0, 0, buffer, strlen(buffer));
     
-        if(t->loggingText)        
+        if(t->loggingText && strlen(t->loggingText) > 0){
             Graphics_mvprintw(3, 0, t->loggingText, strlen(t->loggingText));
 
+            if(t->logging == LOGMODE_SWITCH_FILE){
+                
+                for(k = 0; k < t->nFiles; k++){
+                    int nameLen = strlen(t->files[k]->name);
+                    int logNameLen = strlen(t->loggingText);
+                    
+                    if(nameLen > 0 && logNameLen <= nameLen){
+                        if(CaseLowerStrnCmp(t->loggingText, t->files[k]->name, logNameLen)){
+
+                            if(y == t->logIndex)
+                                Graphics_attron(COLOR_SELECTED);
+                            else
+                                Graphics_attron(COLOR_AUTO_COMPLETE);
+
+                            Graphics_mvprintw(3, 1+y++, t->files[k]->name, strlen(t->files[k]->name));
+                        }
+                    }
+                }
+                logY += y;
+            }
+        } else if(t->logging == LOGMODE_SWITCH_FILE){
+            for(k = 0; k < t->nFiles; k++){
+                if(k == t->logIndex)
+                    Graphics_attron(COLOR_SELECTED);
+                else
+                    Graphics_attron(COLOR_AUTO_COMPLETE);
+
+                Graphics_mvprintw(3, 1+y++, t->files[k]->name, strlen(t->files[k]->name));
+            }
+            logY += y;
+        }
     }
+
+    k = x = y = 0;
 
 
     if(t->logging == LOGMODE_CONSOLE){
@@ -2682,14 +2917,14 @@ void TextEditor_Draw(TextEditor *t){
         logY = y;
     }
 
-    if(!t->text){
+    if(!t->file->text){
         Graphics_RenderNCurses();
         return;
     }
 
     // end logs
 
-    t->textLen = strlen(t->text);
+    t->file->textLen = strlen(t->file->text);
 
     int ctOffset = 0;
     x = 0;
@@ -2701,20 +2936,20 @@ void TextEditor_Draw(TextEditor *t){
     int scrollPos = 0;
     int scrollPosMax = 0;
 
-    if(t->scroll > 0){
-        for(k = 0; k < t->textLen; k++){
-            if(t->text[k] == '\n'){
+    if(t->file->scroll > 0){
+        for(k = 0; k < t->file->textLen; k++){
+            if(t->file->text[k] == '\n'){
                 y++;
-                if(y == t->scroll) { k++; break; }
+                if(y == t->file->scroll) { k++; break; }
             }
         }
     }
     scrollPos = k;
     ctOffset = k;
-    for(; k < t->textLen; k++){
-        if(t->text[k] == '\n'){
+    for(; k < t->file->textLen; k++){
+        if(t->file->text[k] == '\n'){
             y++;
-            if(y == t->scroll+screenHeight-logY) { k++; break; }
+            if(y == t->file->scroll+screenHeight-logY) { k++; break; }
         }
     }
     scrollPosMax = k;
@@ -2729,11 +2964,11 @@ void TextEditor_Draw(TextEditor *t){
         int renderTo = scrollPosMax, renderStart = scrollPos;
 
     // if(c->selection.len == 0){
-        // renderStart = c->pos - GetCharsIntoLine(t->text, c->pos);
-        // renderTo = GetStartOfNextLine(t->text, t->textLen, c->pos);
+        // renderStart = c->pos - GetCharsIntoLine(t->file->text, c->pos);
+        // renderTo = GetStartOfNextLine(t->file->text, t->file->textLen, c->pos);
         // if(renderTo < scrollPos) continue;
         for(k = scrollPos; k < renderStart; k++){
-            if(t->text[k] == '\n'){
+            if(t->file->text[k] == '\n'){
                 y++;
             }
         }
@@ -2744,8 +2979,8 @@ void TextEditor_Draw(TextEditor *t){
 
 
             // if(x > screenHeight){
-                // for(; k < t->textLen; k++){
-                //     if(t->text[k] == '\n'){
+                // for(; k < t->file->textLen; k++){
+                //     if(t->file->text[k] == '\n'){
                 //         y++;
                 //         x = 0;
                 //         ctOffset = ++k;
@@ -2758,20 +2993,20 @@ void TextEditor_Draw(TextEditor *t){
             int comment = 0;
             int string = 0;
 
-            char c = t->text[k];
+            char c = t->file->text[k];
 
             char token = IsToken(c);
             if(!token){
 
-                c = t->text[k];
+                c = t->file->text[k];
                 // number not like COLOR_FUNCTION but 23
                 if((k - ctOffset) == 1 && IsDigit(c)){
 
                     Graphics_attron(COLOR_NUM);
 
-                    for(k = k+1; k < renderTo && IsDigit(t->text[k]); k++);
+                    for(k = k+1; k < renderTo && IsDigit(t->file->text[k]); k++);
 
-                    Graphics_mvprintw(logX+x, logY+y, &t->text[ctOffset], k - ctOffset);
+                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset);
                     x += k - ctOffset;
                     ctOffset = k;
 
@@ -2785,9 +3020,9 @@ void TextEditor_Draw(TextEditor *t){
 
                 if(k - ctOffset > 0){
 
-                    if((k - ctOffset) == 1 && IsDigit(t->text[k-1])){
+                    if((k - ctOffset) == 1 && IsDigit(t->file->text[k-1])){
                         Graphics_attron(COLOR_NUM);
-                        Graphics_mvprintw(logX+x, logY+y, &t->text[ctOffset], 1);
+                        Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], 1);
                         x++;
                         ctOffset = k;
                         goto addedStr;
@@ -2795,10 +3030,10 @@ void TextEditor_Draw(TextEditor *t){
 
                     for(int m = 0; m < (int)(sizeof(keywords)/sizeof(char *)); m++){
                         if(strlen(keywords[m]) == (k - ctOffset) && 
-                            memcmp(&t->text[ctOffset], keywords[m], (k - ctOffset)) == 0) {
+                            memcmp(&t->file->text[ctOffset], keywords[m], (k - ctOffset)) == 0) {
                             
                             Graphics_attron(COLOR_KEYWORD);
-                            Graphics_mvprintw(logX+x, logY+y, &t->text[ctOffset], k - ctOffset);
+                            Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset);
 
                             x += k - ctOffset;
                             ctOffset = k;
@@ -2812,10 +3047,10 @@ void TextEditor_Draw(TextEditor *t){
                         // so that we can change colors at the token after the def
 
                         Graphics_attron(COLOR_FUNCTION);
-                        Graphics_mvprintw(logX+x, logY+y, &t->text[ctOffset], k - ctOffset); 
+                        Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset); 
                         x += k - ctOffset;
                         Graphics_attron(COLOR_FUNCTION);
-                        Graphics_mvprintw(logX+x, logY+y, &t->text[k], 1);
+                        Graphics_mvprintw(logX+x, logY+y, &t->file->text[k], 1);
                         x++;
                         k++;
                         ctOffset = k;
@@ -2823,7 +3058,7 @@ void TextEditor_Draw(TextEditor *t){
                     }
         
                     Graphics_attron(COLOR_NORMAL);
-                    Graphics_mvprintw(logX+x, logY+y, &t->text[ctOffset], k - ctOffset);
+                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset);
                     x += k - ctOffset;
 
                     ctOffset = k;
@@ -2851,15 +3086,15 @@ void TextEditor_Draw(TextEditor *t){
                     continue;
                 }
 
-                if(c == '/' && t->text[k+1] == '/') comment = 1;
-                else if(c == '/' && t->text[k+1] == '*') comment = 2;
+                if(c == '/' && t->file->text[k+1] == '/') comment = 1;
+                else if(c == '/' && t->file->text[k+1] == '*') comment = 2;
                 else if(c == '"') string = 1;
                 else if(c == '\'') string = 2;
         
         
                 if(c == ')' || c == '('){
                     Graphics_attron(COLOR_FUNCTION);
-                    Graphics_mvprintw(logX+x, logY+y, &t->text[ctOffset], 1);
+                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], 1);
                     x++;
                     ctOffset = ++k;
                     continue;
@@ -2867,7 +3102,7 @@ void TextEditor_Draw(TextEditor *t){
                 
                 if(c != ' ' && c != '(' && c != ')' && token && !comment && !string){
                     Graphics_attron(COLOR_TOKEN);
-                    Graphics_mvprintw(logX+x, logY+y, &t->text[ctOffset], 1);
+                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], 1);
                     x++;
                     ctOffset = ++k;
                     continue;
@@ -2883,24 +3118,24 @@ void TextEditor_Draw(TextEditor *t){
 
                     if(comment == 1){
                         for (; k < renderTo; k++){
-                            if(t->text[k] == '\n'){  break; }
+                            if(t->file->text[k] == '\n'){  break; }
                         }
 
 
                     } else { /* comment */
 
 
-                        for(;k < (renderTo-1) && !(t->text[k] == '*' && t->text[k+1] == '/'); k++);
+                        for(;k < (renderTo-1) && !(t->file->text[k] == '*' && t->file->text[k+1] == '/'); k++);
 
                         if(k < renderTo-1){
                             k++; // will run to end of file otherwise. 
                         }
                     }
 
-                    if(k > 0 && t->text[k-1] == '*' && t->text[k] == '/') k++;
+                    if(k > 0 && t->file->text[k-1] == '*' && t->file->text[k] == '/') k++;
 
                     Graphics_attron(COLOR_COMMENT);
-                    Graphics_mvprintw(logX+x, logY+y, &t->text[ctOffset], k - ctOffset);
+                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset);
                     x += k - ctOffset;
                     ctOffset = k;
                     comment = 0;
@@ -2919,25 +3154,25 @@ void TextEditor_Draw(TextEditor *t){
                         if(k == renderTo) break;
 
 
-                        if(t->text[k] == '\n') { break; }
-                        if(t->text[k] == '"' && string == 1 && !escaped) { break; }
-                        if(t->text[k] == '\'' && string == 2 && !escaped) { break; }
+                        if(t->file->text[k] == '\n') { break; }
+                        if(t->file->text[k] == '"' && string == 1 && !escaped) { break; }
+                        if(t->file->text[k] == '\'' && string == 2 && !escaped) { break; }
 
 
-                        if(t->text[k] == '\\' && !escaped)
+                        if(t->file->text[k] == '\\' && !escaped)
                             escaped = 1;
                         else
                             escaped = 0;
 
 
                     }
-                    if(t->text[k] != '\n')
+                    if(t->file->text[k] != '\n')
                         k++;
                     
                     if(k == renderTo) break;
 
                     Graphics_attron(COLOR_STRING);
-                    Graphics_mvprintw(logX+x, logY+y, &t->text[ctOffset], k - ctOffset);
+                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset);
                                     
                     x += k - ctOffset;
                     ctOffset = k;
@@ -2953,7 +3188,7 @@ void TextEditor_Draw(TextEditor *t){
 
         if(k - ctOffset > 0){
             Graphics_attron(COLOR_NORMAL);
-            Graphics_mvprintw(logX+x, logY+y, &t->text[ctOffset], k - ctOffset);
+            Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset);
         }
 
     // } else { // easy selections have no highlighting
@@ -2976,11 +3211,11 @@ void TextEditor_Draw(TextEditor *t){
             x = 0; 
             y = 0;
             for(k = scrollPos; k < renderTo; k++){
-                if(t->text[k] == '\n'){
+                if(t->file->text[k] == '\n'){
                     y++;
                     x = 0;
                     continue;
-                } else if(t->text[k] == '\t'){
+                } else if(t->file->text[k] == '\t'){
                     if(k >= renderStart)
                         Graphics_mvprintw(logX+x, logY+y, "    ", 4);
                     x += 4;
@@ -2988,7 +3223,7 @@ void TextEditor_Draw(TextEditor *t){
                 }
 
                 if(k >= renderStart && x < screenWidth && y < screenHeight){
-                    Graphics_mvprintw(logX+x, logY+y, &t->text[k], 1);
+                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[k], 1);
                 }
                 x++;
             }
@@ -3002,11 +3237,11 @@ void TextEditor_Draw(TextEditor *t){
         x = 0;
 
         for(; k < c->pos && k < scrollPosMax; k++){
-            if(t->text[k] == '\n'){
+            if(t->file->text[k] == '\n'){
                 x = 0;
                 y++;
                 continue;
-            } else if(t->text[k] == '\t'){
+            } else if(t->file->text[k] == '\t'){
                 x+=4;
                 continue;
             }
@@ -3018,10 +3253,10 @@ void TextEditor_Draw(TextEditor *t){
         if((y >= screenHeight) ||
             x >= screenWidth) continue;
 
-        if(t->text[c->pos] == '\n' || t->text[c->pos] == '\t')
+        if(t->file->text[c->pos] == '\n' || t->file->text[c->pos] == '\t')
             Graphics_mvprintw(logX+x, logY+y, " ", 1);
         else
-            Graphics_mvprintw(logX+x, logY+y, &t->text[c->pos], 1);
+            Graphics_mvprintw(logX+x, logY+y, &t->file->text[c->pos], 1);
     
     }
 
@@ -3043,11 +3278,11 @@ void TextEditor_Draw(TextEditor *t){
         x = 0;
         for(k = scrollPos; k < t->cursors[t->nCursors-1].pos; k++){
 
-            if(t->text[k] == '\n'){
+            if(t->file->text[k] == '\n'){
                 x = 0;
                 y++;
                 continue;
-            } else if(t->text[k] == '\t'){
+            } else if(t->file->text[k] == '\t'){
                 x+=4;
                 continue;
             }
@@ -3061,8 +3296,8 @@ void TextEditor_Draw(TextEditor *t){
 
             char buffer[MAX_AUTO_COMPLETE_STRLEN];
             memset(buffer, ' ', MAX_AUTO_COMPLETE_STRLEN);
-            memcpy(buffer, &t->text[t->autoComplete[j].offset],t->autoComplete[j].len);
-            // Graphics_mvprintw(logX+x, logY+y+j+1, &t->text[t->autoComplete[j].offset], t->autoComplete[j].len);
+            memcpy(buffer, &t->file->text[t->autoComplete[j].offset],t->autoComplete[j].len);
+            // Graphics_mvprintw(logX+x, logY+y+j+1, &t->file->text[t->autoComplete[j].offset], t->autoComplete[j].len);
             Graphics_mvprintw(logX+x, logY+y+j+1, buffer, MAX_AUTO_COMPLETE_STRLEN);
         }
 
@@ -3172,9 +3407,11 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
 }
 
 void TextEditor_Destroy(TextEditor *t){
-    if(t->text) free(t->text);
-
+    
     int k;
+    for(k = 0; k < t->nFiles; k++)
+        FreeFile(t->files[k]);
+
     for(k = 0; k < t->nCommands; k++)
         FreeCommand(t->commands[k]);
 

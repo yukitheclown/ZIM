@@ -106,8 +106,11 @@ int main(int argc, char **argv){
 
     TextEditor_Init(&gc.te);
 
-    if(argc > 1)
-        TextEditor_LoadFile(&gc.te, argv[1]);
+    if(argc > 1){
+        int k;
+        for(k = 0; k < argc-1; k++)
+            TextEditor_LoadFile(&gc.te, argv[1+k]);
+    }
     else
         TextEditor_LoadFile(&gc.te, NULL);
 
