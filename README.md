@@ -16,6 +16,7 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 ![Screenshot](Screenshots/praisekek.jpg) ![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
+file open selector for more than relative paths<br>
 Mouse support<br>
 Case insensitive search(done)<br>
 Swap files<br>
