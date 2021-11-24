@@ -986,6 +986,7 @@ static void CloseFile(TextEditor *t, TextEditorCommand *c){
     for(k = 0; k < t->nFiles; k++){
         if(t->files[k] == t->file){
             FreeFile(t->file);
+            t->file = NULL;
             for(; k < t->nFiles-1; k++)
                 t->files[k] = t->files[k+1];
             
@@ -2556,7 +2557,7 @@ static void FreeFile(TextEditorFile *f){
 }
 
 static TextEditorFile *CreateFile(char *path){
-    TextEditorFile *ret = malloc(sizeof(TextEditorFile));
+    TextEditorFile *ret = (TextEditorFile *)malloc(sizeof(TextEditorFile));
     memset(ret, 0, sizeof(TextEditorFile));
     if(path != NULL){
         strcpy(ret->path, path);
