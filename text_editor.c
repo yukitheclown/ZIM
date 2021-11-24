@@ -12,6 +12,8 @@
 #endif
 #include <math.h>
 
+#define LOGFILE "keklog.txt"
+
 #ifndef UNUSED
 #define UNUSED(x) (void)(x)
 #endif
@@ -994,10 +996,12 @@ static void CloseFile(TextEditor *t, TextEditorCommand *c){
             break;
         }
     }
-    if(t->nFiles == 0)
+    if(t->nFiles == 0){
         TextEditor_LoadFile(t, NULL);
-    else
+    }
+    else{
         t->file = t->files[0];
+    }
 
     RefreshFile(t);
 }
@@ -2101,7 +2105,7 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
 
     if(t->logging){
 
-        if(t->logging != LOGMODE_CONSOLE){
+        if(t->logging != LOGMODE_CONSOLE && t->logging != LOGMODE_ALERT){
             
             t->logIndex = -1;
 
@@ -2300,7 +2304,7 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
             int k;
             for(k = 0; k < nKeys; k++) if(!IsDigit(c->keys[k])) return;
         }
-        if(t->logging != LOGMODE_CONSOLE){
+        if(t->logging != LOGMODE_CONSOLE && t->logging != LOGMODE_ALERT){
 
             if(t->loggingText){
                 int searchLen = strlen(t->loggingText);
@@ -2712,7 +2716,32 @@ void TextEditor_Init(TextEditor *t){
 
     InitCursors(t);
 
-    // TextEditor_LoadFile(t, "text_editor.c");
+    FILE *fp = fopen(LOGFILE, "r");
+    if(fp){
+        fseek(fp, 0, SEEK_END);
+        int len = ftell(fp);
+        rewind(fp);
+        if(len > sizeof(int)){
+            int nFiles;
+            fread(&nFiles, sizeof(int), 1, fp);
+            len -= sizeof(int);
+            int k;
+            for(k = 0; k < nFiles; k++){
+                if(len < sizeof(int)) break;
+                len -= sizeof(int);
+                int pathLen = 9;
+                char path[512];
+                fread(&pathLen, sizeof(int), 1, fp);
+                if(len < pathLen) break;
+                if(pathLen > 512) break;
+                len -= pathLen;
+                fread(path,1,pathLen,fp);
+                path[pathLen] = 0;
+                TextEditor_LoadFile(t, path);
+            }
+        }
+        fclose(fp);
+    }
 }
 
 void TextEditor_Draw(TextEditor *t){
@@ -2740,15 +2769,14 @@ void TextEditor_Draw(TextEditor *t){
     if(t->logging && t->logging != LOGMODE_CONSOLE){
 
         Graphics_attron(COLOR_FIND);
-        char buffer[4];
-        buffer[3] = 0;
-        sprintf(buffer, "ERR");
+        char buffer[] = "ERR\0";
         if(t->logging == LOGMODE_NUM){ sprintf(buffer, "g: "); }        
         else if(t->logging == LOGMODE_TEXT){ sprintf(buffer, "F: "); }        
         else if(t->logging == LOGMODE_TEXT_INSENSITIVE){ sprintf(buffer, "f: "); }        
         else if(t->logging == LOGMODE_OPEN){ sprintf(buffer, "o: "); }        
         else if(t->logging == LOGMODE_SAVE){ sprintf(buffer, "w: "); }        
         else if(t->logging == LOGMODE_SWITCH_FILE){ sprintf(buffer, "p: "); }        
+        else if(t->logging == LOGMODE_ALERT){ sprintf(buffer, "A: "); }        
         Graphics_mvprintw(0, 0, buffer, strlen(buffer));
     
         if(t->loggingText && strlen(t->loggingText) > 0){
@@ -2817,7 +2845,7 @@ void TextEditor_Draw(TextEditor *t){
         }
 #endif
 #ifdef WINDOWS_COMPILE
-        FILE *fp = fopen("thothlog.txt", "r");
+        FILE *fp = fopen(LOGFILE, "r");
 
         if(t->loggingText) free(t->loggingText);
 
@@ -3356,7 +3384,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
             }
 #endif
 #ifdef WINDOWS_COMPILE
-            system("make > thothlog.txt 2>&1 &");
+            system("make > " LOGFILE " 2>&1 &");
 #endif
             t->logging = LOGMODE_CONSOLE;
             return;
@@ -3407,14 +3435,71 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
 
 }
 
-void TextEditor_Destroy(TextEditor *t){
+int TextEditor_Destroy(TextEditor *t){
     
+    FILE *fp = fopen(LOGFILE, "w");
+    int nFiles = 0;
     int k;
-    for(k = 0; k < t->nFiles; k++)
+
+    if(fp){
+        for(k = 0; k < t->nFiles; k++){
+            int len = strlen(t->files[k]->path);
+            if(len > 0) nFiles++;
+
+        }
+        fwrite(&nFiles,sizeof(int),1,fp);
+    }
+    
+    for(k = 0; k < t->nFiles; k++){
+        int len = strlen(t->files[k]->path);
+        if(len > 0){
+            if(fp){
+                fwrite(&len,sizeof(int),1,fp);
+                fwrite(t->files[k]->path,1,len,fp);
+            }
+        } else if(strlen(t->files[k]->text) > 0){
+            EndLogging(t);
+            t->logging = LOGMODE_ALERT;
+            char buffer[] = "Unsaved changes? ctrl+w to ignore unsaved, ctrl+s to save, ctrl+S to save as.\0";
+            int bufferLen = strlen(buffer);
+            t->loggingText = malloc(bufferLen+1);
+            strcpy(t->loggingText, buffer);
+            t->loggingText[bufferLen] = 0;
+            t->file = t->files[k];
+            RefreshFile(t);
+            if(fp) fclose(fp);
+            t->quit = 0;
+            return 0;
+
+        }
+
+        if(t->files[k] == t->file){
+            if(t->nFiles > 0){
+                if(t->file == t->files[0])
+                    t->file = t->files[1];
+                else 
+                    t->file = t->files[0];
+                RefreshFile(t);
+            }
+        }
+
         FreeFile(t->files[k]);
+
+        // pop stack
+        int j;
+        for(j = k; j < t->nFiles-1; j++)
+            t->files[j] = t->files[j+1];
+
+        k--; // stack[k] is now the stack[k+1] so dont let for loop inc k
+
+        t->files = (TextEditorFile **)realloc(t->files,sizeof(TextEditorFile*) * t->nFiles--);
+
+    }
+    if(fp) fclose(fp);
 
     for(k = 0; k < t->nCommands; k++)
         FreeCommand(t->commands[k]);
 
     FreeCursors(t);
+    return 1;
 }

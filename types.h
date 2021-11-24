@@ -1,12 +1,15 @@
 #ifndef TYPES_DEF
 #define TYPES_DEF
 
+#include <stdint.h>
+
 #define ERROR 0
 #define SUCCESS 1
 
-typedef unsigned int u32;
-typedef unsigned short u16;
-typedef unsigned char u8;
+typedef uint64_t u64;
+typedef uint32_t u32;
+typedef uint16_t u16;
+typedef uint8_t u8;
 
 typedef int s32;
 typedef short s16;

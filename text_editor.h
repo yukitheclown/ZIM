@@ -81,6 +81,7 @@
   LOGMODE_SAVE,
   LOGMODE_OPEN,
   LOGMODE_SWITCH_FILE,
+  LOGMODE_ALERT,
   LOGMODE_CONSOLE,
  };
 
@@ -139,7 +140,7 @@ typedef struct {
  void TextEditor_LoadFile(TextEditor *t, char *path);
  void TextEditor_Draw(TextEditor *t);
  void TextEditor_Event(TextEditor *t,unsigned int key);
- void TextEditor_Destroy(TextEditor *t);
+ int TextEditor_Destroy(TextEditor *t);
  void TextEditor_Init(TextEditor *t);
 
 

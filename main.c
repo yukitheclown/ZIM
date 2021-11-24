@@ -111,8 +111,9 @@ int main(int argc, char **argv){
         for(k = 0; k < argc-1; k++)
             TextEditor_LoadFile(&gc.te, argv[1+k]);
     }
-    else
+    else if(gc.te.nFiles == 0)
         TextEditor_LoadFile(&gc.te, NULL);
+
 
     SDL_StartTextInput();
     u32 currTime;
@@ -142,6 +143,11 @@ int main(int argc, char **argv){
 
        Event(&gc);
 
+       if(gc.state == GODCODE_STATE_QUIT){
+            if(!TextEditor_Destroy(&gc.te))
+                gc.state = GODCODE_STATE_RUNNING;
+       }
+
        if(gc.state == GODCODE_STATE_UPDATE || gc.state == GODCODE_STATE_UPDATEDRAW){
 
            if(gc.state == GODCODE_STATE_UPDATE){
@@ -152,7 +158,12 @@ int main(int argc, char **argv){
                } 
 
                TextEditor_Event(&gc.te, key );
-                if(gc.te.quit) break;
+                if(gc.te.quit){
+                    if(TextEditor_Destroy(&gc.te) > 0){
+                        break;
+                    }
+                    gc.te.quit = 0;
+                }
 
                gc.key = gc.key & 0xff00;
 
@@ -166,7 +177,7 @@ int main(int argc, char **argv){
        }
     }
 
-    TextEditor_Destroy(&gc.te);
+
     Graphics_Close();
     Window_Close();
     return 0;
