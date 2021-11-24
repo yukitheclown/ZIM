@@ -285,9 +285,14 @@ static void UpdateScrollCenter(TextEditor *t){
 
     int nLinesToCursor = GetNumLinesToPos(t->text,t->cursors[t->nCursors-1].pos);
 
+	if(nLinesToCursor >= t->scroll && nLinesToCursor < t->scroll + Graphics_TextCollumns()){
+		return;
+	}	
+
     t->scroll = nLinesToCursor  - (Graphics_TextCollumns()/2);
 
     if(t->scroll < 0) t->scroll = 0;
+
 
 }
 
@@ -374,7 +379,7 @@ static void EventEnter(TextEditor *t){
 
 
         TextEditorCommand *command = 
-        CreateCommand((const unsigned int[]){0}, buffer, 0, SCR_NORM, AddCharacters, UndoAddCharacters);
+        CreateCommand((const unsigned int[]){0}, buffer, 0, SCR_CENT, AddCharacters, UndoAddCharacters);
         ExecuteCommand(t,command);
         FreeCommand(command);
 
@@ -385,7 +390,7 @@ static void EventEnter(TextEditor *t){
     }
 
     TextEditorCommand *command = 
-    CreateCommand((const unsigned int[]){0}, (const char[]){'\n', 0}, 0, SCR_NORM, AddCharacters, UndoAddCharacters);
+    CreateCommand((const unsigned int[]){0}, (const char[]){'\n', 0}, 0, SCR_CENT, AddCharacters, UndoAddCharacters);
     ExecuteCommand(t,command);
     FreeCommand(command);
 }
@@ -1187,12 +1192,18 @@ static void SelectNextWord(TextEditor *t, TextEditorCommand *c){
 
         if(next >= 0){
             next += end;
-
             TextEditorCursor *cursor = AddCursor(t);
-
             cursor->pos = next+len;
             cursor->selection.startCursorPos = next;
             cursor->selection.len = len;
+        } else {
+            next = Find(&t->text[0], &t->text[startPos], len);
+            if(next >= 0 && next != startPos){
+                TextEditorCursor *cursor = AddCursor(t);
+                cursor->pos = next+len;
+                cursor->selection.startCursorPos = next;
+                cursor->selection.len = len;
+            }
         }
     }
 
@@ -1693,11 +1704,11 @@ static void Cut(TextEditor *t, TextEditorCommand *c){
 
     UNUSED(c);
 
-    TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_NORM, Copy, NULL);
+    TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_CENT, Copy, NULL);
     ExecuteCommand(t, command);
     FreeCommand(command);
 
-    command = CreateCommand((const unsigned int[]){0}, 0, 0, SCR_NORM, RemoveCharacters, UndoRemoveCharacters);
+    command = CreateCommand((const unsigned int[]){0}, 0, 0, SCR_CENT, RemoveCharacters, UndoRemoveCharacters);
     ExecuteCommand(t, command);
     FreeCommand(command);
 }
@@ -1833,31 +1844,15 @@ static void RemoveStrFromText(TextEditor *t, int *cursorIndex, int len){
     if(pos - len < 0) len = pos;
 
     pos -= len;
-    // t->cursors[*cursorIndex].pos -= len;
 
 
     int textLen = strlen(t->text);
 
-    // if(pos > 0){
-    //     char *text1 = malloc(pos);
-    //     memcpy(text1, t->text, pos);
-
-    //     free(t->text);
-    //     t->text = malloc((textLen-len)+1);
-    //     memcpy(t->text, text1, pos);
-    //     free(text1);
-    // } else {
-    //     free(t->text);
-    //     t->text = malloc((textLen-len)+1);
-    // }
-    t->text = (char *)realloc(t->text, (textLen - len) + 1);
-
-
     if(pos < textLen){
-        // memmove(&t->text[pos - c->num], &t->text[pos], textLen - (pos+1));
-        // memmove(&t->text[pos - c->num], &t->text[pos], textLen - (pos+c->num));
         memcpy(&t->text[pos], &t->text[pos+len], textLen - (pos + len));
     }
+
+    t->text = (char *)realloc(t->text, (textLen - len) + 1);
 
     t->text[textLen - len] = 0;
     t->textLen = strlen(t->text);
@@ -2084,13 +2079,13 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
                 t->cursors[k].pos = prev - GetCharsIntoLine(t->text, t->cursors[k].pos);
 
             if(c->num > 0){
-                TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0, SCR_NORM, AddCharacters, UndoAddCharacters);
+                TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0, SCR_CENT, AddCharacters, UndoAddCharacters);
                 ExecuteCommand(t,command);
                 FreeCommand(command);
             } else {
                 if (t->text[t->cursors[k].pos] == '\t' || t->text[t->cursors[k].pos] == ' '){
                     t->cursors[k].pos++;
-                    TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_NORM,
+                    TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_CENT,
                         RemoveCharacters, UndoRemoveCharacters);
                     ExecuteCommand(t,command);
                     FreeCommand(command);
@@ -2119,7 +2114,7 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
                         selection.len++;
                     }
                     TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 
-                        "\t", 0, SCR_NORM, AddCharacters, UndoAddCharacters);
+                        "\t", 0, SCR_CENT, AddCharacters, UndoAddCharacters);
                     ExecuteCommand(t,command);
                     FreeCommand(command);
                     prev++;
@@ -2133,7 +2128,7 @@ static void IndentLine(TextEditor *t, TextEditorCommand *c){
                         }
     
                         t->cursors[k].pos++;
-                        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_NORM, 
+                        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_CENT, 
                             RemoveCharacters, UndoRemoveCharacters);
                         ExecuteCommand(t,command);
                         FreeCommand(command);
@@ -2252,7 +2247,7 @@ static void FreeCommand(TextEditorCommand *c){
 
 static TextEditorCommand *CopyCommand(TextEditorCommand *c){
 
-    TextEditorCommand *ret = CreateCommand((const unsigned int *)c->keyBinding, c->keys, c->num, SCR_NORM,c->Execute, c->Undo);
+    TextEditorCommand *ret = CreateCommand((const unsigned int *)c->keyBinding, c->keys, c->num, c->scroll, c->Execute, c->Undo);
 
     ret->savedCursors = (TextEditorCursor *)malloc(sizeof(TextEditorCursor) * c->nSavedCursors);
     ret->nSavedCursors = c->nSavedCursors;
@@ -2353,6 +2348,7 @@ static void RemoveExtraCursors(TextEditor *t){
     }
     t->cursors = (TextEditorCursor *)realloc(t->cursors, sizeof(TextEditorCursor));
     t->nCursors = 1;
+    UpdateScrollCenter(t);
 }
 
 static void ExecuteCommand(TextEditor *t, TextEditorCommand *c){
@@ -3104,8 +3100,10 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         if(key == ((( unsigned int)'b') | EDIT_CTRL_KEY)){
             
             if(t->loggingText) free(t->loggingText);
-            t->loggingText = malloc(1);
-            t->loggingText[0] = 0;
+            char *buffer = "compiling:\n\0";
+            t->loggingText = malloc(strlen(buffer)+1);
+            memcpy(t->loggingText, buffer, strlen(buffer));
+            t->loggingText[strlen(buffer)] = 0;
             
 #ifdef LINUX_COMPILE
             openpty(&t->ttyMaster, &t->ttySlave, NULL, NULL, NULL);
@@ -3149,7 +3147,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
     }
     if(key == 9){ // tab
         if(t->logging) return;
-        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0,SCR_NORM, AddCharacters, UndoAddCharacters);
+        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0,SCR_CENT, AddCharacters, UndoAddCharacters);
         ExecuteCommand(t,command);
         FreeCommand(command);
         return;
@@ -3157,7 +3155,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
 
     if(key == 127){ // backspace
 
-        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_NORM, RemoveCharacters, UndoRemoveCharacters);
+        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_CENT, RemoveCharacters, UndoRemoveCharacters);
         ExecuteCommand(t, command);
         FreeCommand(command);
         return;
@@ -3165,7 +3163,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
 
     if(key >= 32 && key <= 126){
 
-        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, (const char[]){(char)key, 0}, 0, SCR_NORM, AddCharacters, UndoAddCharacters);
+        TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, (const char[]){(char)key, 0}, 0, SCR_CENT, AddCharacters, UndoAddCharacters);
         ExecuteCommand(t,command);
         FreeCommand(command);
         return;
