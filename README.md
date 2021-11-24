@@ -16,12 +16,19 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 ![Screenshot](Screenshots/praisekek.jpg) ![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
+file open selector for more than relative paths<br>
 Mouse support<br>
-Case insensitive search<br>
+Case insensitive search(done)<br>
 Swap files<br>
-files save open etc ctrl+shift+f maybe?<br>
+structs for every command scroll undo/do<br>
+open last projects files<br>
+windows/tabs ctrl+p for tabs(done)<br>
+minimap<br>
+bug(autocomplete stays when cursor move)<br>
+find replace<br>
+reload check files(if edited outside kek)<br>
+code folding<br>
 config files<br>
-windows/tabs<br>
 make libthoth for text editor embed for opengl games<br>
 <hr>
 <b>COMMANDS</b>:<br>
@@ -56,7 +63,12 @@ ctrl+shift+j (select brackets) (selects everything between the brackets)<br>
 ctrl+/ (toggle comment) (adds or removes // for the line to comment) (todo: mutli-line)<br>
 ctrl+shift+arrow up/down (move line up/down) (moves the entire line the cursors on, or every line in the selection by a line)<br>
 ctrl+o (open file)<br>
-ctrl+w (save file)<br>
+ctrl+s (save file)<br>
+ctrl+shift+s Save As file<br>
+ctrl+n New file <br>
+ctrl+p Switch file, (lists open files)<br>
+ctrl+w Close file<br>
+
 <br>
 Deveoloped while bedridden after I got hit by a car on a moped. I'll be fully recovered soon.<br>
 
