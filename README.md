@@ -63,6 +63,7 @@ ctrl+shift+j (select brackets) (selects everything between the brackets)<br>
 ctrl+/ (toggle comment) (adds or removes // for the line to comment) (todo: mutli-line)<br>
 ctrl+shift+arrow up/down (move line up/down) (moves the entire line the cursors on, or every line in the selection by a line)<br>
 ctrl+o (open file)<br>
+ctrl+shift+o (file browser)<br>
 ctrl+s (save file)<br>
 ctrl+shift+s Save As file<br>
 ctrl+n New file <br>
