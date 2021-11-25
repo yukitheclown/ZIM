@@ -1,5 +1,6 @@
 #include "graphics.h"
 #include "text_editor.h"
+#include "file_browser.h"
 #include <stdio.h>
 #include <fcntl.h>
 #include <SDL2/SDL.h>
@@ -10,9 +11,13 @@
 #include <termios.h>
 #include <pty.h>
 #endif
+#ifdef WINDOWS_COMPILE
+#include <fileapi.h>    
+#endif
 #include <math.h>
 
-#define LOGFILE "keklog.txt"
+#define LOGFILE "kekproject.txt"
+#define LOGCOMPILEFILE "keklog.txt"
 
 #ifndef UNUSED
 #define UNUSED(x) (void)(x)
@@ -27,6 +32,9 @@ enum {
     COLOR_COMMENT,
     COLOR_STRING,
     COLOR_SELECTED,
+    COLOR_SELECTED_DIRECTORY,
+    COLOR_UNSELECTED_DIRECTORY,
+    COLOR_LOG_UNSELECTED,
     COLOR_FIND,
     COLOR_LINE_NUM,
     COLOR_AUTO_COMPLETE,
@@ -51,13 +59,14 @@ enum {
 static void FreeFile(TextEditorFile *f);
 static void RefreshFile(TextEditor *t);
 static int AddFile(TextEditor *t, TextEditorFile *f);
-static TextEditorFile *CreateFile(char *path);
+static TextEditorFile *CreateTextEditorFile(char *path);
 static void EndLogging(TextEditor *t);
 static int FindInsensitive(char *text, char *str, int len);
 static void FindTextGoto(TextEditor *t, int dir, int insensitive);
 static void ScrollToLine(TextEditor *t);
 static int MoveByWordsFunc(char *text, int len, int start, int dir);
 static void DoSwitchFile(TextEditor *t);
+static void DoFileBrowser(TextEditor *t);
 static void FindTextInsensitive(TextEditor *t, TextEditorCommand *c);
 static void CloseFile(TextEditor *t, TextEditorCommand *c);
 static void AddSavedText(TextEditor *t, char *str, int len, int *cursorIndex);
@@ -87,6 +96,7 @@ static void MoveCursorsAndSelection(TextEditor *t, int pos, int by, int *cursorI
 static void MoveLineUp(TextEditor *t, TextEditorCursor *c);
 static void MoveLineDown(TextEditor *t, TextEditorCursor *c);
 static void RemoveSelections(TextEditor *t);
+static void OpenFileBrowser(TextEditor *t, TextEditorCommand *c);
 static void SetCursorToSelection(TextEditorCursor *cursor, int n);
 static void MoveByChars(TextEditor *t, TextEditorCommand *c);
 static void SelectAll(TextEditor *t, TextEditorCommand *c);
@@ -386,6 +396,10 @@ static void EventEnter(TextEditor *t){
     }
     if(t->logging == LOGMODE_SWITCH_FILE){
         DoSwitchFile(t);
+        return;
+    }
+    if(t->logging == LOGMODE_FILEBROWSER){
+        DoFileBrowser(t);
         return;
     }
     if(t->logging == LOGMODE_NUM){
@@ -928,6 +942,33 @@ static void DoOpenFile(TextEditor *t){
     EndLogging(t);
 }
 
+static void DoFileBrowser(TextEditor *t){
+
+    int matches = 0;
+    int k;
+    for(k = 0; k < t->fileBrowser.nFiles; k++){
+        int nameLen = strlen(t->fileBrowser.files[k].name);
+        int logNameLen = t->loggingText ? strlen(t->loggingText) : 0;
+        
+        if(nameLen > 0 && logNameLen <= nameLen){
+            if(logNameLen == 0 || CaseLowerStrnCmp(t->loggingText, t->fileBrowser.files[k].name, logNameLen)){
+                if(t->logIndex == matches){
+                    if(t->fileBrowser.files[k].dir){
+                        strcpy(t->fileBrowser.directory, t->fileBrowser.files[k].path);
+                        FileBrowser_ChangeDirectory(&t->fileBrowser);
+                        t->logIndex = 0;
+                    } else {
+                        TextEditor_LoadFile(t, t->fileBrowser.files[k].path);
+                        RefreshFile(t);
+                        EndLogging(t);
+                    }
+                }
+                matches++;
+            }
+        }
+    }
+}
+
 static void DoSwitchFile(TextEditor *t){
 
     t->file->cursorPos = t->cursors[0].pos;
@@ -1004,6 +1045,11 @@ static void CloseFile(TextEditor *t, TextEditorCommand *c){
     }
 
     RefreshFile(t);
+}
+static void OpenFileBrowser(TextEditor *t, TextEditorCommand *c){
+    EndLogging(t);
+    t->logIndex = 0;
+    t->logging = LOGMODE_FILEBROWSER;
 }
 static void OpenFile(TextEditor *t, TextEditorCommand *c){
     EndLogging(t);
@@ -1093,19 +1139,26 @@ static void MoveLines(TextEditor *t, TextEditorCommand *c){
         return;
     }
 
-    if(t->logging == LOGMODE_SWITCH_FILE){
-
-        if(t->loggingText && strlen(t->loggingText)> 0){
+    if(t->logging == LOGMODE_FILEBROWSER || t->logging == LOGMODE_SWITCH_FILE){
+        if(t->logging == LOGMODE_FILEBROWSER && (t->loggingText == NULL || strlen(t->loggingText) == 0)){
+            t->logIndex += c->num;
+            if(t->logIndex < 0) t->logIndex = 0;
+            if(t->logIndex > t->fileBrowser.nFiles-1) t->logIndex = t->fileBrowser.nFiles-1;
+        }
+        
+        if(t->loggingText && strlen(t->loggingText) > 0){
             t->logIndex += c->num;
             if(t->logIndex < 0) t->logIndex = 0;
     
             int nMatching = 0;
             int k;
-            for(k = 0; k < t->nFiles; k++){
-                int nameLen = strlen(t->files[k]->name);
+            int nFiles = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.nFiles : t->nFiles;
+            for(k = 0; k < nFiles; k++){
+                char *name = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.files[k].name : t->files[k]->name;
+                int nameLen = strlen(name);
                 int logNameLen = strlen(t->loggingText);
                 if(nameLen > 0 && logNameLen <= nameLen){
-                    if(CaseLowerStrnCmp(t->loggingText, t->files[k]->name, logNameLen))
+                    if(CaseLowerStrnCmp(t->loggingText, name, logNameLen))
                         nMatching++;
 
                 }
@@ -2105,7 +2158,7 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
 
     if(t->logging){
 
-        if(t->logging != LOGMODE_CONSOLE && t->logging != LOGMODE_ALERT){
+        if(t->logging < LOGMODE_MODES_INPUTLESS){
             
             t->logIndex = -1;
 
@@ -2304,7 +2357,7 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
             int k;
             for(k = 0; k < nKeys; k++) if(!IsDigit(c->keys[k])) return;
         }
-        if(t->logging != LOGMODE_CONSOLE && t->logging != LOGMODE_ALERT){
+        if(t->logging < LOGMODE_MODES_INPUTLESS){
 
             if(t->loggingText){
                 int searchLen = strlen(t->loggingText);
@@ -2560,14 +2613,20 @@ static void FreeFile(TextEditorFile *f){
     free(f);
 }
 
-static TextEditorFile *CreateFile(char *path){
+static TextEditorFile *CreateTextEditorFile(char *path){
     TextEditorFile *ret = (TextEditorFile *)malloc(sizeof(TextEditorFile));
     memset(ret, 0, sizeof(TextEditorFile));
     if(path != NULL){
         strcpy(ret->path, path);
         int k = strlen(path);
         for(; k >= 0; k--){
+#ifdef LINUX_COMPILE
             if(path[k] == '/'){
+#endif
+#ifdef WINDOWS_COMPILE
+            if(path[k] == '\\'){
+#endif
+                k++;
                 break;
             }
         }
@@ -2577,12 +2636,34 @@ static TextEditorFile *CreateFile(char *path){
     return ret;
 }
 
-void TextEditor_LoadFile(TextEditor *t, char *path){
+void TextEditor_LoadFile(TextEditor *t, char *pathRel){
 
     if(t->file && t->cursors)
         t->file->cursorPos = t->cursors[0].pos;
 
-    TextEditorFile *file = CreateFile(path);
+    
+    if(pathRel == NULL){
+        t->file = CreateTextEditorFile(NULL);
+        t->file->text = malloc(1);
+        t->file->text[0] = 0;
+        strcpy(t->file->name, "new file");
+        return;
+    }
+
+    char path[MAX_PATH_LEN] = {0};
+#ifdef WINDOWS_COMPILE
+    GetFullPathNameA(pathRel, MAX_PATH_LEN, path, NULL);
+#endif
+#ifdef LINUX_COMPILE
+    char *tmp = realpath(pathRel, NULL);
+    if(tmp){
+        strcpy(path, tmp);
+        free(tmp);
+    }
+#endif
+
+    TextEditorFile *file = CreateTextEditorFile(path);
+
     int exists = -1;
     if((exists = AddFile(t, file)) >= 0){
         FreeFile(file);
@@ -2592,13 +2673,7 @@ void TextEditor_LoadFile(TextEditor *t, char *path){
     } else {
         t->file = file;
     }
-    
-    if(path == NULL){
-        t->file->text = malloc(1);
-        t->file->text[0] = 0;
-        strcpy(t->file->name, "new file");
-        return;
-    }
+
 
     FILE *fp = fopen(path, "r");
 
@@ -2614,6 +2689,9 @@ void TextEditor_LoadFile(TextEditor *t, char *path){
 
     rewind(fp);
 
+    // 1 mb
+    if(len > (1 << 20) * 1) len = (1 << 20) * 1; // not enough checking. but it'll save it from opening images on accident and crashing.
+
     t->file->text = (char *)malloc(len + 1);
     t->file->text[len] = 0;
 
@@ -2622,11 +2700,10 @@ void TextEditor_LoadFile(TextEditor *t, char *path){
     fread(t->file->text, sizeof(char), len, fp);
 
     fclose(fp);
-
 }
 
-void TextEditor_Init(TextEditor *t){
 
+void TextEditor_Init(TextEditor *t){
     memset(t, 0, sizeof(TextEditor));
 
     Graphics_init_pair(COLOR_SIDE_NUMBERS, COLOR_WHITE, COLOR_BLACK);
@@ -2639,7 +2716,10 @@ void TextEditor_Init(TextEditor *t){
     Graphics_init_pair(COLOR_STRING, COLOR_MAGENTA, COLOR_BLACK);
 
     Graphics_init_pair(COLOR_SELECTED, COLOR_BLACK ,COLOR_CYAN);
+    Graphics_init_pair(COLOR_SELECTED_DIRECTORY, COLOR_RED ,COLOR_CYAN);
+    Graphics_init_pair(COLOR_UNSELECTED_DIRECTORY, COLOR_RED ,COLOR_WHITE);
     Graphics_init_pair(COLOR_AUTO_COMPLETE, COLOR_BLACK, COLOR_WHITE);
+    Graphics_init_pair(COLOR_LOG_UNSELECTED, COLOR_BLACK, COLOR_WHITE);
     Graphics_init_pair(COLOR_CURSOR, COLOR_BLACK ,COLOR_MAGENTA);
     Graphics_init_pair(COLOR_FIND, COLOR_BLACK ,COLOR_WHITE);
     Graphics_init_pair(COLOR_LINE_NUM, COLOR_GREY ,COLOR_BLACK);
@@ -2656,6 +2736,7 @@ void TextEditor_Init(TextEditor *t){
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_UP  , 0}, "", -1, SCR_NORM, MoveLinesText, UndoMoveLinesText));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_DOWN  , 0}, "", 1, SCR_NORM, MoveLinesText, UndoMoveLinesText));
 
+    AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|'o'  , 0}, "", 0, SCR_NORM, OpenFileBrowser, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'o'  , 0}, "", 0, SCR_NORM, OpenFile, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'n'  , 0}, "", 0, SCR_NORM, NewFile, NULL));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|'w'  , 0}, "", 0, SCR_NORM, CloseFile, NULL));
@@ -2715,7 +2796,7 @@ void TextEditor_Init(TextEditor *t){
     AddCommand(t, CreateCommand((unsigned int[]){'v'|EDIT_CTRL_KEY  , 0}, "", 1, SCR_CENT, Paste, UndoPaste));
 
     InitCursors(t);
-
+    FileBrowser_Init(&t->fileBrowser);
     FILE *fp = fopen(LOGFILE, "r");
     if(fp){
         fseek(fp, 0, SEEK_END);
@@ -2729,7 +2810,7 @@ void TextEditor_Init(TextEditor *t){
             for(k = 0; k < nFiles; k++){
                 if(len < sizeof(int)) break;
                 len -= sizeof(int);
-                int pathLen = 9;
+                int pathLen;
                 char path[512];
                 fread(&pathLen, sizeof(int), 1, fp);
                 if(len < pathLen) break;
@@ -2738,6 +2819,16 @@ void TextEditor_Init(TextEditor *t){
                 fread(path,1,pathLen,fp);
                 path[pathLen] = 0;
                 TextEditor_LoadFile(t, path);
+            }
+            if(len > sizeof(int)){
+                int directoryLen;
+                fread(&directoryLen, sizeof(int), 1, fp);
+                if(len >= directoryLen && directoryLen < 512){
+                    len -= directoryLen;
+                    fread(t->fileBrowser.directory,1,directoryLen,fp);
+                    t->fileBrowser.directory[directoryLen] = 0;
+                    FileBrowser_ChangeDirectory(&t->fileBrowser);
+                }
             }
         }
         fclose(fp);
@@ -2776,47 +2867,52 @@ void TextEditor_Draw(TextEditor *t){
         else if(t->logging == LOGMODE_OPEN){ sprintf(buffer, "o: "); }        
         else if(t->logging == LOGMODE_SAVE){ sprintf(buffer, "w: "); }        
         else if(t->logging == LOGMODE_SWITCH_FILE){ sprintf(buffer, "p: "); }        
+        else if(t->logging == LOGMODE_FILEBROWSER){ sprintf(buffer, "O: "); }        
         else if(t->logging == LOGMODE_ALERT){ sprintf(buffer, "A: "); }        
         Graphics_mvprintw(0, 0, buffer, strlen(buffer));
     
         if(t->loggingText && strlen(t->loggingText) > 0){
             Graphics_mvprintw(3, 0, t->loggingText, strlen(t->loggingText));
+        }
 
-            if(t->logging == LOGMODE_SWITCH_FILE){
-                
-                for(k = 0; k < t->nFiles; k++){
-                    int nameLen = strlen(t->files[k]->name);
-                    int logNameLen = strlen(t->loggingText);
-                    
-                    if(nameLen > 0 && logNameLen <= nameLen){
-                        if(CaseLowerStrnCmp(t->loggingText, t->files[k]->name, logNameLen)){
+        if(t->logging == LOGMODE_SWITCH_FILE || t->logging == LOGMODE_FILEBROWSER){
 
-                            if(y == t->logIndex)
-                                Graphics_attron(COLOR_SELECTED);
+            logY = 1;
+
+            int nFiles = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.nFiles : t->nFiles;
+            
+            k = 0;
+            if(nFiles > Graphics_TextCollumns()-(logY+1)){
+                k = t->logIndex-(Graphics_TextCollumns()-(logY+1));
+                if(k < 0) k = 0;
+            }
+
+            int index = k;
+            for(; k < nFiles; k++){
+                char *name = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.files[k].name : t->files[k]->name;
+                int nameLen = strlen(name);
+                int logNameLen = t->loggingText ? strlen(t->loggingText) : 0;
+                if(nameLen > 0 && logNameLen <= nameLen){
+                    if(logNameLen == 0 || CaseLowerStrnCmp(t->loggingText, name, logNameLen)){
+
+                        if(index == t->logIndex){
+                            if(t->logging == LOGMODE_FILEBROWSER && t->fileBrowser.files[k].dir)
+                                Graphics_attron(COLOR_SELECTED_DIRECTORY);
                             else
-                                Graphics_attron(COLOR_AUTO_COMPLETE);
-
-                            Graphics_mvprintw(3, 1+y++, t->files[k]->name, strlen(t->files[k]->name));
+                                Graphics_attron(COLOR_SELECTED);
+                        } else {
+                            if(t->logging == LOGMODE_FILEBROWSER && t->fileBrowser.files[k].dir)
+                                Graphics_attron(COLOR_UNSELECTED_DIRECTORY);
+                            else
+                                Graphics_attron(COLOR_LOG_UNSELECTED);
                         }
+                        index++;
+                        Graphics_mvprintw(3, logY++, name, strlen(name));
                     }
                 }
-                logY += y;
             }
-        } else if(t->logging == LOGMODE_SWITCH_FILE){
-            for(k = 0; k < t->nFiles; k++){
-                if(k == t->logIndex)
-                    Graphics_attron(COLOR_SELECTED);
-                else
-                    Graphics_attron(COLOR_AUTO_COMPLETE);
-
-                Graphics_mvprintw(3, 1+y++, t->files[k]->name, strlen(t->files[k]->name));
-            }
-            logY += y;
         }
     }
-
-    k = x = y = 0;
-
 
     if(t->logging == LOGMODE_CONSOLE){
 
@@ -2845,7 +2941,7 @@ void TextEditor_Draw(TextEditor *t){
         }
 #endif
 #ifdef WINDOWS_COMPILE
-        FILE *fp = fopen(LOGFILE, "r");
+        FILE *fp = fopen(LOGCOMPILEFILE, "r");
 
         if(t->loggingText) free(t->loggingText);
 
@@ -3384,7 +3480,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
             }
 #endif
 #ifdef WINDOWS_COMPILE
-            system("make > " LOGFILE " 2>&1 &");
+            system("make > " LOGCOMPILEFILE " 2>&1 &");
 #endif
             t->logging = LOGMODE_CONSOLE;
             return;
@@ -3449,7 +3545,16 @@ int TextEditor_Destroy(TextEditor *t){
         }
         fwrite(&nFiles,sizeof(int),1,fp);
     }
-    
+
+    // write file last so it opens first
+
+    int len = strlen(t->file->path);
+    if(len > 0){
+        for(k = 0; k < t->nFiles; k++){
+            if(t->files[k] == t->file) { t->files[k] = t->files[t->nFiles-1]; break; }
+        }
+        t->files[t->nFiles-1] = t->file;
+    }    
     for(k = 0; k < t->nFiles; k++){
         int len = strlen(t->files[k]->path);
         if(len > 0){
@@ -3473,14 +3578,8 @@ int TextEditor_Destroy(TextEditor *t){
 
         }
 
-        if(t->files[k] == t->file){
-            if(t->nFiles > 0){
-                if(t->file == t->files[0])
-                    t->file = t->files[1];
-                else 
-                    t->file = t->files[0];
-                RefreshFile(t);
-            }
+        if(t->nFiles > 1 && t->file == t->files[k]){
+            t->file = t->file == t->files[0] ? t->files[1] : t->files[0];
         }
 
         FreeFile(t->files[k]);
@@ -3495,11 +3594,20 @@ int TextEditor_Destroy(TextEditor *t){
         t->files = (TextEditorFile **)realloc(t->files,sizeof(TextEditorFile*) * t->nFiles--);
 
     }
-    if(fp) fclose(fp);
+
+    if(fp){
+        int len = strlen(t->fileBrowser.directory);
+        if(len > 0){
+            fwrite(&len,sizeof(int),1,fp);
+            fwrite(t->fileBrowser.directory,1,len,fp);
+        }
+        fclose(fp);
+    }
 
     for(k = 0; k < t->nCommands; k++)
         FreeCommand(t->commands[k]);
 
     FreeCursors(t);
+    FileBrowser_Free(&t->fileBrowser);
     return 1;
 }

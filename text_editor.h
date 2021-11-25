@@ -1,6 +1,8 @@
 #ifndef TEXT_EDITOR_DEF
  #define TEXT_EDITOR_DEF
 #include <sys/types.h>
+#include "types.h"
+#include "file_browser.h"
 
 #define EDIT_CTRL_KEY    (unsigned int)0x100
 #define EDIT_ALT_KEY     (unsigned int)0x200
@@ -81,6 +83,8 @@
   LOGMODE_SAVE,
   LOGMODE_OPEN,
   LOGMODE_SWITCH_FILE,
+  LOGMODE_FILEBROWSER,
+  LOGMODE_MODES_INPUTLESS,
   LOGMODE_ALERT,
   LOGMODE_CONSOLE,
  };
@@ -101,8 +105,8 @@ typedef struct {
 
   char                    *text;
   int                     textLen;
-  char                    name[128];
-  char                    path[512];
+  char                    name[MAX_FILENAME];
+  char                    path[MAX_PATH_LEN];
 } TextEditorFile;
 
  struct TextEditor {
@@ -129,6 +133,7 @@ typedef struct {
   int                     nCursors;
 
   int                     quit;
+  FileBrowser             fileBrowser;
 
   int                     ttyPid;
   int                     ttyMaster;
