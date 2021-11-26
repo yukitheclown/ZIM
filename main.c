@@ -14,12 +14,28 @@ enum {
     GODCODE_STATE_RUNNING,
 
 };
+#define MOUSEUPDATETIME 100
 
 typedef struct {
     int state;
     u32 key;
     TextEditor te;
+    int mousedown;
+    int mousex;
+    int mousey;
+    int mousemotiontime;
 } GodCode_t;
+
+static void MouseMotionUpdate(GodCode_t *gc){
+    int mousetime = SDL_GetTicks() - gc->mousemotiontime;
+    if(mousetime > MOUSEUPDATETIME) {
+        int mouseupdate = TextEditor_SetCursorPosSelection(&gc->te, gc->mousex, gc->mousey);
+        if(mouseupdate){
+            gc->state = GODCODE_STATE_UPDATEDRAW;
+            gc->mousemotiontime = SDL_GetTicks(); //because timeout, we only wanna see if its been since the
+        }
+    }
+}
 
 void Event(GodCode_t *gc){
 
@@ -27,6 +43,12 @@ void Event(GodCode_t *gc){
     if(gc->te.logging == LOGMODE_CONSOLE){
         if(!SDL_WaitEventTimeout(&ev, 1000)){
             gc->state = GODCODE_STATE_UPDATEDRAW;
+            return;
+        }
+    } else if(gc->mousedown){
+        if(!SDL_WaitEventTimeout(&ev,MOUSEUPDATETIME)){
+            MouseMotionUpdate(gc);
+            return;
         }
     } else {
         if(!SDL_WaitEvent(&ev)) return;
@@ -36,17 +58,38 @@ void Event(GodCode_t *gc){
         gc->state = GODCODE_STATE_QUIT;
         return;
     }
-    // if(ev.type == SDL_MOUSEBUTTONDOWN){
-    //     return;
-    // }
-    // if(ev.type == SDL_MOUSEBUTTONUP){
-    //     ev.button.x;
-    //     return;
-    // }
-    // if(ev.type == SDL_MOUSEMOTION){
-    //     ev.motion.x;
-    //     return;
-    // }
+
+    if(ev.type == SDL_MOUSEBUTTONDOWN && ev.button.button == SDL_BUTTON_LEFT){
+
+        if(!gc->mousedown){
+            int x = ev.button.x / Graphics_FontWidth();
+            int y = ev.button.y / Graphics_FontHeight();
+            if(ev.button.clicks >= 2) 
+                TextEditor_SetCursorPosDoubleClick(&gc->te, x, y);
+            else{
+                TextEditor_SetCursorPos(&gc->te, x, y);
+                gc->mousedown = 1;
+                gc->mousex = x;
+                gc->mousey = y;
+            }
+            gc->state = GODCODE_STATE_UPDATEDRAW;
+            return;
+        }
+    }
+    if(ev.type == SDL_MOUSEBUTTONUP && ev.button.button == SDL_BUTTON_LEFT){
+        gc->mousedown = 0;
+        return;
+    }
+    if(ev.type == SDL_MOUSEMOTION){
+        if(gc->mousedown){
+            int x = ev.motion.x / Graphics_FontWidth();
+            int y = ev.motion.y / Graphics_FontHeight();
+            gc->mousex = x;
+            gc->mousey = y;
+            MouseMotionUpdate(gc);
+            return;
+        }
+    }
     
     if(ev.type == SDL_KEYDOWN){
         
@@ -167,8 +210,8 @@ int main(int argc, char **argv){
 
                gc.key = gc.key & 0xff00;
 
-               gc.state = GODCODE_STATE_RUNNING;
             }    
+           gc.state = GODCODE_STATE_RUNNING;
 
            Graphics_Clear();
            TextEditor_Draw(&gc.te);        

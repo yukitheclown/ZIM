@@ -56,6 +56,8 @@ enum {
 
 u32 Graphics_TextCollumns();
 u32 Graphics_TextRows();
+u32 Graphics_FontWidth();
+u32 Graphics_FontHeight();
 void Graphics_mvprintw(float x, float y, char *str, int strLen);
 void Graphics_attron(u32 attr);
 void Graphics_init_pair(u8 pair, u8 fg, u8 bg);

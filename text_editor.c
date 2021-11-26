@@ -942,47 +942,33 @@ static void DoOpenFile(TextEditor *t){
     EndLogging(t);
 }
 
-static void DoFileBrowser(TextEditor *t){
+static void LogLineSelectorEnter(TextEditor *t){
+
+    int nFiles = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.nFiles : t->nFiles;
 
     int matches = 0;
     int k;
-    for(k = 0; k < t->fileBrowser.nFiles; k++){
-        int nameLen = strlen(t->fileBrowser.files[k].name);
+    for(k = 0; k < nFiles; k++){
+        char *name = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.files[k].name : t->files[k]->name;
+        int nameLen = strlen(name);
         int logNameLen = t->loggingText ? strlen(t->loggingText) : 0;
         
-        if(nameLen > 0 && logNameLen <= nameLen){
-            if(logNameLen == 0 || CaseLowerStrnCmp(t->loggingText, t->fileBrowser.files[k].name, logNameLen)){
+        if(logNameLen <= nameLen){
+            if(logNameLen == 0 || CaseLowerStrnCmp(t->loggingText, name, logNameLen)){
                 if(t->logIndex == matches){
-                    if(t->fileBrowser.files[k].dir){
-                        strcpy(t->fileBrowser.directory, t->fileBrowser.files[k].path);
-                        FileBrowser_ChangeDirectory(&t->fileBrowser);
-                        t->logIndex = 0;
-                    } else {
-                        TextEditor_LoadFile(t, t->fileBrowser.files[k].path);
-                        RefreshFile(t);
-                        EndLogging(t);
-                    }
-                }
-                matches++;
-            }
-        }
-    }
-}
+                    if(t->logging == LOGMODE_FILEBROWSER){
 
-static void DoSwitchFile(TextEditor *t){
-
-    t->file->cursorPos = t->cursors[0].pos;
-
-    if(t->loggingText && strlen(t->loggingText) > 0){
-        int matches = 0;
-        int k;
-        for(k = 0; k < t->nFiles; k++){
-            int nameLen = strlen(t->files[k]->name);
-            int logNameLen = strlen(t->loggingText);
-            
-            if(nameLen > 0 && logNameLen <= nameLen){
-                if(CaseLowerStrnCmp(t->loggingText, t->files[k]->name, logNameLen)){
-                    if(t->logIndex == matches){
+                        if(t->fileBrowser.files[k].dir){
+                            strcpy(t->fileBrowser.directory, t->fileBrowser.files[k].path);
+                            FileBrowser_ChangeDirectory(&t->fileBrowser);
+                            t->logIndex = 0;
+                        } else {
+                            TextEditor_LoadFile(t, t->fileBrowser.files[k].path);
+                            RefreshFile(t);
+                            EndLogging(t);
+                            break;
+                        }
+                    } else if(t->logging == LOGMODE_SWITCH_FILE){
 
                         t->file = t->files[k];
 
@@ -993,16 +979,25 @@ static void DoSwitchFile(TextEditor *t){
                             }
                             t->files[0] = t->file; // stack like
                         }
+
+                        RefreshFile(t);
+                        EndLogging(t);
                         break;
                     }
-                    matches++;
                 }
+                matches++;
             }
         }
     }
+}
 
-    RefreshFile(t);
-    EndLogging(t);
+static void DoFileBrowser(TextEditor *t){
+    LogLineSelectorEnter(t);
+}
+
+static void DoSwitchFile(TextEditor *t){
+    t->file->cursorPos = t->cursors[0].pos;
+    LogLineSelectorEnter(t);
 }
 
 static void DoSaveFile(TextEditor *t){
@@ -1057,6 +1052,7 @@ static void OpenFile(TextEditor *t, TextEditorCommand *c){
 }
 static void SwitchFile(TextEditor *t, TextEditorCommand *c){
     EndLogging(t);
+    t->logIndex = 0;
     t->logging = LOGMODE_SWITCH_FILE;
 }
 static void SaveAsFile(TextEditor *t, TextEditorCommand *c){
@@ -1140,10 +1136,13 @@ static void MoveLines(TextEditor *t, TextEditorCommand *c){
     }
 
     if(t->logging == LOGMODE_FILEBROWSER || t->logging == LOGMODE_SWITCH_FILE){
-        if(t->logging == LOGMODE_FILEBROWSER && (t->loggingText == NULL || strlen(t->loggingText) == 0)){
+        
+        int nFiles = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.nFiles : t->nFiles;
+        
+        if( (t->loggingText == NULL || strlen(t->loggingText) == 0)){
             t->logIndex += c->num;
             if(t->logIndex < 0) t->logIndex = 0;
-            if(t->logIndex > t->fileBrowser.nFiles-1) t->logIndex = t->fileBrowser.nFiles-1;
+            if(t->logIndex > nFiles-1) t->logIndex = nFiles-1;
         }
         
         if(t->loggingText && strlen(t->loggingText) > 0){
@@ -1152,12 +1151,11 @@ static void MoveLines(TextEditor *t, TextEditorCommand *c){
     
             int nMatching = 0;
             int k;
-            int nFiles = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.nFiles : t->nFiles;
             for(k = 0; k < nFiles; k++){
                 char *name = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.files[k].name : t->files[k]->name;
                 int nameLen = strlen(name);
                 int logNameLen = strlen(t->loggingText);
-                if(nameLen > 0 && logNameLen <= nameLen){
+                if(logNameLen <= nameLen){
                     if(CaseLowerStrnCmp(t->loggingText, name, logNameLen))
                         nMatching++;
 
@@ -2834,14 +2832,132 @@ void TextEditor_Init(TextEditor *t){
         fclose(fp);
     }
 }
+static int CursorPos(TextEditor *t, int x, int y){
+    RemoveExtraCursors(t);
+    t->autoCompleteIndex = 0;
+    UpdateScrollCenter(t);
+
+    if(x < t->logX) x = t->logX;
+    if(x < t->logY) x = t->logY;
+    if(y > Graphics_TextCollumns() - t->logY) y = Graphics_TextCollumns() - t->logY;
+    if(x > Graphics_TextRows() - t->logX) x = Graphics_TextRows() - t->logX;
+
+    x -= t->logX;
+    y -= t->logY;
+    if(x < 0 || y < 0) return 0;
+    t->file->textLen = strlen(t->file->text);
+
+    int lastScroll = t->file->scroll;
+
+    if(y < 3){
+        // 3 - y move by 3 at line 0 move by 1 at line 1.
+        t->file->scroll = t->file->scroll-(3-y) >= 0 ? t->file->scroll-(3-y) : 0;
+    } else {
+
+        int yOver = (y+3) - ((Graphics_TextCollumns()-1) - t->logY);
+
+        if(yOver >= 1){
+            int k;
+            int maxScroll = 0;
+            for(k = 0; k < t->file->textLen; k++){
+                if(t->file->text[k] == '\n'){
+                    maxScroll++;
+                }
+            }
+
+            t->file->scroll = t->file->scroll+yOver <= maxScroll ? t->file->scroll+yOver : maxScroll;
+        }
+    }
+
+
+    y += lastScroll;
+
+    int k = 0;
+    if(y > 0){
+        for(k = 0; k < t->file->textLen; k++){
+            if(t->file->text[k] == '\n'){
+                y--;
+                if(y == 0) { k++; break; } 
+            }
+        }
+    }
+    if(x > 0){
+
+        int lx;
+        for(lx = k; k < t->file->textLen; lx++){
+            if(t->file->text[lx] == '\n') { lx--; break; }
+        }
+
+        lx = lx - k;
+
+        if(x > lx) x = lx;
+    }
+
+
+
+    if(k + x < t->file->textLen){
+        return k < 0 ? 0 : k+x;
+    } else {
+        return t->file->textLen;
+    }
+
+
+    return 0;
+}
+void TextEditor_SetCursorPosDoubleClick(TextEditor *t, int x, int y){
+    
+    t->cursors[0].pos = CursorPos(t,x,y);
+
+    int start = 0;
+    GetWordStartEnd(t->file->text, t->cursors[0].pos, &start, &t->cursors[0].pos);
+
+    t->selectNextWordTerminator = 1;
+
+    t->cursors[0].selection.startCursorPos = start;
+    t->cursors[0].selection.len = t->cursors[0].pos - start;
+}
+
+int TextEditor_SetCursorPosSelection(TextEditor *t, int x, int y){
+
+    if(t->selectNextWordTerminator == 1) return 0; //doubleclick
+
+    int pos = CursorPos(t,x,y);
+
+    int mouseSelectionLen = t->mouseSelection - pos;
+    
+    if(mouseSelectionLen == 0 && t->cursors[0].pos == pos) return 0;
+
+    if(mouseSelectionLen < 0){
+
+        t->cursors[0].selection.startCursorPos = t->mouseSelection;
+        t->cursors[0].selection.len = -mouseSelectionLen;
+
+    } else {
+        t->cursors[0].selection.startCursorPos = pos;
+        t->cursors[0].selection.len = mouseSelectionLen;
+
+    }
+    
+    t->cursors[0].pos = pos;
+    return 1;
+}
+
+void TextEditor_SetCursorPos(TextEditor *t, int x, int y){
+    RemoveSelections(t);
+    t->cursors[0].pos = CursorPos(t,x,y);
+    t->cursors[0].selection.startCursorPos = t->cursors[0].pos;
+    t->mouseSelection = t->cursors[0].pos;
+    t->cursors[0].selection.len = 0;
+}
 
 void TextEditor_Draw(TextEditor *t){
 
     int screenHeight = Graphics_TextCollumns();
     int screenWidth = Graphics_TextRows();
 
-    int logY = 0, logX = 4;
-    if(t->logging) logY = 1;
+    t->logY = 0;
+    t->logX = 4;
+    if(t->logging) t->logY = 1;
 
     int k = 0;
     int y = 0;
@@ -2852,7 +2968,7 @@ void TextEditor_Draw(TextEditor *t){
     for(k = 0; k < Graphics_TextCollumns(); k++){
         char buffer[10];
         sprintf(buffer, "%i", t->file->scroll+k);
-        Graphics_mvprintw(0, logY+k, buffer, strlen(buffer));
+        Graphics_mvprintw(0, t->logY+k, buffer, strlen(buffer));
     }
 
     // logs
@@ -2877,13 +2993,13 @@ void TextEditor_Draw(TextEditor *t){
 
         if(t->logging == LOGMODE_SWITCH_FILE || t->logging == LOGMODE_FILEBROWSER){
 
-            logY = 1;
+            t->logY = 1;
 
             int nFiles = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.nFiles : t->nFiles;
             
             k = 0;
-            if(nFiles > Graphics_TextCollumns()-(logY+1)){
-                k = t->logIndex-(Graphics_TextCollumns()-(logY+1));
+            if(nFiles > Graphics_TextCollumns()-(t->logY+1)){
+                k = t->logIndex-(Graphics_TextCollumns()-(t->logY+1));
                 if(k < 0) k = 0;
             }
 
@@ -2892,7 +3008,7 @@ void TextEditor_Draw(TextEditor *t){
                 char *name = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.files[k].name : t->files[k]->name;
                 int nameLen = strlen(name);
                 int logNameLen = t->loggingText ? strlen(t->loggingText) : 0;
-                if(nameLen > 0 && logNameLen <= nameLen){
+                if(logNameLen <= nameLen){
                     if(logNameLen == 0 || CaseLowerStrnCmp(t->loggingText, name, logNameLen)){
 
                         if(index == t->logIndex){
@@ -2907,7 +3023,7 @@ void TextEditor_Draw(TextEditor *t){
                                 Graphics_attron(COLOR_LOG_UNSELECTED);
                         }
                         index++;
-                        Graphics_mvprintw(3, logY++, name, strlen(name));
+                        Graphics_mvprintw(3, t->logY++, name, strlen(name));
                     }
                 }
             }
@@ -3039,7 +3155,7 @@ void TextEditor_Draw(TextEditor *t){
         // free(t->loggingText);
         // t->loggingText = NULL;
 
-        logY = y;
+        t->logY = y;
     }
 
     if(!t->file->text){
@@ -3074,7 +3190,7 @@ void TextEditor_Draw(TextEditor *t){
     for(; k < t->file->textLen; k++){
         if(t->file->text[k] == '\n'){
             y++;
-            if(y == t->file->scroll+screenHeight-logY) { k++; break; }
+            if(y == t->file->scroll+screenHeight-t->logY) { k++; break; }
         }
     }
     scrollPosMax = k;
@@ -3131,7 +3247,7 @@ void TextEditor_Draw(TextEditor *t){
 
                     for(k = k+1; k < renderTo && IsDigit(t->file->text[k]); k++);
 
-                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset);
+                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
                     x += k - ctOffset;
                     ctOffset = k;
 
@@ -3147,7 +3263,7 @@ void TextEditor_Draw(TextEditor *t){
 
                     if((k - ctOffset) == 1 && IsDigit(t->file->text[k-1])){
                         Graphics_attron(COLOR_NUM);
-                        Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], 1);
+                        Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], 1);
                         x++;
                         ctOffset = k;
                         goto addedStr;
@@ -3158,7 +3274,7 @@ void TextEditor_Draw(TextEditor *t){
                             memcmp(&t->file->text[ctOffset], keywords[m], (k - ctOffset)) == 0) {
                             
                             Graphics_attron(COLOR_KEYWORD);
-                            Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset);
+                            Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
 
                             x += k - ctOffset;
                             ctOffset = k;
@@ -3172,10 +3288,10 @@ void TextEditor_Draw(TextEditor *t){
                         // so that we can change colors at the token after the def
 
                         Graphics_attron(COLOR_FUNCTION);
-                        Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset); 
+                        Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset); 
                         x += k - ctOffset;
                         Graphics_attron(COLOR_FUNCTION);
-                        Graphics_mvprintw(logX+x, logY+y, &t->file->text[k], 1);
+                        Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[k], 1);
                         x++;
                         k++;
                         ctOffset = k;
@@ -3183,7 +3299,7 @@ void TextEditor_Draw(TextEditor *t){
                     }
         
                     Graphics_attron(COLOR_NORMAL);
-                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset);
+                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
                     x += k - ctOffset;
 
                     ctOffset = k;
@@ -3219,7 +3335,7 @@ void TextEditor_Draw(TextEditor *t){
         
                 if(c == ')' || c == '('){
                     Graphics_attron(COLOR_FUNCTION);
-                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], 1);
+                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], 1);
                     x++;
                     ctOffset = ++k;
                     continue;
@@ -3227,7 +3343,7 @@ void TextEditor_Draw(TextEditor *t){
                 
                 if(c != ' ' && c != '(' && c != ')' && token && !comment && !string){
                     Graphics_attron(COLOR_TOKEN);
-                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], 1);
+                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], 1);
                     x++;
                     ctOffset = ++k;
                     continue;
@@ -3260,7 +3376,7 @@ void TextEditor_Draw(TextEditor *t){
                     if(k > 0 && t->file->text[k-1] == '*' && t->file->text[k] == '/') k++;
 
                     Graphics_attron(COLOR_COMMENT);
-                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset);
+                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
                     x += k - ctOffset;
                     ctOffset = k;
                     comment = 0;
@@ -3297,7 +3413,7 @@ void TextEditor_Draw(TextEditor *t){
                     if(k == renderTo) break;
 
                     Graphics_attron(COLOR_STRING);
-                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset);
+                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
                                     
                     x += k - ctOffset;
                     ctOffset = k;
@@ -3313,7 +3429,7 @@ void TextEditor_Draw(TextEditor *t){
 
         if(k - ctOffset > 0){
             Graphics_attron(COLOR_NORMAL);
-            Graphics_mvprintw(logX+x, logY+y, &t->file->text[ctOffset], k - ctOffset);
+            Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
         }
 
     // } else { // easy selections have no highlighting
@@ -3342,13 +3458,13 @@ void TextEditor_Draw(TextEditor *t){
                     continue;
                 } else if(t->file->text[k] == '\t'){
                     if(k >= renderStart)
-                        Graphics_mvprintw(logX+x, logY+y, "    ", 4);
+                        Graphics_mvprintw(t->logX+x, t->logY+y, "    ", 4);
                     x += 4;
                     continue;
                 }
 
                 if(k >= renderStart && x < screenWidth && y < screenHeight){
-                    Graphics_mvprintw(logX+x, logY+y, &t->file->text[k], 1);
+                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[k], 1);
                 }
                 x++;
             }
@@ -3379,9 +3495,9 @@ void TextEditor_Draw(TextEditor *t){
             x >= screenWidth) continue;
 
         if(t->file->text[c->pos] == '\n' || t->file->text[c->pos] == '\t')
-            Graphics_mvprintw(logX+x, logY+y, " ", 1);
+            Graphics_mvprintw(t->logX+x, t->logY+y, " ", 1);
         else
-            Graphics_mvprintw(logX+x, logY+y, &t->file->text[c->pos], 1);
+            Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[c->pos], 1);
     
     }
 
@@ -3422,8 +3538,8 @@ void TextEditor_Draw(TextEditor *t){
             char buffer[MAX_AUTO_COMPLETE_STRLEN];
             memset(buffer, ' ', MAX_AUTO_COMPLETE_STRLEN);
             memcpy(buffer, &t->file->text[t->autoComplete[j].offset],t->autoComplete[j].len);
-            // Graphics_mvprintw(logX+x, logY+y+j+1, &t->file->text[t->autoComplete[j].offset], t->autoComplete[j].len);
-            Graphics_mvprintw(logX+x, logY+y+j+1, buffer, MAX_AUTO_COMPLETE_STRLEN);
+            // Graphics_mvprintw(t->logX+x, t->logY+y+j+1, &t->file->text[t->autoComplete[j].offset], t->autoComplete[j].len);
+            Graphics_mvprintw(t->logX+x, t->logY+y+j+1, buffer, MAX_AUTO_COMPLETE_STRLEN);
         }
 
     }
