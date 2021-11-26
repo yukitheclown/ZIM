@@ -19,7 +19,7 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 file open selector for more than relative paths(done)<br>
 Case insensitive search(done)<br>
 windows/tabs ctrl+p for tabs(done)<br>
-Mouse support<br>
+Mouse support(done)<br>
 Swap files<br>
 structs for every command scroll undo/do<br>
 open last projects files<br>
