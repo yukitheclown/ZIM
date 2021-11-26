@@ -16,13 +16,13 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 ![Screenshot](Screenshots/praisekek.jpg) ![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
-file open selector for more than relative paths<br>
-Mouse support<br>
+file open selector for more than relative paths(done)<br>
 Case insensitive search(done)<br>
+windows/tabs ctrl+p for tabs(done)<br>
+Mouse support<br>
 Swap files<br>
 structs for every command scroll undo/do<br>
 open last projects files<br>
-windows/tabs ctrl+p for tabs(done)<br>
 minimap<br>
 bug(autocomplete stays when cursor move)<br>
 find replace<br>
@@ -63,6 +63,7 @@ ctrl+shift+j (select brackets) (selects everything between the brackets)<br>
 ctrl+/ (toggle comment) (adds or removes // for the line to comment) (todo: mutli-line)<br>
 ctrl+shift+arrow up/down (move line up/down) (moves the entire line the cursors on, or every line in the selection by a line)<br>
 ctrl+o (open file)<br>
+ctrl+shift+o (file browser)<br>
 ctrl+s (save file)<br>
 ctrl+shift+s Save As file<br>
 ctrl+n New file <br>
