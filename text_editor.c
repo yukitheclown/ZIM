@@ -1,4 +1,5 @@
 #include "graphics.h"
+#include "window.h"
 #include "text_editor.h"
 #include "file_browser.h"
 #include <stdio.h>
@@ -16,40 +17,11 @@
 #endif
 #include <math.h>
 
-#define LOGFILE "kekproject.txt"
-#define LOGCOMPILEFILE "keklog.txt"
 
 #ifndef UNUSED
 #define UNUSED(x) (void)(x)
 #endif
 
-enum {
-    COLOR_NORMAL = 1,
-    COLOR_KEYWORD,
-    COLOR_TOKEN,
-    COLOR_FUNCTION,
-    COLOR_NUM,
-    COLOR_COMMENT,
-    COLOR_STRING,
-    COLOR_SELECTED,
-    COLOR_SELECTED_DIRECTORY,
-    COLOR_UNSELECTED_DIRECTORY,
-    COLOR_LOG_UNSELECTED,
-    COLOR_FIND,
-    COLOR_LINE_NUM,
-    COLOR_AUTO_COMPLETE,
-    COLOR_CURSOR,
-    COLOR_SIDE_NUMBERS,
-    TE_COLOR_BLACK,
-    TE_COLOR_RED,
-    TE_COLOR_GREEN,
-    TE_COLOR_YELLOW,
-    TE_COLOR_BLUE,
-    TE_COLOR_CYAN,
-    TE_COLOR_MAGENTA,
-    TE_COLOR_WHITE,
-    TE_COLOR_NUM_STANDARD,
-};
 
 enum {
   SCR_NORM = 0,
@@ -313,8 +285,8 @@ static void UpdateScroll(TextEditor *t){
 
     if(nLinesToCursor < t->file->scroll)
         t->file->scroll = nLinesToCursor;
-    else if(nLinesToCursor >= (t->file->scroll + Graphics_TextCollumns())  )
-        t->file->scroll = (nLinesToCursor - Graphics_TextCollumns())+1;
+    else if(nLinesToCursor >= (t->file->scroll + Graphics_TextCollumns(t->graphics)) - t->logY )
+        t->file->scroll = (nLinesToCursor - Graphics_TextCollumns(t->graphics))+1+t->logY;
 }
 
 
@@ -322,11 +294,11 @@ static void UpdateScrollCenter(TextEditor *t){
 
     int nLinesToCursor = GetNumLinesToPos(t->file->text,t->cursors[t->nCursors-1].pos);
 
-	if(nLinesToCursor >= t->file->scroll && nLinesToCursor < t->file->scroll + Graphics_TextCollumns()){
+	if(nLinesToCursor >= t->file->scroll && nLinesToCursor < t->file->scroll + Graphics_TextCollumns(t->graphics) - t->logY){
 		return;
 	}	
 
-    t->file->scroll = nLinesToCursor  - (Graphics_TextCollumns()/2);
+    t->file->scroll = nLinesToCursor  - (Graphics_TextCollumns(t->graphics)/2);
 
     if(t->file->scroll < 0) t->file->scroll = 0;
 
@@ -697,10 +669,14 @@ static void FreeCursors(TextEditor *t){
 
     int k;
     for(k = 0; k < t->nCursors; k++){
-        if(t->cursors[k].clipboard)
+        if(t->cursors[k].clipboard){
             free(t->cursors[k].clipboard);
-        if(t->cursors[k].savedText)
+            t->cursors[k].clipboard = NULL;
+        }
+        if(t->cursors[k].savedText){
             free(t->cursors[k].savedText);
+            t->cursors[k].savedText = NULL;
+        }
     }
 
     t->nCursors = 0;
@@ -2124,7 +2100,7 @@ static void ScrollScreen(TextEditor *t, TextEditorCommand *c){
     RemoveSelections(t);
     RemoveExtraCursors(t);
 
-    int scroll = Graphics_TextCollumns();
+    int scroll = Graphics_TextCollumns(t->graphics);
     int k = 0;
 
     if(c->num < 0){
@@ -2701,35 +2677,40 @@ void TextEditor_LoadFile(TextEditor *t, char *pathRel){
 }
 
 
-void TextEditor_Init(TextEditor *t){
+void TextEditor_Init(TextEditor *t, Graphics *g, Config *cfg){
     memset(t, 0, sizeof(TextEditor));
+    
+    t->graphics = g;
+    t->cfg = cfg;
 
-    Graphics_init_pair(COLOR_SIDE_NUMBERS, COLOR_WHITE, COLOR_BLACK);
-    Graphics_init_pair(COLOR_NORMAL, COLOR_WHITE, COLOR_BLACK);
-    Graphics_init_pair(COLOR_KEYWORD, COLOR_CYAN, COLOR_BLACK);
-    Graphics_init_pair(COLOR_COMMENT, COLOR_GREY, COLOR_BLACK);
-    Graphics_init_pair(COLOR_TOKEN, COLOR_BLUE, COLOR_BLACK);
-    Graphics_init_pair(COLOR_NUM, COLOR_RED, COLOR_BLACK);
-    Graphics_init_pair(COLOR_FUNCTION, COLOR_YELLOW, COLOR_BLACK);
-    Graphics_init_pair(COLOR_STRING, COLOR_MAGENTA, COLOR_BLACK);
 
-    Graphics_init_pair(COLOR_SELECTED, COLOR_BLACK ,COLOR_CYAN);
-    Graphics_init_pair(COLOR_SELECTED_DIRECTORY, COLOR_RED ,COLOR_CYAN);
-    Graphics_init_pair(COLOR_UNSELECTED_DIRECTORY, COLOR_RED ,COLOR_WHITE);
-    Graphics_init_pair(COLOR_AUTO_COMPLETE, COLOR_BLACK, COLOR_WHITE);
-    Graphics_init_pair(COLOR_LOG_UNSELECTED, COLOR_BLACK, COLOR_WHITE);
-    Graphics_init_pair(COLOR_CURSOR, COLOR_BLACK ,COLOR_MAGENTA);
-    Graphics_init_pair(COLOR_FIND, COLOR_BLACK ,COLOR_WHITE);
-    Graphics_init_pair(COLOR_LINE_NUM, COLOR_GREY ,COLOR_BLACK);
 
-    Graphics_init_pair(TE_COLOR_BLACK, COLOR_BLACK ,COLOR_WHITE);
-    Graphics_init_pair(TE_COLOR_WHITE, COLOR_WHITE ,COLOR_BLACK);
-    Graphics_init_pair(TE_COLOR_CYAN, COLOR_CYAN ,COLOR_BLACK);
-    Graphics_init_pair(TE_COLOR_RED, COLOR_RED ,COLOR_BLACK);
-    Graphics_init_pair(TE_COLOR_YELLOW, COLOR_YELLOW ,COLOR_BLACK);
-    Graphics_init_pair(TE_COLOR_BLUE, COLOR_BLUE ,COLOR_BLACK);
-    Graphics_init_pair(TE_COLOR_GREEN, COLOR_GREEN ,COLOR_BLACK);
-    Graphics_init_pair(TE_COLOR_MAGENTA, COLOR_MAGENTA ,COLOR_BLACK);
+    Graphics_init_pair(t->graphics,COLOR_SIDE_NUMBERS, COLOR_WHITE, COLOR_BLACK);
+    Graphics_init_pair(t->graphics,COLOR_NORMAL, COLOR_WHITE, COLOR_BLACK);
+    Graphics_init_pair(t->graphics,COLOR_KEYWORD, COLOR_CYAN, COLOR_BLACK);
+    Graphics_init_pair(t->graphics,COLOR_COMMENT, COLOR_GREY, COLOR_BLACK);
+    Graphics_init_pair(t->graphics,COLOR_TOKEN, COLOR_BLUE, COLOR_BLACK);
+    Graphics_init_pair(t->graphics,COLOR_NUM, COLOR_RED, COLOR_BLACK);
+    Graphics_init_pair(t->graphics,COLOR_FUNCTION, COLOR_YELLOW, COLOR_BLACK);
+    Graphics_init_pair(t->graphics,COLOR_STRING, COLOR_MAGENTA, COLOR_BLACK);
+
+    Graphics_init_pair(t->graphics,COLOR_SELECTED, COLOR_BLACK ,COLOR_CYAN);
+    Graphics_init_pair(t->graphics,COLOR_SELECTED_DIRECTORY, COLOR_RED ,COLOR_CYAN);
+    Graphics_init_pair(t->graphics,COLOR_UNSELECTED_DIRECTORY, COLOR_RED ,COLOR_WHITE);
+    Graphics_init_pair(t->graphics,COLOR_AUTO_COMPLETE, COLOR_BLACK, COLOR_WHITE);
+    Graphics_init_pair(t->graphics,COLOR_LOG_UNSELECTED, COLOR_BLACK, COLOR_WHITE);
+    Graphics_init_pair(t->graphics,COLOR_CURSOR, COLOR_BLACK ,COLOR_MAGENTA);
+    Graphics_init_pair(t->graphics,COLOR_FIND, COLOR_BLACK ,COLOR_WHITE);
+    Graphics_init_pair(t->graphics,COLOR_LINE_NUM, COLOR_GREY ,COLOR_BLACK);
+
+    Graphics_init_pair(t->graphics,TE_COLOR_BLACK, COLOR_BLACK ,COLOR_WHITE);
+    Graphics_init_pair(t->graphics,TE_COLOR_WHITE, COLOR_WHITE ,COLOR_BLACK);
+    Graphics_init_pair(t->graphics,TE_COLOR_CYAN, COLOR_CYAN ,COLOR_BLACK);
+    Graphics_init_pair(t->graphics,TE_COLOR_RED, COLOR_RED ,COLOR_BLACK);
+    Graphics_init_pair(t->graphics,TE_COLOR_YELLOW, COLOR_YELLOW ,COLOR_BLACK);
+    Graphics_init_pair(t->graphics,TE_COLOR_BLUE, COLOR_BLUE ,COLOR_BLACK);
+    Graphics_init_pair(t->graphics,TE_COLOR_GREEN, COLOR_GREEN ,COLOR_BLACK);
+    Graphics_init_pair(t->graphics,TE_COLOR_MAGENTA, COLOR_MAGENTA ,COLOR_BLACK);
 
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_UP  , 0}, "", -1, SCR_NORM, MoveLinesText, UndoMoveLinesText));
     AddCommand(t, CreateCommand((unsigned int[]){EDIT_CTRL_KEY|EDIT_SHIFT_KEY|EDIT_ARROW_DOWN  , 0}, "", 1, SCR_NORM, MoveLinesText, UndoMoveLinesText));
@@ -2817,7 +2798,14 @@ void TextEditor_Init(TextEditor *t){
                 fread(path,1,pathLen,fp);
                 path[pathLen] = 0;
                 TextEditor_LoadFile(t, path);
-            }
+                if(len < sizeof(int)) break;
+                len -= sizeof(int);
+				fread(&t->file->scroll, sizeof(int), 1, fp);
+                if(len < sizeof(int)) break;
+                len -= sizeof(int);
+                fread(&t->cursors[0].pos, sizeof(int), 1, fp);
+				t->file->cursorPos = t->cursors[0].pos; //loadfile updates t->file            
+			}
             if(len > sizeof(int)){
                 int directoryLen;
                 fread(&directoryLen, sizeof(int), 1, fp);
@@ -2839,8 +2827,8 @@ static int CursorPos(TextEditor *t, int x, int y){
 
     if(x < t->logX) x = t->logX;
     if(x < t->logY) x = t->logY;
-    if(y > Graphics_TextCollumns() - t->logY) y = Graphics_TextCollumns() - t->logY;
-    if(x > Graphics_TextRows() - t->logX) x = Graphics_TextRows() - t->logX;
+    if(y > Graphics_TextCollumns(t->graphics) - t->logY) y = Graphics_TextCollumns(t->graphics) - t->logY;
+    if(x > Graphics_TextRows(t->graphics) - t->logX) x = Graphics_TextRows(t->graphics) - t->logX;
 
     x -= t->logX;
     y -= t->logY;
@@ -2854,7 +2842,7 @@ static int CursorPos(TextEditor *t, int x, int y){
         t->file->scroll = t->file->scroll-(3-y) >= 0 ? t->file->scroll-(3-y) : 0;
     } else {
 
-        int yOver = (y+3) - ((Graphics_TextCollumns()-1) - t->logY);
+        int yOver = (y+3) - ((Graphics_TextCollumns(t->graphics)-1) - t->logY);
 
         if(yOver >= 1){
             int k;
@@ -2885,10 +2873,10 @@ static int CursorPos(TextEditor *t, int x, int y){
 
         int lx;
         for(lx = k; k < t->file->textLen; lx++){
-            if(t->file->text[lx] == '\n') { lx--; break; }
+            if(t->file->text[lx] == '\n') break;
         }
 
-        lx = lx - k;
+        lx -= k;
 
         if(x > lx) x = lx;
     }
@@ -2952,8 +2940,8 @@ void TextEditor_SetCursorPos(TextEditor *t, int x, int y){
 
 void TextEditor_Draw(TextEditor *t){
 
-    int screenHeight = Graphics_TextCollumns();
-    int screenWidth = Graphics_TextRows();
+    int screenHeight = Graphics_TextCollumns(t->graphics);
+    int screenWidth = Graphics_TextRows(t->graphics);
 
     t->logY = 0;
     t->logX = 4;
@@ -2963,19 +2951,11 @@ void TextEditor_Draw(TextEditor *t){
     int y = 0;
     int x = 0;
 
-    Graphics_attron(COLOR_LINE_NUM);        
-    // draw line numbers
-    for(k = 0; k < Graphics_TextCollumns(); k++){
-        char buffer[10];
-        sprintf(buffer, "%i", t->file->scroll+k);
-        Graphics_mvprintw(0, t->logY+k, buffer, strlen(buffer));
-    }
-
     // logs
 
     if(t->logging && t->logging != LOGMODE_CONSOLE){
 
-        Graphics_attron(COLOR_FIND);
+        Graphics_attron(t->graphics,COLOR_FIND);
         char buffer[] = "ERR\0";
         if(t->logging == LOGMODE_NUM){ sprintf(buffer, "g: "); }        
         else if(t->logging == LOGMODE_TEXT){ sprintf(buffer, "F: "); }        
@@ -2985,10 +2965,10 @@ void TextEditor_Draw(TextEditor *t){
         else if(t->logging == LOGMODE_SWITCH_FILE){ sprintf(buffer, "p: "); }        
         else if(t->logging == LOGMODE_FILEBROWSER){ sprintf(buffer, "O: "); }        
         else if(t->logging == LOGMODE_ALERT){ sprintf(buffer, "A: "); }        
-        Graphics_mvprintw(0, 0, buffer, strlen(buffer));
+        Graphics_mvprintw(t->graphics,0, 0, buffer, strlen(buffer));
     
         if(t->loggingText && strlen(t->loggingText) > 0){
-            Graphics_mvprintw(3, 0, t->loggingText, strlen(t->loggingText));
+            Graphics_mvprintw(t->graphics,strlen(buffer), 0, t->loggingText, strlen(t->loggingText));
         }
 
         if(t->logging == LOGMODE_SWITCH_FILE || t->logging == LOGMODE_FILEBROWSER){
@@ -2998,8 +2978,8 @@ void TextEditor_Draw(TextEditor *t){
             int nFiles = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.nFiles : t->nFiles;
             
             k = 0;
-            if(nFiles > Graphics_TextCollumns()-(t->logY+1)){
-                k = t->logIndex-(Graphics_TextCollumns()-(t->logY+1));
+            if(nFiles > Graphics_TextCollumns(t->graphics)-(t->logY+1)){
+                k = t->logIndex-(Graphics_TextCollumns(t->graphics)-(t->logY+1));
                 if(k < 0) k = 0;
             }
 
@@ -3013,17 +2993,17 @@ void TextEditor_Draw(TextEditor *t){
 
                         if(index == t->logIndex){
                             if(t->logging == LOGMODE_FILEBROWSER && t->fileBrowser.files[k].dir)
-                                Graphics_attron(COLOR_SELECTED_DIRECTORY);
+                                Graphics_attron(t->graphics,COLOR_SELECTED_DIRECTORY);
                             else
-                                Graphics_attron(COLOR_SELECTED);
+                                Graphics_attron(t->graphics,COLOR_SELECTED);
                         } else {
                             if(t->logging == LOGMODE_FILEBROWSER && t->fileBrowser.files[k].dir)
-                                Graphics_attron(COLOR_UNSELECTED_DIRECTORY);
+                                Graphics_attron(t->graphics,COLOR_UNSELECTED_DIRECTORY);
                             else
-                                Graphics_attron(COLOR_LOG_UNSELECTED);
+                                Graphics_attron(t->graphics,COLOR_LOG_UNSELECTED);
                         }
                         index++;
-                        Graphics_mvprintw(3, t->logY++, name, strlen(name));
+                        Graphics_mvprintw(t->graphics,t->logX, t->logY++, name, strlen(name));
                     }
                 }
             }
@@ -3071,7 +3051,7 @@ void TextEditor_Draw(TextEditor *t){
         fclose(fp);
 #endif
 
-        Graphics_attron(COLOR_NORMAL);
+        Graphics_attron(t->graphics,COLOR_NORMAL);
 
         int last = 0;
         for(k = 0; k < logLen; k++){
@@ -3118,15 +3098,15 @@ void TextEditor_Draw(TextEditor *t){
                             if(params[m] >= 30){
                                 int ansi = params[m]-30;
                                 if(ansi >= 7) ansi = 7;
-                                Graphics_attron(TE_COLOR_BLACK + ansi);
+                                Graphics_attron(t->graphics,TE_COLOR_BLACK + ansi);
                             } 
                             // if(params[m] == 01){
-                            //     Graphics_attron(BOLD);
+                            //     Graphics_attron(t->graphics,BOLD);
                             // }
                         }
 
                         if(nParams == 0){
-                            Graphics_attron(TE_COLOR_WHITE);
+                            Graphics_attron(t->graphics,TE_COLOR_WHITE);
                         }
                     }
 
@@ -3139,16 +3119,16 @@ void TextEditor_Draw(TextEditor *t){
             }
 
 
-            if(x >= Graphics_TextRows() || t->loggingText[k] == '\n'){
+            if(x >= Graphics_TextRows(t->graphics) || t->loggingText[k] == '\n'){
                 last = k;
                 y++;
                 x = 0;
-            // if(Graphics_TextRows() != x) k++;
-                if(x < Graphics_TextRows())
+            // if(Graphics_TextRows(t->graphics) != x) k++;
+                if(x < Graphics_TextRows(t->graphics))
                     continue;
             }
 
-            Graphics_mvprintw(x, y, &t->loggingText[k], 1);
+            Graphics_mvprintw(t->graphics,x, y, &t->loggingText[k], 1);
             x++;
         }
         // fclose(logfp);
@@ -3157,9 +3137,17 @@ void TextEditor_Draw(TextEditor *t){
 
         t->logY = y;
     }
+    Graphics_attron(t->graphics,COLOR_LINE_NUM);        
+    // draw line numbers
+    for(k = 0; k < Graphics_TextCollumns(t->graphics); k++){
+        char buffer[10];
+        sprintf(buffer, "%i", t->file->scroll+k);
+        Graphics_mvprintw(t->graphics,0, t->logY+k, buffer, strlen(buffer));
+    }
+
 
     if(!t->file->text){
-        Graphics_RenderNCurses();
+        Graphics_RenderNCurses(t->graphics);
         return;
     }
 
@@ -3213,23 +3201,12 @@ void TextEditor_Draw(TextEditor *t){
                 y++;
             }
         }
-        // if(renderStart < scrollPosMax) continue;
+
         ctOffset = k;
+
+        renderTo++; // include NULL term token
     
         for(; k < renderTo; ){
-
-
-            // if(x > screenHeight){
-                // for(; k < t->file->textLen; k++){
-                //     if(t->file->text[k] == '\n'){
-                //         y++;
-                //         x = 0;
-                //         ctOffset = ++k;
-                //     }
-                // }
-            // }
-
-            // printf("%i %i\n",y, screenHeight );
 
             int comment = 0;
             int string = 0;
@@ -3239,31 +3216,29 @@ void TextEditor_Draw(TextEditor *t){
             char token = IsToken(c);
             if(!token){
 
-                c = t->file->text[k];
-                // number not like COLOR_FUNCTION but 23
-                if((k - ctOffset) == 1 && IsDigit(c)){
+               // number not like COLOR_FUNCTION but 23
+               if((k - ctOffset) == 1 && IsDigit(t->file->text[k-1])){
 
-                    Graphics_attron(COLOR_NUM);
+                   for(; k < renderTo && IsDigit(t->file->text[k]); k++);
 
-                    for(k = k+1; k < renderTo && IsDigit(t->file->text[k]); k++);
+                   Graphics_attron(t->graphics,COLOR_NUM);
+                   Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
+                   x += k - ctOffset;
+                   ctOffset = k;
 
-                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
-                    x += k - ctOffset;
-                    ctOffset = k;
+                   continue;
+               }
 
-                    continue;
-                }
-
-                k++;
-                // add to temp str
+               k++;
+               // add to temp str
 
             } else {
 
                 if(k - ctOffset > 0){
 
                     if((k - ctOffset) == 1 && IsDigit(t->file->text[k-1])){
-                        Graphics_attron(COLOR_NUM);
-                        Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], 1);
+                        Graphics_attron(t->graphics,COLOR_NUM);
+                        Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], 1);
                         x++;
                         ctOffset = k;
                         goto addedStr;
@@ -3273,8 +3248,8 @@ void TextEditor_Draw(TextEditor *t){
                         if(strlen(keywords[m]) == (k - ctOffset) && 
                             memcmp(&t->file->text[ctOffset], keywords[m], (k - ctOffset)) == 0) {
                             
-                            Graphics_attron(COLOR_KEYWORD);
-                            Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
+                            Graphics_attron(t->graphics,COLOR_KEYWORD);
+                            Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
 
                             x += k - ctOffset;
                             ctOffset = k;
@@ -3287,19 +3262,19 @@ void TextEditor_Draw(TextEditor *t){
                         // function def example(), k - ctOffset, ctOffset stops at beginning of non tokens, unless a digit or a keyword
                         // so that we can change colors at the token after the def
 
-                        Graphics_attron(COLOR_FUNCTION);
-                        Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset); 
+                        Graphics_attron(t->graphics,COLOR_FUNCTION);
+                        Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset); 
                         x += k - ctOffset;
-                        Graphics_attron(COLOR_FUNCTION);
-                        Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[k], 1);
+                        Graphics_attron(t->graphics,COLOR_FUNCTION);
+                        Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[k], 1);
                         x++;
                         k++;
                         ctOffset = k;
                         continue;
                     }
         
-                    Graphics_attron(COLOR_NORMAL);
-                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
+                    Graphics_attron(t->graphics,COLOR_NORMAL);
+                    Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
                     x += k - ctOffset;
 
                     ctOffset = k;
@@ -3334,16 +3309,16 @@ void TextEditor_Draw(TextEditor *t){
         
         
                 if(c == ')' || c == '('){
-                    Graphics_attron(COLOR_FUNCTION);
-                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], 1);
+                    Graphics_attron(t->graphics,COLOR_FUNCTION);
+                    Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], 1);
                     x++;
                     ctOffset = ++k;
                     continue;
                 }
                 
                 if(c != ' ' && c != '(' && c != ')' && token && !comment && !string){
-                    Graphics_attron(COLOR_TOKEN);
-                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], 1);
+                    Graphics_attron(t->graphics,COLOR_TOKEN);
+                    Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], 1);
                     x++;
                     ctOffset = ++k;
                     continue;
@@ -3375,8 +3350,8 @@ void TextEditor_Draw(TextEditor *t){
 
                     if(k > 0 && t->file->text[k-1] == '*' && t->file->text[k] == '/') k++;
 
-                    Graphics_attron(COLOR_COMMENT);
-                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
+                    Graphics_attron(t->graphics,COLOR_COMMENT);
+                    Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
                     x += k - ctOffset;
                     ctOffset = k;
                     comment = 0;
@@ -3412,8 +3387,8 @@ void TextEditor_Draw(TextEditor *t){
                     
                     if(k == renderTo) break;
 
-                    Graphics_attron(COLOR_STRING);
-                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
+                    Graphics_attron(t->graphics,COLOR_STRING);
+                    Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
                                     
                     x += k - ctOffset;
                     ctOffset = k;
@@ -3425,11 +3400,6 @@ void TextEditor_Draw(TextEditor *t){
                 x++;
                 ctOffset = ++k;
             }
-        }
-
-        if(k - ctOffset > 0){
-            Graphics_attron(COLOR_NORMAL);
-            Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
         }
 
     // } else { // easy selections have no highlighting
@@ -3447,7 +3417,7 @@ void TextEditor_Draw(TextEditor *t){
             if(renderTo < scrollPos) continue;
             if(renderStart > scrollPosMax) continue;
 
-            Graphics_attron(COLOR_SELECTED);
+            Graphics_attron(t->graphics,COLOR_SELECTED);
 
             x = 0; 
             y = 0;
@@ -3458,13 +3428,13 @@ void TextEditor_Draw(TextEditor *t){
                     continue;
                 } else if(t->file->text[k] == '\t'){
                     if(k >= renderStart)
-                        Graphics_mvprintw(t->logX+x, t->logY+y, "    ", 4);
+                        Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, "    ", 4);
                     x += 4;
                     continue;
                 }
 
                 if(k >= renderStart && x < screenWidth && y < screenHeight){
-                    Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[k], 1);
+                    Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[k], 1);
                 }
                 x++;
             }
@@ -3489,21 +3459,21 @@ void TextEditor_Draw(TextEditor *t){
             x++;
         }
 
-        Graphics_attron(COLOR_CURSOR);
+        Graphics_attron(t->graphics,COLOR_CURSOR);
 
         if((y >= screenHeight) ||
             x >= screenWidth) continue;
 
         if(t->file->text[c->pos] == '\n' || t->file->text[c->pos] == '\t')
-            Graphics_mvprintw(t->logX+x, t->logY+y, " ", 1);
+            Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, " ", 1);
         else
-            Graphics_mvprintw(t->logX+x, t->logY+y, &t->file->text[c->pos], 1);
+            Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[c->pos], 1);
     
     }
 
     int j;
 
-    Graphics_RenderNCurses();
+    Graphics_RenderNCurses(t->graphics);
 
     k = 0;
     y = 0;
@@ -3511,9 +3481,9 @@ void TextEditor_Draw(TextEditor *t){
     for(j = 0; j < t->autoCompleteLen; j++){
 
         if(j == t->autoCompleteIndex)
-            Graphics_attron(COLOR_SELECTED);
+            Graphics_attron(t->graphics,COLOR_SELECTED);
         else 
-            Graphics_attron(COLOR_AUTO_COMPLETE);
+            Graphics_attron(t->graphics,COLOR_AUTO_COMPLETE);
 
         y = 0;
         x = 0;
@@ -3538,13 +3508,13 @@ void TextEditor_Draw(TextEditor *t){
             char buffer[MAX_AUTO_COMPLETE_STRLEN];
             memset(buffer, ' ', MAX_AUTO_COMPLETE_STRLEN);
             memcpy(buffer, &t->file->text[t->autoComplete[j].offset],t->autoComplete[j].len);
-            // Graphics_mvprintw(t->logX+x, t->logY+y+j+1, &t->file->text[t->autoComplete[j].offset], t->autoComplete[j].len);
-            Graphics_mvprintw(t->logX+x, t->logY+y+j+1, buffer, MAX_AUTO_COMPLETE_STRLEN);
+            // Graphics_mvprintw(t->graphicst->logX+x, t->logY+y+j+1, &t->file->text[t->autoComplete[j].offset], t->autoComplete[j].len);
+            Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y+j+1, buffer, MAX_AUTO_COMPLETE_STRLEN);
         }
 
     }
 
-    Graphics_RenderNCurses();
+    Graphics_RenderNCurses(t->graphics);
 }
 
 
@@ -3574,7 +3544,13 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
             return;
         }
         if(key == ((( unsigned int)'b') | EDIT_CTRL_KEY)){
-            
+    
+            if(strlen(t->file->path) > 0){
+                FILE *fp = fopen(t->file->path, "w");
+                fwrite(t->file->text,1,strlen(t->file->text),fp);
+                fclose(fp);
+            }
+
             if(t->loggingText) free(t->loggingText);
             char *buffer = "compiling:\n\0";
             t->loggingText = malloc(strlen(buffer)+1);
@@ -3602,11 +3578,11 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
             return;
         }
         if(key == ((( unsigned int)'=') | EDIT_CTRL_KEY)){
-            Graphics_Zoom(1);
+            Graphics_Zoom(t->graphics,1);
             return;
         }
         if(key == ((( unsigned int)'-') | EDIT_CTRL_KEY)){
-            Graphics_Zoom(-1);
+            Graphics_Zoom(t->graphics,-1);
             return;
         }
 
@@ -3664,6 +3640,8 @@ int TextEditor_Destroy(TextEditor *t){
 
     // write file last so it opens first
 
+	t->file->cursorPos = t->cursors[0].pos;
+
     int len = strlen(t->file->path);
     if(len > 0){
         for(k = 0; k < t->nFiles; k++){
@@ -3676,7 +3654,9 @@ int TextEditor_Destroy(TextEditor *t){
         if(len > 0){
             if(fp){
                 fwrite(&len,sizeof(int),1,fp);
-                fwrite(t->files[k]->path,1,len,fp);
+				fwrite(t->files[k]->path,1,len,fp);
+                fwrite(&t->files[k]->scroll,sizeof(int),1,fp);
+                fwrite(&t->files[k]->cursorPos,sizeof(int),1,fp);
             }
         } else if(strlen(t->files[k]->text) > 0){
             EndLogging(t);

@@ -2,6 +2,8 @@
  #define TEXT_EDITOR_DEF
 #include <sys/types.h>
 #include "types.h"
+#include "graphics.h"
+#include "config.h"
 #include "file_browser.h"
 
 #define EDIT_CTRL_KEY    (unsigned int)0x100
@@ -111,6 +113,8 @@ typedef struct {
 
  struct TextEditor {
 
+  Config                  *cfg;
+  Graphics                *graphics;
   TextEditorCommand       **commands;
   int                     nCommands;
 
@@ -131,7 +135,6 @@ typedef struct {
 
   TextEditorCursor        *cursors;
   int                     mouseSelection;
-  int                     mouseScrollTime;
   int                     nCursors;
   int                     logX;
   int                     logY;
@@ -146,11 +149,12 @@ typedef struct {
   int                     _stderr;
  };
 
+
 void TextEditor_LoadFile(TextEditor *t, char *path);
 void TextEditor_Draw(TextEditor *t);
 void TextEditor_Event(TextEditor *t,unsigned int key);
 int TextEditor_Destroy(TextEditor *t);
-void TextEditor_Init(TextEditor *t);
+void TextEditor_Init(TextEditor *t, Graphics *g, Config *cfg);
 void TextEditor_SetCursorPos(TextEditor *t, int x, int y);
 int TextEditor_SetCursorPosSelection(TextEditor *t, int x, int y);
 void TextEditor_SetCursorPosDoubleClick(TextEditor *t, int x, int y);

@@ -3,125 +3,19 @@
 #endif
 #include <GL/glew.h>
 #include <stdio.h>
+#include "types.h"
 #include "graphics.h"
 #include "utils.h"
 #include "log.h"
 #include "window.h"
 #include "freetype.h"
 
-#define MINFONTSIZE 6
-#define MAXFONTSIZE 70
-
-#define FONT_PATH "resources/font.png"
-#define FONT_PATH_TTF "resources/Monoid-Regular.ttf"
-
 #define STRDEF(x) STR(x)
 #define STR(x) #x
 
-#define POS_ATTRIB "pos"
-#define UV_ATTRIB "uv"
-#define COLORFG_ATTRIB "colorFG"
-#define COLORBG_ATTRIB "colorBG"
+const static u8 RectTriangleVerts[] = {0,0,1,0,1,1,1,1,0,1,0,0};
 
-#define FONT_SIZE_BITS 4
-#define FONT_SIZE_MASK ((1 << FONT_SIZE_BITS)-1)
-#define FONTSIZE 10
-
-
-#define MAXTEXTHEIGHT 130
-#define MAXTEXTWIDTH 130
-#define MAX_TEXT_CHARS (int)(MAXTEXTHEIGHT*MAXTEXTWIDTH)
-#define RENDER_VRAM_SIZE MAX_TEXT_CHARS*6// idk most text characters on screen possible
-
-#define TAB_SPACING 4
-#define SS_CHAR_SIZE 0.0625f
-
-
-typedef struct {
-    float r;
-    float g;
-    float b;
-} RGBColor;
-
-static RGBColor ncursesColors[NUM_COLORS] = {
-    //gruvbox
-    {0x8e/(float)255,0xc0/(float)255,0x7c/(float)255}, //cyan
-    {0xfb/(float)255,0x49/(float)255,0x34/(float)255},//red
-    {0xfa/(float)255,0xbd/(float)255,0x2f/(float)255},//yellow
-    {0x83/(float)255,0xa5/(float)255,0x98/(float)255},//blue
-    {0xb8/(float)255,0xbb/(float)255,0x26/(float)255}, //green
-    {0xd3/(float)255,0x86/(float)255,0x9b/(float)255}, //magenta purple
-    {0xeb/(float)255,0xdb/(float)255,0xb2/(float)255},//fg
-    {0x28/(float)255,0x28/(float)255,0x28/(float)255},//bg
-    {0x92/(float)255,0x83/(float)255,0x74/(float)255},//grey
-    {0x28/(float)255,0x28/(float)255,0x28/(float)255},//bg
-
-    // aurora
-    // {0xa1/255.0f,0xef/255.0f,0xe4/255.0f}, //cyan
-    // {0xff/255.0f,0x58/255.0f,0x74/255.0f}, //red
-    // {0xec/255.0f,0xc4/255.0f,0x8d/255.0f}, //yellow
-    // {0x82/255.0f,0xaa/255.0f,0xf0/255.0f}, //blue
-    // {0xad/255.0f,0xdb/255.0f,0x67/255.0f}, //green
-    // {0xbd/255.0f,0x93/255.0f,0xf3/255.0f}, //magenta
-    // {0xd6/255.0f,0xde/255.0f,0xeb/255.0f}, //white
-    // {0x14/255.0f,0x14/255.0f,0x15/255.0f}, //black
-    // {0x74/255.0f,0x74/255.0f,0x75/255.0f}, //grey
-    // {0x14/255.0f,0x14/255.0f,0x15/255.0f}, //bg
-};
-
-static u8           ncursesBgColors[MAX_TEXT_CHARS*6];
-static u16          ncursesBgPos[MAX_TEXT_CHARS*6][2];
-static u16          ncursespos[MAX_TEXT_CHARS*6][2];
-static float        ncursesuv[MAX_TEXT_CHARS*6][2];
-static u8           ncursesfgs[MAX_TEXT_CHARS*6];
-static u8           ncursesbgs[MAX_TEXT_CHARS*6];
-static u8           currentNCursesPair = 0;
-static u8          ncursesAttrPairs[MAX_COLOR_PAIRS][2] = {
-    {COLOR_YELLOW,COLOR_BLACK},
-    {COLOR_WHITE,COLOR_BLACK},
-    {COLOR_WHITE,COLOR_BLACK},
-    {COLOR_WHITE,COLOR_BLACK},
-    {COLOR_WHITE,COLOR_BLACK},
-    {COLOR_WHITE,COLOR_BLACK},
-    {COLOR_WHITE,COLOR_BLACK},
-    {COLOR_WHITE,COLOR_BLACK},
-    {COLOR_WHITE,COLOR_BLACK},
-    {COLOR_WHITE,COLOR_BLACK},
-    {COLOR_WHITE,COLOR_BLACK},
-};
-static struct { u32 w; u32 h; } viewport;
-static const u8     RectTriangleVerts[] = {0,0,1,0,1,1,1,1,0,1,0,0};
-static u8           fontSize = FONTSIZE;
-// shaders
-static Shader_t     shaders[NUM_SHADERS];
-// textured/texturelesss vao/vbos
-static u32          vao_g;
-static u32          posVbo_g;
-static u32          uvVbo_g;
-// ncurses vao/vbos
-static u32          stringOffset = 0;
-static u32          ncursesVao_g;
-static u32          ncursesPosVbo_g;
-static u32          ncursesUvVbo_g;
-static u32          ncursesColorFGVbo_g;
-static u32          ncursesColorBGVbo_g;
-// ncurses bg vao/vbos
-static u32          bgOffset = 0;
- static u32         ncursesBgVao_g;
- static u32         ncursesBgPosVbo_g;
- static u32         ncursesBgColorVbo_g;
-
-// quad vao/vbo
-static u32          quadVao_g;
-static u32          quadVbo_g;
-// framebuffer
-static u32          fb_g;
-static u32          fbTexture_g;
-// textures
-static Image_t     font_g;
-static FontFace    fontTTF;
-
-static void Compile(Shader_t *shader, const char *vSource, const char *fSource){
+static void Compile(Graphics *graphics, Shader_t *shader, const char *vSource, const char *fSource){
 
     shader->program = glCreateProgram();
     shader->fShader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -166,8 +60,8 @@ static void Compile(Shader_t *shader, const char *vSource, const char *fSource){
     shader->uniColorLoc = glGetUniformLocation(shader->program, "uniformColor");
     shader->invViewportLoc = glGetUniformLocation(shader->program, "invViewport");
     shader->ncursesColorsLoc = glGetUniformLocation(shader->program, "colors");
-    glUniform3fv(shader->ncursesColorsLoc, NUM_COLORS-1, (float *)&ncursesColors[0].r);
-    glUniform2f(shader->invViewportLoc,1.0f/viewport.w, 1.0f/viewport.h);
+    glUniform3fv(shader->ncursesColorsLoc, NUM_COLORS-1, (float *)&graphics->cfg->colors[0].r);
+    glUniform2f(shader->invViewportLoc,1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h);
 }
 
 static const char *VS_Source = "#version 120\n"
@@ -326,41 +220,44 @@ void main(){
 }
 );
 
-static void CreateFrameBuffer(void){
+static void CreateFrameBuffer(Graphics *graphics){
 
-    glGenFramebuffers(1,&fb_g);
-    glBindFramebuffer(GL_FRAMEBUFFER, fb_g);
+    glGenFramebuffers(1,&graphics->fb_g);
+    glBindFramebuffer(GL_FRAMEBUFFER, graphics->fb_g);
 
-    glGenTextures(1, &fbTexture_g);
-    glBindTexture(GL_TEXTURE_2D, fbTexture_g);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, viewport.w, viewport.h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glGenTextures(1, &graphics->fbTexture_g);
+    glBindTexture(GL_TEXTURE_2D, graphics->fbTexture_g);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, graphics->viewport.w, graphics->viewport.h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbTexture_g, 0);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, graphics->fbTexture_g, 0);
 
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
 
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
-        glDeleteFramebuffers(1, &fb_g);
-        glDeleteTextures(1, &fbTexture_g);
+        glDeleteFramebuffers(1, &graphics->fb_g);
+        glDeleteTextures(1, &graphics->fbTexture_g);
         LOG(LOG_RED, "Error creating framebuffer.");
     }
 
-    glViewport(0, 0, viewport.w, viewport.h);
+    glViewport(0, 0, graphics->viewport.w, graphics->viewport.h);
 
-    glClearColor(ncursesColors[COLOR_BG-1].r,ncursesColors[COLOR_BG-1].g,ncursesColors[COLOR_BG-1].b,1);
+    glClearColor(graphics->cfg->colors[COLOR_BG-1].r,graphics->cfg->colors[COLOR_BG-1].g,graphics->cfg->colors[COLOR_BG-1].b,1);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void Graphics_Init(void){
+void Graphics_Init(Graphics *graphics, Config *cfg){
+    memset(graphics, 0, sizeof(Graphics));
+    graphics->cfg = cfg;
+    graphics->fontSize = FONTSIZE;
 
-    viewport.w = WINDOW_INIT_WIDTH;
-    viewport.h = WINDOW_INIT_HEIGHT;
+    graphics->viewport.w = WINDOW_INIT_WIDTH;
+    graphics->viewport.h = WINDOW_INIT_HEIGHT;
 
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -371,106 +268,106 @@ void Graphics_Init(void){
 
     // textures
 
-    // Utils_LoadImage(&font_g, FONT_PATH);
-    FontFace_LoadFont(&fontTTF, FONT_PATH_TTF);
-    FontFace_SetSize(&fontTTF, fontSize);
+    // Utils_LoadImage(&graphics->font_g, FONT_PATH);
+    FontFace_LoadFont(&graphics->fontTTF, FONT_PATH_TTF);
+    FontFace_SetSize(&graphics->fontTTF, graphics->fontSize);
 
     // int k;
     // int x = 0;
     // for(k = 0; k < 128; k++){
-    //     fontTTF.fontCharacters[k] = {
+    //     graphics->fontTTF.fontCharacters[k] = {
     //         .ax = 0,
     //         .ay = 0,
-    //         .bw = fontSize,
-    //         .bh = fontSize,
+    //         .bw = graphics->fontSize,
+    //         .bh = graphics->fontSize,
     //         .bl = 0,
     //         .bt = 0,
-    //         .tx = (float)x%16 * fontTTF.atlasWidth;
-    //         .ty = (float)x/16 * fontTTF.atlasHeight;
+    //         .tx = (float)x%16 * graphics->fontTTF.atlasWidth;
+    //         .ty = (float)x/16 * graphics->fontTTF.atlasHeight;
     //     }
-    //     x += g->bitmap.width;
+    //     x += graphics->bitmap.width;
     // }
 
-    // compile shaders
+    // compile graphics->shaders
 
-    Compile(&shaders[TEXTURED_SHADER], VS_Source, FS_Source);
-    Compile(&shaders[QUAD_SHADER], VS_Quad_Source, FS_Quad_Source);
-    Compile(&shaders[NCURSES_SHADER], VSNCurses_Source, FSNCurses_Source);
-    Compile(&shaders[NCURSES_BG_SHADER], VSNCursesBG_Source, FSNCursesBG_Source);
-    Compile(&shaders[TEXTURELESS_SHADER], VS_Textureless_Source, FS_Textureless_Source);
+    Compile(graphics, &graphics->shaders[TEXTURED_SHADER], VS_Source, FS_Source);
+    Compile(graphics, &graphics->shaders[QUAD_SHADER], VS_Quad_Source, FS_Quad_Source);
+    Compile(graphics, &graphics->shaders[NCURSES_SHADER], VSNCurses_Source, FSNCurses_Source);
+    Compile(graphics, &graphics->shaders[NCURSES_BG_SHADER], VSNCursesBG_Source, FSNCursesBG_Source);
+    Compile(graphics, &graphics->shaders[TEXTURELESS_SHADER], VS_Textureless_Source, FS_Textureless_Source);
 
     // quad vao
 
-    glGenVertexArrays(1, &quadVao_g);
-    glBindVertexArray(quadVao_g);
+    glGenVertexArrays(1, &graphics->quadVao_g);
+    glBindVertexArray(graphics->quadVao_g);
 
-    glGenBuffers(1, &quadVbo_g);
-    glBindBuffer(GL_ARRAY_BUFFER, quadVbo_g);
+    glGenBuffers(1, &graphics->quadVbo_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->quadVbo_g);
     glBufferData(GL_ARRAY_BUFFER, sizeof(RectTriangleVerts), RectTriangleVerts, GL_STATIC_DRAW);
     glEnableVertexAttribArray(POS_LOC);
     glVertexAttribPointer(POS_LOC, 2, GL_UNSIGNED_BYTE, GL_FALSE, 0, 0);
 
     // ncurses vao
 
-    glGenVertexArrays(1, &ncursesVao_g);
-    glBindVertexArray(ncursesVao_g);
+    glGenVertexArrays(1, &graphics->ncursesVao_g);
+    glBindVertexArray(graphics->ncursesVao_g);
 
-    glGenBuffers(1, &ncursesPosVbo_g);
-    glBindBuffer(GL_ARRAY_BUFFER, ncursesPosVbo_g);
+    glGenBuffers(1, &graphics->ncursesPosVbo_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->ncursesPosVbo_g);
     glEnableVertexAttribArray(POS_LOC);
     glVertexAttribPointer(POS_LOC, 2, GL_SHORT, GL_FALSE, 0, 0);
 
-    glGenBuffers(1, &ncursesColorBGVbo_g);
-    glBindBuffer(GL_ARRAY_BUFFER, ncursesColorBGVbo_g);
+    glGenBuffers(1, &graphics->ncursesColorBGVbo_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->ncursesColorBGVbo_g);
     glEnableVertexAttribArray(COLORFG_LOC);
     glVertexAttribPointer(COLORFG_LOC, 1, GL_UNSIGNED_BYTE, GL_FALSE, 0, 0);
 
-    glGenBuffers(1, &ncursesColorFGVbo_g);
-    glBindBuffer(GL_ARRAY_BUFFER, ncursesColorFGVbo_g);
+    glGenBuffers(1, &graphics->ncursesColorFGVbo_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->ncursesColorFGVbo_g);
     glEnableVertexAttribArray(COLORBG_LOC);
     glVertexAttribPointer(COLORBG_LOC, 1, GL_UNSIGNED_BYTE, GL_FALSE, 0, 0);
 
-    glGenBuffers(1, &ncursesUvVbo_g);
-    glBindBuffer(GL_ARRAY_BUFFER, ncursesUvVbo_g);
+    glGenBuffers(1, &graphics->ncursesUvVbo_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->ncursesUvVbo_g);
     glEnableVertexAttribArray(UV_LOC);
     glVertexAttribPointer(UV_LOC, 2, GL_FLOAT, GL_FALSE, 0, 0);
     
     // ncurses vao backgrounds
-    glGenVertexArrays(1, &ncursesBgVao_g);
-    glBindVertexArray(ncursesBgVao_g);
+    glGenVertexArrays(1, &graphics->ncursesBgVao_g);
+    glBindVertexArray(graphics->ncursesBgVao_g);
 
-    glGenBuffers(1, &ncursesBgPosVbo_g);
-    glBindBuffer(GL_ARRAY_BUFFER, ncursesBgPosVbo_g);
+    glGenBuffers(1, &graphics->ncursesBgPosVbo_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->ncursesBgPosVbo_g);
     glEnableVertexAttribArray(POS_LOC);
     glVertexAttribPointer(POS_LOC, 2, GL_SHORT, GL_FALSE, 0, 0);
 
-    glGenBuffers(1, &ncursesBgColorVbo_g);
-    glBindBuffer(GL_ARRAY_BUFFER, ncursesBgColorVbo_g);
+    glGenBuffers(1, &graphics->ncursesBgColorVbo_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->ncursesBgColorVbo_g);
     glEnableVertexAttribArray(COLORBG_LOC);
     glVertexAttribPointer(COLORBG_LOC, 1, GL_UNSIGNED_BYTE, GL_FALSE, 0, 0);
 
     // textured/textureless vao/vbos
 
-    glGenVertexArrays(1, &vao_g);
-    glBindVertexArray(vao_g);
+    glGenVertexArrays(1, &graphics->vao_g);
+    glBindVertexArray(graphics->vao_g);
 
-    glGenBuffers(1, &posVbo_g);
-    glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
+    glGenBuffers(1, &graphics->posVbo_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->posVbo_g);
     glBufferData(GL_ARRAY_BUFFER, sizeof(u16)*2*RENDER_VRAM_SIZE, NULL, GL_DYNAMIC_DRAW);
     glEnableVertexAttribArray(POS_LOC);
     glVertexAttribPointer(POS_LOC, 2, GL_SHORT, GL_FALSE, 0, 0);
 
-    glGenBuffers(1, &uvVbo_g);
-    glBindBuffer(GL_ARRAY_BUFFER, uvVbo_g);
+    glGenBuffers(1, &graphics->uvVbo_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->uvVbo_g);
     glBufferData(GL_ARRAY_BUFFER, sizeof(float)*2*RENDER_VRAM_SIZE, NULL, GL_DYNAMIC_DRAW);
     glEnableVertexAttribArray(UV_LOC);
     glVertexAttribPointer(UV_LOC, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
     // init framebuffer
     
-    CreateFrameBuffer();
+    CreateFrameBuffer(graphics);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, fb_g);
+    glBindFramebuffer(GL_FRAMEBUFFER, graphics->fb_g);
 }
 
 static void DeleteShader(Shader_t *shader){
@@ -479,95 +376,80 @@ static void DeleteShader(Shader_t *shader){
     glDeleteShader(shader->vShader);
 }
 
-void Graphics_Close(void){
+void Graphics_Close(Graphics *graphics){
 
-    FontFace_Delete(&fontTTF);
+    FontFace_Delete(&graphics->fontTTF);
     Text_Close();
 
-    glDeleteFramebuffers(1, &fb_g);
-    glDeleteTextures(1, &fbTexture_g);
+    glDeleteFramebuffers(1, &graphics->fb_g);
+    glDeleteTextures(1, &graphics->fbTexture_g);
     
-    DeleteShader(&shaders[TEXTURED_SHADER]);
-    DeleteShader(&shaders[TEXTURELESS_SHADER]);
-    DeleteShader(&shaders[NCURSES_SHADER]);
+    DeleteShader(&graphics->shaders[TEXTURED_SHADER]);
+    DeleteShader(&graphics->shaders[TEXTURELESS_SHADER]);
+    DeleteShader(&graphics->shaders[NCURSES_SHADER]);
 
-    glDeleteVertexArrays(1, &quadVao_g);
-    glDeleteBuffers(1, &quadVbo_g);
+    glDeleteVertexArrays(1, &graphics->quadVao_g);
+    glDeleteBuffers(1, &graphics->quadVbo_g);
 
-    glDeleteVertexArrays(1, &vao_g);
-    glDeleteBuffers(1, &uvVbo_g);
-    glDeleteBuffers(1, &posVbo_g);
+    glDeleteVertexArrays(1, &graphics->vao_g);
+    glDeleteBuffers(1, &graphics->uvVbo_g);
+    glDeleteBuffers(1, &graphics->posVbo_g);
 
-    glDeleteVertexArrays(1, &ncursesPosVbo_g);
-    glDeleteBuffers(1, &ncursesUvVbo_g);
-    glDeleteBuffers(1, &ncursesColorFGVbo_g);
-    glDeleteBuffers(1, &ncursesColorBGVbo_g);
+    glDeleteVertexArrays(1, &graphics->ncursesPosVbo_g);
+    glDeleteBuffers(1, &graphics->ncursesUvVbo_g);
+    glDeleteBuffers(1, &graphics->ncursesColorFGVbo_g);
+    glDeleteBuffers(1, &graphics->ncursesColorBGVbo_g);
 
-    glDeleteTextures(1, &font_g.texture);
+    glDeleteTextures(1, &graphics->font_g.texture);
 }
 
-void Graphics_Resize(int w, int h){
-    glBindTexture(GL_TEXTURE_2D, fbTexture_g);
+void Graphics_Resize(Graphics *graphics, int w, int h){
+    glBindTexture(GL_TEXTURE_2D, graphics->fbTexture_g);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-    viewport.w = w;
-    viewport.h = h;
+    graphics->viewport.w = w;
+    graphics->viewport.h = h;
 }
 
-void Graphics_Zoom(int by){
-    if(by < 0 && fontSize > MINFONTSIZE) fontSize += by;
-    if(by > 0 && fontSize < MAXFONTSIZE) fontSize += by;
-    FontFace_SetSize(&fontTTF, fontSize);
+void Graphics_Zoom(Graphics *graphics, int by){
+    if(by < 0 && graphics->fontSize > MINFONTSIZE) graphics->fontSize += by;
+    if(by > 0 && graphics->fontSize < MAXFONTSIZE) graphics->fontSize += by;
+    FontFace_SetSize(&graphics->fontTTF, graphics->fontSize);
 }
 
-void Graphics_Render(void){
+void Graphics_Render(Graphics *graphics){
 
     // render
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    glBindVertexArray(quadVao_g);
+    glBindVertexArray(graphics->quadVao_g);
 
-    glViewport(0, 0, viewport.w, viewport.h);
+    glViewport(0, 0, graphics->viewport.w, graphics->viewport.h);
 
-    glUseProgram(shaders[QUAD_SHADER].program);
-    glUniform2f(shaders[QUAD_SHADER].invViewportLoc,1.0f, 1.0f);
+    glUseProgram(graphics->shaders[QUAD_SHADER].program);
+    glUniform2f(graphics->shaders[QUAD_SHADER].invViewportLoc,1.0f, 1.0f);
 
     glCullFace(GL_FRONT);
 
-    glBindTexture(GL_TEXTURE_2D, fbTexture_g);
+    glBindTexture(GL_TEXTURE_2D, graphics->fbTexture_g);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
     // // end
 }
 
-void Graphics_Clear(void){
-    glBindFramebuffer(GL_FRAMEBUFFER, fb_g);
-    glViewport(0, 0, viewport.w, viewport.h);
+void Graphics_Clear(Graphics *graphics){
+    glBindFramebuffer(GL_FRAMEBUFFER, graphics->fb_g);
+    glViewport(0, 0, graphics->viewport.w, graphics->viewport.h);
 
-    glClearColor(ncursesColors[COLOR_BG-1].r,ncursesColors[COLOR_BG-1].g,ncursesColors[COLOR_BG-1].b,1);
+    glClearColor(graphics->cfg->colors[COLOR_BG-1].r,graphics->cfg->colors[COLOR_BG-1].g,graphics->cfg->colors[COLOR_BG-1].b,1);
     glClear(GL_COLOR_BUFFER_BIT);
     
     glCullFace(GL_BACK);
 }
 
-static int ValidateXY(u32 *x, u32 *y, u32 fontSize, u32 startX, u32 vSpacing, u32 maxWidth){
-    // bottom width is the smaller one.
-    if(*x+fontSize >= maxWidth - fontSize){
+void Graphics_RenderSprite(Graphics *graphics, float x, float y, u16 w, u16 h, u16 tx, u16 ty, u16 tw, u16 th, Image_t tex){
 
-        *y += (fontSize + vSpacing);
-        *x = startX;
-
-        // top and bottom height are the same.
-        if(*y+fontSize >= viewport.h)
-            return -1;
-    }
-
-    return 1;
-}
-
-void Graphics_RenderSprite(float x, float y, u16 w, u16 h, u16 tx, u16 ty, u16 tw, u16 th, Image_t tex){
-
-    glBindVertexArray(vao_g);
+    glBindVertexArray(graphics->vao_g);
 
     u32 offset = 0;
     u16 pos[2];
@@ -583,32 +465,32 @@ void Graphics_RenderSprite(float x, float y, u16 w, u16 h, u16 tx, u16 ty, u16 t
         uv[0] = ((float)(RectTriangleVerts[k] * tw) + tx) * tex.invW;
         uv[1] = ((float)(RectTriangleVerts[k+1] * th) + ty) * tex.invH;
 
-        glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
+        glBindBuffer(GL_ARRAY_BUFFER, graphics->posVbo_g);
         glBufferSubData(GL_ARRAY_BUFFER, offset*sizeof(pos), sizeof(pos), pos);
-        glBindBuffer(GL_ARRAY_BUFFER, uvVbo_g);
+        glBindBuffer(GL_ARRAY_BUFFER, graphics->uvVbo_g);
         glBufferSubData(GL_ARRAY_BUFFER, offset*sizeof(uv), sizeof(uv), uv);
     
         ++offset;
     }
 
 
-    glUseProgram(shaders[TEXTURED_SHADER].program);
-    glUniform2f(shaders[TEXTURED_SHADER].invViewportLoc, 1.0f/viewport.w, 1.0f/viewport.h); 
+    glUseProgram(graphics->shaders[TEXTURED_SHADER].program);
+    glUniform2f(graphics->shaders[TEXTURED_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, tex.texture);
 
-    glBindVertexArray(vao_g);
-    glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
+    glBindVertexArray(graphics->vao_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->posVbo_g);
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 
-void Graphics_RenderRect(float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, u8 a){
+void Graphics_RenderRect(Graphics *graphics, float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, u8 a){
 
-    glBindFramebuffer(GL_FRAMEBUFFER, fb_g);
-    glBindVertexArray(vao_g);
+    glBindFramebuffer(GL_FRAMEBUFFER, graphics->fb_g);
+    glBindVertexArray(graphics->vao_g);
 
     u32 offset = 0;
     u16 pos[2];
@@ -618,7 +500,7 @@ void Graphics_RenderRect(float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, u8 a)
         pos[0] = x + ((s16)RectTriangleVerts[k] * w);
         pos[1] = y + ((s16)RectTriangleVerts[k+1] * h);
 
-        glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
+        glBindBuffer(GL_ARRAY_BUFFER, graphics->posVbo_g);
         glBufferSubData(GL_ARRAY_BUFFER, offset*sizeof(pos), sizeof(pos), pos);
         // glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(RectTriangleVerts), RectTriangleVerts);
     
@@ -626,12 +508,12 @@ void Graphics_RenderRect(float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, u8 a)
     }
 
 
-    glUseProgram(shaders[TEXTURELESS_SHADER].program);
-    glUniform4f(shaders[TEXTURELESS_SHADER].uniColorLoc, r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f); 
-    glUniform2f(shaders[TEXTURELESS_SHADER].invViewportLoc, 1.0f/viewport.w, 1.0f/viewport.h); 
+    glUseProgram(graphics->shaders[TEXTURELESS_SHADER].program);
+    glUniform4f(graphics->shaders[TEXTURELESS_SHADER].uniColorLoc, r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f); 
+    glUniform2f(graphics->shaders[TEXTURELESS_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
 
-    glBindVertexArray(vao_g);
-    glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
+    glBindVertexArray(graphics->vao_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->posVbo_g);
 
     glDisableVertexAttribArray(UV_LOC);
 
@@ -639,12 +521,12 @@ void Graphics_RenderRect(float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, u8 a)
 
     glEnableVertexAttribArray(UV_LOC);
 
-    glUniform4f(shaders[TEXTURELESS_SHADER].uniColorLoc, 1, 1, 1, 1); 
+    glUniform4f(graphics->shaders[TEXTURELESS_SHADER].uniColorLoc, 1, 1, 1, 1); 
 }
 
-void Graphics_RenderRectLines(float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, u8 a){
+void Graphics_RenderRectLines(Graphics *graphics, float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, u8 a){
 
-    glBindVertexArray(vao_g);
+    glBindVertexArray(graphics->vao_g);
 
     u16 buffer[2*4];
 
@@ -657,16 +539,16 @@ void Graphics_RenderRectLines(float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, 
     buffer[6] = x;
     buffer[7] = y + h;
 
-    glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->posVbo_g);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(buffer), buffer);
 
 
-    glUseProgram(shaders[TEXTURELESS_SHADER].program);
-    glUniform4f(shaders[TEXTURELESS_SHADER].uniColorLoc, r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f); 
-    glUniform2f(shaders[TEXTURELESS_SHADER].invViewportLoc, 1.0f/viewport.w, 1.0f/viewport.h); 
+    glUseProgram(graphics->shaders[TEXTURELESS_SHADER].program);
+    glUniform4f(graphics->shaders[TEXTURELESS_SHADER].uniColorLoc, r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f); 
+    glUniform2f(graphics->shaders[TEXTURELESS_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
 
-    glBindVertexArray(vao_g);
-    glBindBuffer(GL_ARRAY_BUFFER, posVbo_g);
+    glBindVertexArray(graphics->vao_g);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->posVbo_g);
 
     glDisableVertexAttribArray(UV_LOC);
 
@@ -674,35 +556,35 @@ void Graphics_RenderRectLines(float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, 
 
     glEnableVertexAttribArray(UV_LOC);
 
-    glUniform4f(shaders[TEXTURELESS_SHADER].uniColorLoc, 1, 1, 1, 1); 
+    glUniform4f(graphics->shaders[TEXTURELESS_SHADER].uniColorLoc, 1, 1, 1, 1); 
 }
 
-void Graphics_UseShader(int shader){
-    glUseProgram(shaders[shader].program);
+void Graphics_UseShader(Graphics *graphics, int shader){
+    glUseProgram(graphics->shaders[shader].program);
 }
 
-u32 Graphics_FontWidth(){ return fontTTF.fontCharacters[(int)' '].ax; }
-u32 Graphics_FontHeight(){ return fontTTF.fontSize*1.3; }
+u32 Graphics_FontWidth(Graphics *graphics){ return graphics->fontTTF.fontCharacters[(int)' '].ax; }
+u32 Graphics_FontHeight(Graphics *graphics){ return graphics->fontTTF.fontSize*1.3; }
 
-u32 Graphics_TextCollumns(){
-   return viewport.h / Graphics_FontHeight(); 
+u32 Graphics_TextCollumns(Graphics *graphics){
+   return graphics->viewport.h / Graphics_FontHeight(graphics); 
 }
-u32 Graphics_TextRows(){
-   return viewport.w / Graphics_FontWidth();
-}
-
-void Graphics_SetFontSize(u8 fs){
-    fontSize = fs;
+u32 Graphics_TextRows(Graphics *graphics){
+   return graphics->viewport.w / Graphics_FontWidth(graphics);
 }
 
-void Graphics_mvprintw(float x, float y, char *str, int strLen){
+void Graphics_SetFontSize(Graphics *graphics, u8 fs){
+    graphics->fontSize = fs;
+}
+
+void Graphics_mvprintw(Graphics *graphics, float x, float y, char *str, int strLen){
 
 
-    float fontSizeX = Graphics_FontWidth();
-    float fontSizeY = Graphics_FontHeight();
+    float fontSizeX = Graphics_FontWidth(graphics);
+    float fontSizeY = Graphics_FontHeight(graphics);
     u32 k;
 
-    // float fontSize = font_g.width / 16;
+    // float graphics->fontSize = graphics->font_g.width / 16;
     x *= fontSizeX;
     y++;
     y *= fontSizeY;
@@ -710,15 +592,15 @@ void Graphics_mvprintw(float x, float y, char *str, int strLen){
     char p;
 
     int j;
-    for(j = 0; j < strLen && stringOffset < MAX_TEXT_CHARS*6; j++){
+    for(j = 0; j < strLen && graphics->stringOffset < MAX_TEXT_CHARS*6; j++){
 
-        if(x > viewport.w) break;
-        if(y > viewport.h) break;
+        if(x > graphics->viewport.w) break;
+        if(y > graphics->viewport.h) break;
 
         p = str[j];
         // if(p < 32) continue;
 
-        FontCharacter fc = fontTTF.fontCharacters[(int)p];
+        FontCharacter fc = graphics->fontTTF.fontCharacters[(int)p];
 
         float x2 = x + fc.bl;
         float y2 = y - fc.bt;
@@ -728,12 +610,12 @@ void Graphics_mvprintw(float x, float y, char *str, int strLen){
         // x += fc.ax;
         // y += fc.ay;
 
-        if(ncursesAttrPairs[currentNCursesPair][0] != COLOR_BLACK){
+        if(graphics->cfg->colorPairs[graphics->currentColorPair][0] != COLOR_BLACK){
             for(k = 0; k < 12; k+=2){
-                ncursesBgPos[bgOffset][0] = ((RectTriangleVerts[k] * fontSizeX) + x);
-                ncursesBgPos[bgOffset][1] = ((1-RectTriangleVerts[k+1] * fontSizeY) + y);
-                ncursesBgColors[bgOffset] = ncursesAttrPairs[currentNCursesPair][0];
-                ++bgOffset;
+                graphics->ncursesBgPos[graphics->bgOffset][0] = ((RectTriangleVerts[k] * fontSizeX) + x);
+                graphics->ncursesBgPos[graphics->bgOffset][1] = ((1-RectTriangleVerts[k+1] * fontSizeY) + y);
+                graphics->ncursesBgColors[graphics->bgOffset] = graphics->cfg->colorPairs[graphics->currentColorPair][0];
+                ++graphics->bgOffset;
             }
         }
 
@@ -742,86 +624,86 @@ void Graphics_mvprintw(float x, float y, char *str, int strLen){
         if(!w || !h) continue;
 
         // float tX = (p % 16) / 16.0f;
-        //float tY = (1 - fontTTF.atlasWidth) - (floorf(p / 16.0f) / 16.0f);
+        //float tY = (1 - graphics->fontTTF.atlasWidth) - (floorf(p / 16.0f) / 16.0f);
         float tX = fc.tx;
         float tY = 0;
 
-        float ah = fontTTF.atlasHeight;
-        float aw = fontTTF.atlasWidth;
+        float ah = graphics->fontTTF.atlasHeight;
+        float aw = graphics->fontTTF.atlasWidth;
 
 
         for(k = 0; k < 12; k+=2){
 
-                // ncursesuv[stringOffset][0] = ((RectTriangleVerts[k] * SS_CHAR_SIZE) + tX);
-                // ncursesuv[stringOffset][1] = 1 - ((RectTriangleVerts[k+1] * SS_CHAR_SIZE) + tY);
-                ncursesuv[stringOffset][0] = ((RectTriangleVerts[k] * (fc.bw / aw)) + tX);
-                ncursesuv[stringOffset][1] = (((1-RectTriangleVerts[k+1]) * ((float)fc.bh / ah)) + tY);
+                // graphics->ncursesuv[graphics->stringOffset][0] = ((RectTriangleVerts[k] * SS_CHAR_SIZE) + tX);
+                // graphics->ncursesuv[graphics->stringOffset][1] = 1 - ((RectTriangleVerts[k+1] * SS_CHAR_SIZE) + tY);
+                graphics->ncursesuv[graphics->stringOffset][0] = ((RectTriangleVerts[k] * (fc.bw / aw)) + tX);
+                graphics->ncursesuv[graphics->stringOffset][1] = (((1-RectTriangleVerts[k+1]) * ((float)fc.bh / ah)) + tY);
 
-                ncursespos[stringOffset][0] = (RectTriangleVerts[k] * w) + x2;
-                ncursespos[stringOffset][1] = ((1-RectTriangleVerts[k+1]) * h) + y2;
-                ncursesfgs[stringOffset] = ncursesAttrPairs[currentNCursesPair][0];
-                ncursesbgs[stringOffset] = ncursesAttrPairs[currentNCursesPair][1];
+                graphics->ncursespos[graphics->stringOffset][0] = (RectTriangleVerts[k] * w) + x2;
+                graphics->ncursespos[graphics->stringOffset][1] = ((1-RectTriangleVerts[k+1]) * h) + y2;
+                graphics->ncursesfgs[graphics->stringOffset] = graphics->cfg->colorPairs[graphics->currentColorPair][0];
+                graphics->ncursesbgs[graphics->stringOffset] = graphics->cfg->colorPairs[graphics->currentColorPair][1];
 
-                ++stringOffset;
+                ++graphics->stringOffset;
         }
 
-        // x += fontSize;
+        // x += graphics->fontSize;
     }
 
 }
 
-void Graphics_RenderNCurses(){
+void Graphics_RenderNCurses(Graphics *graphics){
 
-    glUseProgram(shaders[NCURSES_BG_SHADER].program);
-    glUniform2f(shaders[NCURSES_BG_SHADER].invViewportLoc, 1.0f/viewport.w, 1.0f/viewport.h); 
+    glUseProgram(graphics->shaders[NCURSES_BG_SHADER].program);
+    glUniform2f(graphics->shaders[NCURSES_BG_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
 
-    glBindVertexArray(ncursesBgVao_g);
+    glBindVertexArray(graphics->ncursesBgVao_g);
     glCullFace(GL_FRONT);
-    glBindBuffer(GL_ARRAY_BUFFER, ncursesBgPosVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, bgOffset*2*sizeof(u16), &ncursesBgPos[0][0], GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, ncursesBgColorVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, bgOffset, &ncursesBgColors[0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->ncursesBgPosVbo_g);
+    glBufferData(GL_ARRAY_BUFFER, graphics->bgOffset*2*sizeof(u16), &graphics->ncursesBgPos[0][0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->ncursesBgColorVbo_g);
+    glBufferData(GL_ARRAY_BUFFER, graphics->bgOffset, &graphics->ncursesBgColors[0], GL_STATIC_DRAW);
 
-    glDrawArrays(GL_TRIANGLES, 0, bgOffset);
+    glDrawArrays(GL_TRIANGLES, 0, graphics->bgOffset);
 
-    bgOffset = 0;
+    graphics->bgOffset = 0;
 
-    glUseProgram(shaders[NCURSES_SHADER].program);
-    glUniform2f(shaders[NCURSES_SHADER].invViewportLoc, 1.0f/viewport.w, 1.0f/viewport.h); 
+    glUseProgram(graphics->shaders[NCURSES_SHADER].program);
+    glUniform2f(graphics->shaders[NCURSES_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
 
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, fontTTF.fontTexture);
-    // glBindTexture(GL_TEXTURE_2D, font_g.texture);
+    glBindTexture(GL_TEXTURE_2D, graphics->fontTTF.fontTexture);
+    // glBindTexture(GL_TEXTURE_2D, graphics->font_g.texture);
 
-    glBindVertexArray(ncursesVao_g);
+    glBindVertexArray(graphics->ncursesVao_g);
 
     // use instancing.
     glCullFace(GL_FRONT);
 
-    glBindBuffer(GL_ARRAY_BUFFER, ncursesPosVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, stringOffset*2*sizeof(u16), &ncursespos[0][0], GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, ncursesUvVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, stringOffset*2*sizeof(float), &ncursesuv[0][0], GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, ncursesColorFGVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, stringOffset, &ncursesfgs[0], GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, ncursesColorBGVbo_g);
-    glBufferData(GL_ARRAY_BUFFER, stringOffset, &ncursesbgs[0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->ncursesPosVbo_g);
+    glBufferData(GL_ARRAY_BUFFER, graphics->stringOffset*2*sizeof(u16), &graphics->ncursespos[0][0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->ncursesUvVbo_g);
+    glBufferData(GL_ARRAY_BUFFER, graphics->stringOffset*2*sizeof(float), &graphics->ncursesuv[0][0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->ncursesColorFGVbo_g);
+    glBufferData(GL_ARRAY_BUFFER, graphics->stringOffset, &graphics->ncursesfgs[0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, graphics->ncursesColorBGVbo_g);
+    glBufferData(GL_ARRAY_BUFFER, graphics->stringOffset, &graphics->ncursesbgs[0], GL_STATIC_DRAW);
 
-    glDrawArrays(GL_TRIANGLES, 0, stringOffset);
+    glDrawArrays(GL_TRIANGLES, 0, graphics->stringOffset);
 
-    stringOffset = 0;
+    graphics->stringOffset = 0;
 
 }
 
-void Graphics_attron(u32 attr){
-    currentNCursesPair = attr;
+void Graphics_attron(Graphics *graphics, u32 attr){
+    graphics->currentColorPair = attr;
 }
 
-void Graphics_attroff(u32 attr){
+void Graphics_attroff(Graphics *graphics, u32 attr){
 }
 
-void Graphics_init_pair(u8 pair, u8 bg, u8 fg){
-    ncursesAttrPairs[pair][0] = fg-1;
-    ncursesAttrPairs[pair][1] = bg-1;
+void Graphics_init_pair(Graphics *graphics, u8 pair, u8 bg, u8 fg){
+    graphics->cfg->colorPairs[pair][0] = fg-1;
+    graphics->cfg->colorPairs[pair][1] = bg-1;
 }

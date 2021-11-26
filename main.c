@@ -6,20 +6,23 @@
 #include "window.h"
 #include "memory.h"
 #include "graphics.h"
+#include "config.h"
 
 enum {
     GODCODE_STATE_QUIT = 1,
     GODCODE_STATE_UPDATE,
     GODCODE_STATE_UPDATEDRAW,
     GODCODE_STATE_RUNNING,
-
 };
+
 #define MOUSEUPDATETIME 100
 
 typedef struct {
     int state;
     u32 key;
     TextEditor te;
+    Config cfg;
+    Graphics graphics;
     int mousedown;
     int mousex;
     int mousey;
@@ -62,8 +65,8 @@ void Event(GodCode_t *gc){
     if(ev.type == SDL_MOUSEBUTTONDOWN && ev.button.button == SDL_BUTTON_LEFT){
 
         if(!gc->mousedown){
-            int x = ev.button.x / Graphics_FontWidth();
-            int y = ev.button.y / Graphics_FontHeight();
+            int x = ev.button.x / Graphics_FontWidth(&gc->graphics);
+            int y = ev.button.y / Graphics_FontHeight(&gc->graphics);
             if(ev.button.clicks >= 2) 
                 TextEditor_SetCursorPosDoubleClick(&gc->te, x, y);
             else{
@@ -82,8 +85,8 @@ void Event(GodCode_t *gc){
     }
     if(ev.type == SDL_MOUSEMOTION){
         if(gc->mousedown){
-            int x = ev.motion.x / Graphics_FontWidth();
-            int y = ev.motion.y / Graphics_FontHeight();
+            int x = ev.motion.x / Graphics_FontWidth(&gc->graphics);
+            int y = ev.motion.y / Graphics_FontHeight(&gc->graphics);
             gc->mousex = x;
             gc->mousey = y;
             MouseMotionUpdate(gc);
@@ -131,10 +134,10 @@ void Event(GodCode_t *gc){
 
     } else if (ev.type == SDL_WINDOWEVENT){
         if(ev.window.event == SDL_WINDOWEVENT_RESIZED || ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED){
-            Graphics_Resize(ev.window.data1, ev.window.data2);
-            Graphics_Clear();
+            Graphics_Resize(&gc->graphics, ev.window.data1, ev.window.data2);
+            Graphics_Clear(&gc->graphics);
             TextEditor_Draw(&gc->te);        
-            Graphics_Render();
+            Graphics_Render(&gc->graphics);
             Window_Swap();
         }
     }
@@ -142,12 +145,15 @@ void Event(GodCode_t *gc){
 
 int main(int argc, char **argv){
     Window_Open();
-    Graphics_Init();
 
     GodCode_t gc;
     memset(&gc,0,sizeof(GodCode_t));
 
-    TextEditor_Init(&gc.te);
+    Config_Read(&gc.cfg);
+    Graphics_Init( &gc.graphics, &gc.cfg);
+
+
+    TextEditor_Init(&gc.te, &gc.graphics, &gc.cfg);
 
     if(argc > 1){
         int k;
@@ -163,9 +169,9 @@ int main(int argc, char **argv){
     u32 frames = 0;
     u32 lastSecond = SDL_GetTicks();
 
-   Graphics_Clear();
+   Graphics_Clear(&gc.graphics);
    TextEditor_Draw(&gc.te);        
-   Graphics_Render();
+   Graphics_Render(&gc.graphics);
    Window_Swap();
 
     while(gc.state != GODCODE_STATE_QUIT){
@@ -213,15 +219,15 @@ int main(int argc, char **argv){
             }    
            gc.state = GODCODE_STATE_RUNNING;
 
-           Graphics_Clear();
+           Graphics_Clear(&gc.graphics);
            TextEditor_Draw(&gc.te);        
-           Graphics_Render();
+           Graphics_Render(&gc.graphics);
            Window_Swap();
        }
     }
 
 
-    Graphics_Close();
+    Graphics_Close(&gc.graphics);
     Window_Close();
     return 0;
 }

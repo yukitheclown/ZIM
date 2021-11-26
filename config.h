@@ -1,0 +1,59 @@
+#ifndef CONFIG_DEF
+#define CONFIG_DEF
+
+enum {
+	COLOR_CYAN = 1,
+	COLOR_RED,
+	COLOR_YELLOW,
+	COLOR_BLUE,
+	COLOR_GREEN,
+	COLOR_MAGENTA,
+	COLOR_WHITE,
+	COLOR_BLACK,
+	COLOR_GREY,
+	COLOR_BG,
+	NUM_COLORS,
+};
+enum {
+    COLOR_NORMAL = 1,
+    COLOR_KEYWORD,
+    COLOR_TOKEN,
+    COLOR_FUNCTION,
+    COLOR_NUM,
+    COLOR_COMMENT,
+    COLOR_STRING,
+    COLOR_SELECTED,
+    COLOR_SELECTED_DIRECTORY,
+    COLOR_UNSELECTED_DIRECTORY,
+    COLOR_LOG_UNSELECTED,
+    COLOR_FIND,
+    COLOR_LINE_NUM,
+    COLOR_AUTO_COMPLETE,
+    COLOR_CURSOR,
+    COLOR_SIDE_NUMBERS,
+    TE_COLOR_BLACK,
+    TE_COLOR_RED,
+    TE_COLOR_GREEN,
+    TE_COLOR_YELLOW,
+    TE_COLOR_BLUE,
+    TE_COLOR_CYAN,
+    TE_COLOR_MAGENTA,
+    TE_COLOR_WHITE,
+    TE_NUM_COLOR_PAIRS,
+};
+
+typedef struct {
+    float r;
+    float g;
+    float b;
+} RGBColor;
+
+typedef struct {
+	RGBColor colors[NUM_COLORS];
+	int colorPairs[TE_NUM_COLOR_PAIRS][2];
+} Config;
+
+void Config_Read(Config *cfg);
+
+
+#endif

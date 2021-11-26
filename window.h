@@ -6,6 +6,9 @@
 #define WINDOW_INIT_HEIGHT 			540
 // #define WINDOW_INIT_WIDTH 			300
 // #define WINDOW_INIT_HEIGHT 			160
+#define CONFIG_FILE "kekconfig.cfg"
+#define LOGFILE "kekproject.kek"
+#define LOGCOMPILEFILE "keklog.txt"
 
 #include <SDL2/SDL_events.h>
 

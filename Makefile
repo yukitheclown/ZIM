@@ -18,7 +18,7 @@ LDLIBS =-lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
 #  -mwindows -lglu32 -lglew32 -lopengl32 -L./libglew32.dll.a -L./libglew32.a -lfreetype -lpng -lz
 
 
-SOURCES=main.c text_editor.c window.c graphics.c log.c freetype.c file_browser.c
+SOURCES=main.c text_editor.c window.c graphics.c log.c freetype.c file_browser.c config.c
 
 OBJECTS=$(SOURCES:.c=.o)
 
