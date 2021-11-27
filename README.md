@@ -24,6 +24,7 @@ find replace<br>
 reload check files(if edited outside kek)<br>
 code folding<br>
 make libthoth for text editor embed for opengl games<br>
+have a home ~/.config/ directory for kekconfig.cfg kekproject.kek and keklog.txt files
 <hr>
 <b>COMMANDS</b>:<br>
 ctrl+a (select all)<br>
