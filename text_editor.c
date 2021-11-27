@@ -595,9 +595,10 @@ static int MoveByWordsFunc(char *text, int len, int start, int dir){
             if(text[start] == '\n'){
                 start--;
             } else {
+                start--;
 
-                if(IsToken(text[start-1]))
-                    start -= 2;
+                if(IsToken(text[start]))
+                    start -= 1;
 
                 if(text[start] != '\n' && IsToken(text[start])){
                     while(start >= 0){
