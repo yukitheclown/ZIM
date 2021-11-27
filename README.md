@@ -16,19 +16,13 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 ![Screenshot](Screenshots/praisekek.jpg) ![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
-file open selector for more than relative paths(done)<br>
-Case insensitive search(done)<br>
-windows/tabs ctrl+p for tabs(done)<br>
-Mouse support(done)<br>
-Swap files<br>
-structs for every command scroll undo/do<br>
-open last projects files<br>
+have only the active file in memory AND swap files<br>
+config file keybindings.
 minimap<br>
 bug(autocomplete stays when cursor move)<br>
 find replace<br>
 reload check files(if edited outside kek)<br>
 code folding<br>
-config files<br>
 make libthoth for text editor embed for opengl games<br>
 <hr>
 <b>COMMANDS</b>:<br>
