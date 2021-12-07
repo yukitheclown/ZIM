@@ -17,11 +17,12 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 <hr>
 <b>TODO</b>:<br>
 have only the active file in memory AND swap files<br>
-config file keybindings.
 minimap<br>
-bug(autocomplete stays when cursor move)<br>
+keybindings config<br>
+highlighting for more languages than C, and general lua (function is a keyword)<br>
+} auto indent down <br>
+check for file change outside editor and reload on window focus event<br>
 find replace<br>
-reload check files(if edited outside thoth)<br>
 code folding<br>
 make libthoth for text editor embed for opengl games<br>
 have a home ~/.config/ directory for thothconfig.cfg thothproject.god and thothlog.txt files
