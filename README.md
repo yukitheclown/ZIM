@@ -13,7 +13,7 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
     
     
     
-![Screenshot](Screenshots/praisekek.jpg) ![Screenshot](Screenshots/Screenshot.gif)<br>
+![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
 have only the active file in memory AND swap files<br>
@@ -21,10 +21,10 @@ config file keybindings.
 minimap<br>
 bug(autocomplete stays when cursor move)<br>
 find replace<br>
-reload check files(if edited outside kek)<br>
+reload check files(if edited outside thoth)<br>
 code folding<br>
 make libthoth for text editor embed for opengl games<br>
-have a home ~/.config/ directory for kekconfig.cfg kekproject.kek and keklog.txt files
+have a home ~/.config/ directory for thothconfig.cfg thothproject.god and thothlog.txt files
 <hr>
 <b>COMMANDS</b>:<br>
 ctrl+a (select all)<br>
@@ -66,5 +66,5 @@ ctrl+p Switch file, (lists open files)<br>
 ctrl+w Close file<br>
 
 <br>
-Deveoloped while bedridden after I got hit by a car on a moped. I'll be fully recovered soon.<br>
+Deveoloped while bedridden after I got hit by a car on a moped.<br>
 
