@@ -28,6 +28,9 @@ int Window_Open(){
     context = SDL_GL_CreateContext(window);
     SDL_GL_SetSwapInterval(1);
 
+    context = SDL_GL_CreateContext(window);
+    SDL_GL_SetSwapInterval(1);
+
     glewExperimental = GL_TRUE;
 
     if(glewInit() != GLEW_OK) {
@@ -43,6 +46,8 @@ int Window_Open(){
     glDisable(GL_LINE_SMOOTH);
     glCullFace(GL_BACK);
     glDisable(GL_BLEND);
+
+
     
     return 1;
 }

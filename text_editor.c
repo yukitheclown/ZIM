@@ -28,11 +28,14 @@ enum {
   SCR_CENT,
 };
 
+
+static void ClearAutoComplete(TextEditor *t);
 static void FreeFile(TextEditorFile *f);
 static void RefreshFile(TextEditor *t);
 static int AddFile(TextEditor *t, TextEditorFile *f);
 static TextEditorFile *CreateTextEditorFile(char *path);
 static void EndLogging(TextEditor *t);
+static void AlertLog(TextEditor *t, const char *str);
 static int FindInsensitive(char *text, char *str, int len);
 static void FindTextGoto(TextEditor *t, int dir, int insensitive);
 static void ScrollToLine(TextEditor *t);
@@ -47,6 +50,7 @@ static void AutoComplete(TextEditor *t);
 static int IsToken(char c);
 static char CaseLower(char c);
 static int IsDigit(char c);
+static int IsHexadecimal(char c);
 static int GetStartOfNextLine(char *text, int textLen, int cPos);
 static int GetNumLinesToPos(char *text, int cPos);
 static int GetCharsIntoLine(char *text, int cPos);
@@ -84,7 +88,7 @@ static void AddCursorCommand(TextEditor *t, TextEditorCommand *c);
 static TextEditorCursor *AddCursor(TextEditor *t);
 static int Find(char *text, char *str, int len);
 static void SelectNextWord(TextEditor *t, TextEditorCommand *c);
-static void EventEnter(TextEditor *t);
+static void EventEnter(TextEditor *t, int key);
 static void EventCtrlEnter(TextEditor *t, TextEditorCommand *c);
 static void SaveCursors(TextEditor *t, TextEditorCommand *c);
 static void LoadCursors(TextEditor *t, TextEditorCommand *c);
@@ -123,14 +127,16 @@ const char *keywords[] = {
     "auto", "bool", "char", "class", "double", "float", "int", "enum", "const", "static", "include", "define", "ifndef", "endif"
 };
 
-static int IsDigit(char c){
-    if((c == '0' || c == '1' || c == '2' || c == '3' || 
-        c == '4' || c == '5' || c == '6' || c == '7' || 
-        c == '8' || c == '9')) return 1;
-
+static inline int IsDigit(char c){
+    if(c >= '0' && c <= '9') return 1;
     return 0;
 
 }
+static inline int IsHexadecimal(char c){
+    if(IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'Z')) return 1;
+    return 0;
+}
+
 static char CaseLower(char c){
     if(c > 'A' && c < 'Z')
         c -= 'A' - 'a';
@@ -174,6 +180,15 @@ static int GetCharsIntoLine(char *text, int cPos){
     return (cPos - k);
 }
 
+static void AlertLog(TextEditor *t, const char *str){
+    EndLogging(t);
+    t->logging = LOGMODE_ALERT;
+    int bufferLen = strlen(str);
+    t->loggingText = malloc(bufferLen+1);
+    strcpy(t->loggingText, str);
+    t->loggingText[bufferLen] = 0;
+}
+
 static void EndLogging(TextEditor *t){
     t->logIndex = -1;
     if(t->loggingText) free(t->loggingText);
@@ -191,6 +206,12 @@ static void EndLogging(TextEditor *t){
 
     t->logging = 0;
     t->loggingText = NULL;
+}
+
+static void ClearAutoComplete(TextEditor *t){
+    t->autoCompleteSearchLen = 0;
+    t->autoCompleteLen = 0;
+    t->autoCompleteIndex = 0;
 }
 
 static void FindTextGoto(TextEditor *t, int dir, int insensitive){
@@ -354,7 +375,7 @@ static void EventCtrlEnter(TextEditor *t, TextEditorCommand *c){
     if(t->logging == LOGMODE_TEXT_INSENSITIVE) FindTextGoto(t, -1, 1);
 }
 
-static void EventEnter(TextEditor *t){
+static void EventEnter(TextEditor *t, int key){
 
     if(t->logging == LOGMODE_SAVE){
         if(!t->loggingText) return;
@@ -402,14 +423,18 @@ static void EventEnter(TextEditor *t){
         ExecuteCommand(t,command);
         FreeCommand(command);
 
-        t->autoCompleteSearchLen = 0;
-        t->autoCompleteLen = 0;
-        t->autoCompleteIndex = 0;
+
+        ClearAutoComplete(t);
         return;
     }
 
-    TextEditorCommand *command = 
-    CreateCommand((const unsigned int[]){0}, (const char[]){'\n', 0}, 0, SCR_CENT, AddCharacters, UndoAddCharacters);
+    TextEditorCommand *command;
+
+    if(key & 0xFF){
+        command = CreateCommand((const unsigned int[]){0}, (const char[]){(char)(key & 0xFF), 0}, 0, SCR_CENT, AddCharacters, UndoAddCharacters);
+    } else {
+        command = CreateCommand((const unsigned int[]){0}, (const char[]){'\n', 0}, 0, SCR_CENT, AddCharacters, UndoAddCharacters);
+    }
     ExecuteCommand(t,command);
     FreeCommand(command);
 }
@@ -535,9 +560,7 @@ static void MoveCursorsAndSelection(TextEditor *t, int pos, int by, int *cursorI
 static void RemoveSelections(TextEditor *t){
     
     t->selectNextWordTerminator = 0;    
-    t->autoCompleteSearchLen = 0;
-    t->autoCompleteLen = 0;
-    t->autoCompleteIndex = 0;
+    ClearAutoComplete(t);
 
     // memset(&t->cursors[0].selection, 0, sizeof(TextEditorSelection));
 
@@ -978,6 +1001,7 @@ static void DoSwitchFile(TextEditor *t){
 }
 
 static void DoSaveFile(TextEditor *t){
+    t->file->unsaved = 0;
     FILE *fp = fopen(t->file->path, "w");
     fwrite(t->file->text,1,strlen(t->file->text),fp);
     fclose(fp);
@@ -987,9 +1011,7 @@ static void RefreshFile(TextEditor *t){
     FreeCursors(t);
     InitCursors(t);
     t->cursors[0].pos = t->file->cursorPos;
-    t->autoCompleteSearchLen = 0;
-    t->autoCompleteLen = 0;
-    t->autoCompleteIndex = 0;
+    ClearAutoComplete(t);
     t->selectNextWordTerminator = 0;
 }
 static void NewFile(TextEditor *t, TextEditorCommand *c){
@@ -997,6 +1019,14 @@ static void NewFile(TextEditor *t, TextEditorCommand *c){
     RefreshFile(t);
 }
 static void CloseFile(TextEditor *t, TextEditorCommand *c){
+    if(t->file->unsaved == 1){
+        t->file->unsaved++;
+        AlertLog(t, "Unsaved file! Repeat `close keybind` to ignore & `escape` to close this message.");
+        return;
+    }
+    
+    EndLogging(t);
+
     int k;
     for(k = 0; k < t->nFiles; k++){
         if(t->files[k] == t->file){
@@ -1102,6 +1132,7 @@ static int MoveCursorDownLine(TextEditor *t, TextEditorCursor *cursor){
     cursor->pos = charsIntoLine <= charsOnNextLine ? startOfNextLine + charsIntoLine : startOfNextLine + charsOnNextLine;
     return 1;
 }
+
 
 static void MoveLines(TextEditor *t, TextEditorCommand *c){
 
@@ -1977,6 +2008,7 @@ static void LoadCursors(TextEditor *t, TextEditorCommand *c){
 
 static void AddStrToText(TextEditor *t, int *cursorIndex, char *text){
 
+    t->file->unsaved = 1;
 
     int textLen = strlen(t->file->text);
 
@@ -2008,6 +2040,9 @@ static void RemoveStrFromText(TextEditor *t, int *cursorIndex, int len){
 
     int pos = t->cursors[*cursorIndex].pos;
     if(pos < 0) return;
+
+    t->file->unsaved = 1;
+
     if(pos - len < 0) len = pos;
 
     pos -= len;
@@ -2358,6 +2393,16 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
 
     int k;
 
+    // make sure autocomplete only starts after a token, if canceled.
+    if(t->autoCompleteSearchLen > 0 || IsToken(t->file->text[t->cursors[0].pos-1])){
+        for(k = 0; k < strlen(c->keys); k++){
+            if(!IsToken(c->keys[k])){
+                t->autoCompleteSearchLen++;
+            } else {
+                t->autoCompleteSearchLen = 0;
+            }
+        }        
+    }
 
     for(k = 0; k < t->nCursors; k++){
         EraseAllSelectedText(t, &k, c);
@@ -2367,13 +2412,6 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
 
     SaveCursors(t, c);
 
-    for(k = 0; k < strlen(c->keys); k++){
-        if(!IsToken(c->keys[k])){
-            t->autoCompleteSearchLen++;
-        } else {
-            t->autoCompleteSearchLen = 0;
-        }
-    }        
     AutoComplete(t);
 
     for(k = 0; k < t->nCursors; k++)
@@ -2823,7 +2861,7 @@ void TextEditor_Init(TextEditor *t, Graphics *g, Config *cfg){
 }
 static int CursorPos(TextEditor *t, int x, int y){
     RemoveExtraCursors(t);
-    t->autoCompleteIndex = 0;
+    ClearAutoComplete(t);
     UpdateScrollCenter(t);
 
     if(x < t->logX) x = t->logX;
@@ -3186,17 +3224,8 @@ void TextEditor_Draw(TextEditor *t){
 
     y = 0;
 
-    // int cur;
-    // for(cur = 0; cur < t->nCursors; cur++){
-    //     TextEditorCursor *c = &t->cursors[cur];
-    
-    // int renderTo = 0, renderStart = 0;
         int renderTo = scrollPosMax, renderStart = scrollPos;
 
-    // if(c->selection.len == 0){
-        // renderStart = c->pos - GetCharsIntoLine(t->file->text, c->pos);
-        // renderTo = GetStartOfNextLine(t->file->text, t->file->textLen, c->pos);
-        // if(renderTo < scrollPos) continue;
         for(k = scrollPos; k < renderStart; k++){
             if(t->file->text[k] == '\n'){
                 y++;
@@ -3207,6 +3236,8 @@ void TextEditor_Draw(TextEditor *t){
 
         renderTo++; // include NULL term token
     
+        // begin render files text
+
         for(; k < renderTo; ){
 
             int comment = 0;
@@ -3217,10 +3248,12 @@ void TextEditor_Draw(TextEditor *t){
             char token = IsToken(c);
             if(!token){
 
-               // number not like COLOR_FUNCTION but 23
                if((k - ctOffset) == 1 && IsDigit(t->file->text[k-1])){
 
-                   for(; k < renderTo && IsDigit(t->file->text[k]); k++);
+                    if(t->file->text[k] == 'x')
+                       for(++k; k < renderTo && IsHexadecimal(t->file->text[k]); k++);
+                   else 
+                       for(; k < renderTo && IsDigit(t->file->text[k]); k++);
 
                    Graphics_attron(t->graphics,COLOR_NUM);
                    Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
@@ -3531,8 +3564,8 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         return;
     }
 
-    if(key == EDIT_ENTER_KEY){ // enter
-        EventEnter(t);
+    if(key >> 8 == EDIT_ENTER_KEY >> 8){ // enter
+        EventEnter(t, key);
         return;
     }
 
@@ -3587,6 +3620,8 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
             return;
         }
 
+        ClearAutoComplete(t);
+
         int k;
         for(k = 0; k < t->nCommands; k++){
 
@@ -3600,6 +3635,7 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
     }
     if(key == 9){ // tab
         if(t->logging) return;
+        ClearAutoComplete(t);
         TextEditorCommand *command = CreateCommand((const unsigned int[]){0}, "\t", 0,SCR_CENT, AddCharacters, UndoAddCharacters);
         ExecuteCommand(t,command);
         FreeCommand(command);
@@ -3622,6 +3658,16 @@ void TextEditor_Event(TextEditor *t, unsigned int key){
         return;
     }
 
+}
+
+static void UnsavedFileOnExit(TextEditor *t, TextEditorFile *file){
+    
+    AlertLog(t, "Unsaved changes? ctrl+w to ignore unsaved,"
+        " ctrl+s to save, ctrl+S to save as. `escape` to close this message.\0");
+
+    t->file = file;
+    RefreshFile(t);
+    t->quit = 0;
 }
 
 int TextEditor_Destroy(TextEditor *t){
@@ -3653,6 +3699,11 @@ int TextEditor_Destroy(TextEditor *t){
     for(k = 0; k < t->nFiles; k++){
         int len = strlen(t->files[k]->path);
         if(len > 0){
+            if(t->files[k]->unsaved == 1){
+                UnsavedFileOnExit(t, t->files[k]);
+                if(fp) fclose(fp);
+                return 0;
+            }
             if(fp){
                 fwrite(&len,sizeof(int),1,fp);
 				fwrite(t->files[k]->path,1,len,fp);
@@ -3660,17 +3711,8 @@ int TextEditor_Destroy(TextEditor *t){
                 fwrite(&t->files[k]->cursorPos,sizeof(int),1,fp);
             }
         } else if(strlen(t->files[k]->text) > 0){
-            EndLogging(t);
-            t->logging = LOGMODE_ALERT;
-            char buffer[] = "Unsaved changes? ctrl+w to ignore unsaved, ctrl+s to save, ctrl+S to save as.\0";
-            int bufferLen = strlen(buffer);
-            t->loggingText = malloc(bufferLen+1);
-            strcpy(t->loggingText, buffer);
-            t->loggingText[bufferLen] = 0;
-            t->file = t->files[k];
-            RefreshFile(t);
+            UnsavedFileOnExit(t, t->files[k]);
             if(fp) fclose(fp);
-            t->quit = 0;
             return 0;
 
         }

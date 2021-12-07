@@ -31,7 +31,6 @@ int FontFace_SetSize(FontFace *font, int size){
     glGenTextures(1, &font->fontTexture);
     glBindTexture(GL_TEXTURE_2D, font->fontTexture);
     glPixelStorei(GL_UNPACK_ALIGNMENT,1);
-
     int w = 0, h = 0, i = 0, x = 0;
 
     FT_GlyphSlot g = font->fontFace->glyph;

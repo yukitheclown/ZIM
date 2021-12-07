@@ -263,15 +263,15 @@ void Graphics_Init(Graphics *graphics, Config *cfg){
     glCullFace(GL_BACK);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_POLYGON_SMOOTH);
-    
+	    
+   
     Text_Init();
-
+	
     // textures
 
     // Utils_LoadImage(&graphics->font_g, FONT_PATH);
     FontFace_LoadFont(&graphics->fontTTF, FONT_PATH_TTF);
     FontFace_SetSize(&graphics->fontTTF, graphics->fontSize);
-
     // int k;
     // int x = 0;
     // for(k = 0; k < 128; k++){
@@ -289,14 +289,12 @@ void Graphics_Init(Graphics *graphics, Config *cfg){
     // }
 
     // compile graphics->shaders
-
     Compile(graphics, &graphics->shaders[TEXTURED_SHADER], VS_Source, FS_Source);
     Compile(graphics, &graphics->shaders[QUAD_SHADER], VS_Quad_Source, FS_Quad_Source);
     Compile(graphics, &graphics->shaders[NCURSES_SHADER], VSNCurses_Source, FSNCurses_Source);
     Compile(graphics, &graphics->shaders[NCURSES_BG_SHADER], VSNCursesBG_Source, FSNCursesBG_Source);
     Compile(graphics, &graphics->shaders[TEXTURELESS_SHADER], VS_Textureless_Source, FS_Textureless_Source);
 
-    // quad vao
 
     glGenVertexArrays(1, &graphics->quadVao_g);
     glBindVertexArray(graphics->quadVao_g);

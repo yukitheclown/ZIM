@@ -98,6 +98,7 @@ typedef struct {
 
 typedef struct {
   int                     scroll;
+  int                     unsaved;
   int                     cursorPos;
   int                     historyPos;
 

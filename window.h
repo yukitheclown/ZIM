@@ -1,14 +1,14 @@
 #ifndef WINDOW_DEF
 #define WINDOW_DEF
 
-#define WINDOW_TITLE "KEK"
+#define WINDOW_TITLE "THOTH"
 #define WINDOW_INIT_WIDTH 			960
 #define WINDOW_INIT_HEIGHT 			540
 // #define WINDOW_INIT_WIDTH 			300
 // #define WINDOW_INIT_HEIGHT 			160
-#define CONFIG_FILE "kekconfig.cfg"
-#define LOGFILE "kekproject.kek"
-#define LOGCOMPILEFILE "keklog.txt"
+#define CONFIG_FILE "thothconfig.cfg"
+#define LOGFILE "thothproject.kek"
+#define LOGCOMPILEFILE "thothlog.txt"
 
 #include <SDL2/SDL_events.h>
 

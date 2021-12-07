@@ -204,9 +204,8 @@ int main(int argc, char **argv){
 
                if((gc.key >> 8) == (EDIT_SHIFT_KEY >> 8)){
                    key = (gc.key & 0xFF);
-               } 
-
-               TextEditor_Event(&gc.te, key );
+               }
+               TextEditor_Event(&gc.te, key);
                 if(gc.te.quit){
                     if(TextEditor_Destroy(&gc.te) > 0){
                         break;
