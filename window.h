@@ -7,7 +7,7 @@
 // #define WINDOW_INIT_WIDTH 			300
 // #define WINDOW_INIT_HEIGHT 			160
 #define CONFIG_FILE "thothconfig.cfg"
-#define LOGFILE "thothproject.kek"
+#define LOGFILE "thothproject.god"
 #define LOGCOMPILEFILE "thothlog.txt"
 
 #include <SDL2/SDL_events.h>
