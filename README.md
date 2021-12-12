@@ -25,8 +25,6 @@ check for file change outside editor and reload on window focus event<br>
 find replace<br>
 code folding<br>
 make libthoth for text editor embed for opengl games<br>
-have a home ~/.config/ directory for thothconfig.cfg thothproject.god and thothlog.txt files
-<hr>
 <b>COMMANDS</b>:<br>
 ctrl+a (select all)<br>
 ctrl+- (zoom out)<br>
