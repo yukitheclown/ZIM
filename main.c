@@ -148,7 +148,11 @@ int main(int argc, char **argv){
 
     GodCode_t gc;
     memset(&gc,0,sizeof(GodCode_t));
-
+    
+#ifdef LINUX_COMPILE
+    mkdir(Window_GetConfigPath(NULL), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+#endif
+  
     Config_Read(&gc.cfg);
     Graphics_Init( &gc.graphics, &gc.cfg);
 

@@ -5,10 +5,15 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 #include "window.h"
+#include "types.h"
 #include "log.h"
 
 static SDL_Window *window;
 static SDL_GLContext context;
+
+#ifdef LINUX_COMPILE
+static char configpath_g[MAX_PATH_LEN];
+#endif
 
 int Window_Open(){
 
@@ -75,3 +80,14 @@ void Window_PollEvent(void (*callback)(SDL_Event ev)){
     while(SDL_PollEvent(&ev))
         callback(ev);
 }
+#ifdef LINUX_COMPILE
+char *Window_GetConfigPath(char *relpath){
+    char *path = getenv("HOME");
+    if(relpath == NULL)
+        sprintf(configpath_g,"%s%s",path,CONFIG_PATH);
+    else
+        sprintf(configpath_g,"%s%s",path,relpath);
+    // ignored if exists
+    return configpath_g;
+}
+#endif

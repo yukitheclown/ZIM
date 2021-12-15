@@ -2,12 +2,12 @@
 # linux
 CC=gcc
 EXECUTABLE=thoth
-CFLAGS = -g -Wall -lm  -DLINUX_COMPILE $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2)
+CFLAGS = -m32 -g -Wall -lm  -DLINUX_INSTALL -DLINUX_COMPILE $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2)
 FREETYPELIBS = $(shell pkg-config --libs freetype2)
 GLEWLIBS = $(shell pkg-config --static --libs glew)
 SDLLIBS = $(shell pkg-config --libs sdl2)
 # add -pg for gdb
-LDLIBS =-lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
+LDLIBS =-m32 -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
 #
 # windows
 #  CC=i686-w64-mingw32-gcc
@@ -32,11 +32,11 @@ $(EXECUTABLE): $(OBJECTS)
 # wihndows unused right now
 # all: createResourcesO $(SOURCES) $(EXECUTABLE)
 
-# $(EXECUTABLE): $(OBJECTS) resources.o
-# 	$(CC) $(OBJECTS) resources.o $(LDLIBS) -o $@
+# $(EXECUTABLE): $(OBJECTS) icon.o
+# 	$(CC) $(OBJECTS) icon.o $(LDLIBS) -o $@
 
-# createResourcesO: resources.rc
-# 	i686-w64-mingw32-windres resources.rc -o resources.o
+# createResourcesO: icon.rc
+# 	i686-w64-mingw32-windres icon.rc -o icon.o
 
 .c.o:
 	$(CC) -c $(CFLAGS) $< -o $@

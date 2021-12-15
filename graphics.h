@@ -42,10 +42,13 @@ enum {
 #define MAX_COLOR_PAIRS 32
 #define MINFONTSIZE 6
 #define MAXFONTSIZE 70
-
+#ifdef LINUX_INSTALL
+#define FONT_PATH "/usr/local/share/thoth/font.png"
+#define FONT_PATH_TTF "/usr/local/share/thoth/Monoid-Regular.ttf"
+#else
 #define FONT_PATH "resources/font.png"
 #define FONT_PATH_TTF "resources/Monoid-Regular.ttf"
-
+#endif
 #define POS_ATTRIB "pos"
 #define UV_ATTRIB "uv"
 #define COLORFG_ATTRIB "colorFG"
