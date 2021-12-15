@@ -13,19 +13,31 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
     
     
     
-![Screenshot](Screenshots/praisekek.jpg) ![Screenshot](Screenshots/Screenshot.gif)<br>
+![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
 have only the active file in memory AND swap files<br>
-config file keybindings.
 minimap<br>
-bug(autocomplete stays when cursor move)<br>
+keybindings config<br>
+highlighting for more languages than C, and general lua (function is a keyword)<br>
+} auto indent down <br>
+check for file change outside editor and reload on window focus event<br>
 find replace<br>
-reload check files(if edited outside kek)<br>
 code folding<br>
 make libthoth for text editor embed for opengl games<br>
-have a home ~/.config/ directory for kekconfig.cfg kekproject.kek and keklog.txt files
-<hr>
+<b><br>
+Example thothconfig.cfg</b><br>
+# gruvbox <br>
+COLOR_CYAN 0x8e 0xc0 0x7c<br>
+COLOR_RED 0xfb 0x49 0x34<br>
+COLOR_YELLOW 0xfa 0xbd 0x2f<br>
+COLOR_BLUE 0x83 0xa5 0x98<br>
+COLOR_GREEN 0xb8 0xbb 0x26<br>
+COLOR_MAGENTA 0xd3 0x86 0x9b<br>
+COLOR_WHITE 0xeb 0xdb 0xb2<br>
+COLOR_BLACK 0x28 0x28 0x28<br>
+COLOR_GREY 0x92 0x83 0x74<br>
+COLOR_BG 0x28 0x28 0x28<br><br>
 <b>COMMANDS</b>:<br>
 ctrl+a (select all)<br>
 ctrl+- (zoom out)<br>
@@ -66,5 +78,5 @@ ctrl+p Switch file, (lists open files)<br>
 ctrl+w Close file<br>
 
 <br>
-Deveoloped while bedridden after I got hit by a car on a moped. I'll be fully recovered soon.<br>
+Deveoloped while bedridden after I got hit by a car on a moped.<br>
 
