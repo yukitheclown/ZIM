@@ -2,12 +2,12 @@
 # linux
 CC=gcc
 EXECUTABLE=thoth
-CFLAGS = -m32 -g -Wall -lm  -DLINUX_INSTALL -DLINUX_COMPILE $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2)
+CFLAGS =  -g -Wall -lm  -DLINUX_INSTALL -DLINUX_COMPILE $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2)
 FREETYPELIBS = $(shell pkg-config --libs freetype2)
 GLEWLIBS = $(shell pkg-config --static --libs glew)
 SDLLIBS = $(shell pkg-config --libs sdl2)
 # add -pg for gdb
-LDLIBS =-m32 -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
+LDLIBS = -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
 #
 # windows
 #  CC=i686-w64-mingw32-gcc

@@ -118,6 +118,7 @@ static void RedoCommands(TextEditor *t, int num);
 static void RemoveExtraCursors(TextEditor *t);
 static void ExecuteCommand(TextEditor *t, TextEditorCommand *c);
 static void AddCommand(TextEditor *t, TextEditorCommand *c);
+static char *basename(char *path);
 
 const char *keywords[] = {
     "int8", "int16", "int32", "int64", "break", "and", "case", "continue", "default", "do", "else", "false", "for", "if", "namespace",
@@ -126,6 +127,15 @@ const char *keywords[] = {
     "uint8", "uint16", "uint32", "uint64", "void", "while", "xor", "end", "function", "local", "nil", "repeat", "then", "until",
     "auto", "bool", "char", "class", "double", "float", "int", "enum", "const", "static", "include", "define", "ifndef", "endif"
 };
+
+static char *basename(char *path){
+    int j;
+    for(j = strlen(path)-1; j >= 0; j--)
+        if(path[j] == '/' || path[j] == '\\')
+            {j++; break;}
+    
+    return &path[j];
+}
 
 static inline int IsDigit(char c){
     if(c >= '0' && c <= '9') return 1;
@@ -951,16 +961,22 @@ static void LogLineSelectorEnter(TextEditor *t){
     for(k = 0; k < nFiles; k++){
         char *name = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.files[k].name : t->files[k]->name;
         int nameLen = strlen(name);
-        int logNameLen = t->loggingText ? strlen(t->loggingText) : 0;
-        
+        char *logName = t->loggingText ? basename(t->loggingText) : NULL;
+        int logNameLen = logName ? strlen(logName) : 0;
+
         if(logNameLen <= nameLen){
-            if(logNameLen == 0 || CaseLowerStrnCmp(t->loggingText, name, logNameLen)){
+            if(logNameLen == 0 || CaseLowerStrnCmp(logName, name, logNameLen)){
                 if(t->logIndex == matches){
                     if(t->logging == LOGMODE_FILEBROWSER){
 
                         if(t->fileBrowser.files[k].dir){
                             strcpy(t->fileBrowser.directory, t->fileBrowser.files[k].path);
                             FileBrowser_ChangeDirectory(&t->fileBrowser);
+                            int dirlen = strlen(t->fileBrowser.directory);
+                            t->loggingText = realloc(t->loggingText, dirlen+2);
+                            strcpy(t->loggingText, t->fileBrowser.directory);
+                            t->loggingText[dirlen] = '/';
+                            t->loggingText[dirlen+1] = 0;
                             t->logIndex = 0;
                         } else {
                             TextEditor_LoadFile(t, t->fileBrowser.files[k].path);
@@ -1162,9 +1178,9 @@ static void MoveLines(TextEditor *t, TextEditorCommand *c){
             for(k = 0; k < nFiles; k++){
                 char *name = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.files[k].name : t->files[k]->name;
                 int nameLen = strlen(name);
-                int logNameLen = strlen(t->loggingText);
+                int logNameLen = strlen(basename(t->loggingText));
                 if(logNameLen <= nameLen){
-                    if(CaseLowerStrnCmp(t->loggingText, name, logNameLen))
+                    if(CaseLowerStrnCmp(basename(t->loggingText), name, logNameLen))
                         nMatching++;
 
                 }
@@ -2173,7 +2189,9 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
             t->logIndex = -1;
 
             if(t->loggingText){
+        
                 int searchLen = strlen(t->loggingText);
+        
                 if(searchLen - c->num <= 0){
                     free(t->loggingText);
                     t->loggingText = NULL;
@@ -2188,6 +2206,17 @@ static void RemoveCharacters(TextEditor *t, TextEditorCommand *c){
                 }
             }
         }
+    
+        if(t->logging == LOGMODE_FILEBROWSER){
+            if(t->loggingText){
+                if(t->loggingText[strlen(t->loggingText)-1] == '/' ||
+                    t->loggingText[strlen(t->loggingText)-1] == '\\'){
+                    strcpy(t->fileBrowser.directory, t->loggingText);
+                    FileBrowser_ChangeDirectory(&t->fileBrowser);
+                }
+            }
+        }
+
 
         return;
     }
@@ -2367,6 +2396,16 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
             int k;
             for(k = 0; k < nKeys; k++) if(!IsDigit(c->keys[k])) return;
         }
+
+    if(t->logging == LOGMODE_FILEBROWSER){
+        if(t->loggingText){
+            if(c->keys[0] == '/' || c->keys[0] == '\\'){
+                strcpy(t->fileBrowser.directory, t->loggingText);
+                FileBrowser_ChangeDirectory(&t->fileBrowser);
+            }
+        }
+    }
+
         if(t->logging < LOGMODE_MODES_INPUTLESS){
 
             if(t->loggingText){
@@ -2696,6 +2735,21 @@ void TextEditor_LoadFile(TextEditor *t, char *pathRel){
         return;
     }
 
+
+    int m;
+    for(m = strlen(path); m > 0; m--){
+#ifdef WINDOWS_COMPILE
+        if(path[m] == '\\') break;
+#endif
+#ifdef LINUX_COMPILE
+        if(path[m] == '/') break;
+#endif
+    }
+
+    strncpy(t->fileBrowser.directory, path, m);
+    t->fileBrowser.directory[m] = 0;
+    FileBrowser_ChangeDirectory(&t->fileBrowser);
+    
     fseek(fp, 0, SEEK_END);
 
     int len = ftell(fp);
@@ -2815,6 +2869,7 @@ void TextEditor_Init(TextEditor *t, Graphics *g, Config *cfg){
 
     InitCursors(t);
     FileBrowser_Init(&t->fileBrowser);
+
     FILE *fp = fopen(LOGFILE, "r");
     if(fp){
         fseek(fp, 0, SEEK_END);
@@ -3026,10 +3081,14 @@ void TextEditor_Draw(TextEditor *t){
             for(; k < nFiles; k++){
                 char *name = t->logging == LOGMODE_FILEBROWSER ? t->fileBrowser.files[k].name : t->files[k]->name;
                 int nameLen = strlen(name);
-                int logNameLen = t->loggingText ? strlen(t->loggingText) : 0;
-                if(logNameLen <= nameLen){
-                    if(logNameLen == 0 || CaseLowerStrnCmp(t->loggingText, name, logNameLen)){
+                char *logName = t->loggingText;
+                if(LOGMODE_FILEBROWSER && t->loggingText){
+                    logName = basename(t->loggingText);
+                }
+                int logNameLen = logName ? strlen(logName) : 0;
 
+                if(logNameLen <= nameLen){
+                    if(logNameLen == 0 || CaseLowerStrnCmp(logName, name, logNameLen)){
                         if(index == t->logIndex){
                             if(t->logging == LOGMODE_FILEBROWSER && t->fileBrowser.files[k].dir)
                                 Graphics_attron(t->graphics,COLOR_SELECTED_DIRECTORY);
@@ -3735,10 +3794,16 @@ int TextEditor_Destroy(TextEditor *t){
     }
 
     if(fp){
-        int len = strlen(t->fileBrowser.directory);
+        int m; 
+        for(m = strlen(t->file->path); m > 0; m--){
+            if(t->file->path[m] == '/') break;
+        }
+
+        int len = m;//strlen(t->fileBrowser.directory);
         if(len > 0){
             fwrite(&len,sizeof(int),1,fp);
-            fwrite(t->fileBrowser.directory,1,len,fp);
+            // fwrite(t->fileBrowser.directory,1,len,fp);
+            fwrite(t->file->path,1,len,fp);
         }
         fclose(fp);
     }

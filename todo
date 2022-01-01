@@ -1,6 +1,12 @@
 sorted by importance:
 
-.config/thoth/
+upload new version(fixed filebrowser)
+
+fix paths like /etc/../srv/http/../ when selecting and not typing
+
+32 bit version bug
+tab autocomplete directives
+
 libthoth
 keybindings config
 highlighting for more languages than C, and general lua (function is a keyword)
