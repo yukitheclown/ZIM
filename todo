@@ -1,5 +1,7 @@
 sorted by importance:
 
+filebroser max hardcoded 100, so allocation of too many files breaks it.
+
 upload new version(fixed filebrowser)
 
 fix paths like /etc/../srv/http/../ when selecting and not typing

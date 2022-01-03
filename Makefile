@@ -8,7 +8,7 @@ GLEWLIBS = $(shell pkg-config --static --libs glew)
 SDLLIBS = $(shell pkg-config --libs sdl2)
 # add -pg for gdb
 LDLIBS = -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
-#
+# #
 # windows
 #  CC=i686-w64-mingw32-gcc
 #  EXECUTABLE=thoth.exe

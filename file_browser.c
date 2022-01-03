@@ -7,6 +7,8 @@
 #include "types.h"
 #include "file_browser.h"
 
+#define FILEBROWSER_MAX 100
+
 void FileBrowser_Init(FileBrowser *fb){
     memset(fb,0,sizeof(FileBrowser));
 #ifdef LINUX_COMPILE
@@ -28,28 +30,45 @@ void FileBrowser_ChangeDirectory(FileBrowser *fb){
     if(fb->files) free(fb->files);
     fb->files = NULL;
     fb->nFiles = 0;
-    
-    if(strlen(fb->directory) == 0) return;
 
+    int len = strlen(fb->directory);
+
+    if(len == 0 || (fb->directory[len-1] != '/' && fb->directory[len-1] != '\\')){
+#ifdef LINUX_COMPILE
+        fb->directory[len++] = '/';
+#endif
+#ifdef WINDOWS_COMPILE
+        fb->directory[len++] = '\\';
+#endif
+    }
+
+    fb->directory[len] = 0;
     DIR *dir;
     struct dirent *dp;
     dir = opendir(fb->directory);
-    if(dir == NULL) return;
-    
+    if(dir == NULL){
+        int m;
+        // -2 for trailing '/' and 1 for 0+indexing
+        for(m = len-2; m >= 0; m--){
+            if(fb->directory[m] == '/' || fb->directory[m] == '\\'){
+                break;
+            }
+        }
+
+        fb->directory[m+1] = 0;
+        FileBrowser_ChangeDirectory(fb);
+        return;
+    }
+
+    int max = 0;
+
     while((dp = readdir(dir)) != NULL){
+        
+        if(max++ > FILEBROWSER_MAX) break;
 
         struct stat s;
         char temp[MAX_PATH_LEN];
         strcpy(temp,fb->directory);
-        int len = strlen(temp);
-#ifdef LINUX_COMPILE
-        temp[len] = '/';
-#endif
-#ifdef WINDOWS_COMPILE
-        temp[len] = '\\';
-#endif
-
-        temp[len+1] = 0;
         strcpy(&temp[strlen(temp)], dp->d_name);
         
         stat(temp, &s);
@@ -57,11 +76,30 @@ void FileBrowser_ChangeDirectory(FileBrowser *fb){
         if((s.st_mode & S_IFMT) == S_IFDIR){
 
             if(strcmp(dp->d_name, ".") == 0) continue;
-
+            
             fb->files = (FileBrowser_File *)realloc(fb->files, sizeof(FileBrowser_File) * ++fb->nFiles);
-            strcpy(fb->files[fb->nFiles-1].path, temp);
-            strcpy(fb->files[fb->nFiles-1].name, dp->d_name);
             fb->files[fb->nFiles-1].dir = 1;
+            strcpy(fb->files[fb->nFiles-1].name, dp->d_name);
+
+            if(strcmp(dp->d_name, "..") == 0) {
+                int m;
+                for(m = (strlen(temp)-strlen("/.."))-1; m >= 0; m--){
+                    if(temp[m] == '/' || temp[m] == '\\'){
+                        break;
+                    }
+                }
+                if(m <= 0){
+                    fb->files[fb->nFiles-1].path[m++] = '/';
+                } else {
+                    strncpy(fb->files[fb->nFiles-1].path, temp, m);
+                }
+                fb->files[fb->nFiles-1].path[m] = 0;
+
+
+                continue;
+            }
+
+            strcpy(fb->files[fb->nFiles-1].path, temp);
 
         } else {
 

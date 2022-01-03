@@ -132,9 +132,9 @@ static char *basename(char *path){
     int j;
     for(j = strlen(path)-1; j >= 0; j--)
         if(path[j] == '/' || path[j] == '\\')
-            {j++; break;}
+            break;
     
-    return &path[j];
+    return &path[j+1];
 }
 
 static inline int IsDigit(char c){
@@ -973,10 +973,9 @@ static void LogLineSelectorEnter(TextEditor *t){
                             strcpy(t->fileBrowser.directory, t->fileBrowser.files[k].path);
                             FileBrowser_ChangeDirectory(&t->fileBrowser);
                             int dirlen = strlen(t->fileBrowser.directory);
-                            t->loggingText = realloc(t->loggingText, dirlen+2);
+                            t->loggingText = realloc(t->loggingText, dirlen+1);
                             strcpy(t->loggingText, t->fileBrowser.directory);
-                            t->loggingText[dirlen] = '/';
-                            t->loggingText[dirlen+1] = 0;
+                            t->loggingText[dirlen] = 0;
                             t->logIndex = 0;
                         } else {
                             TextEditor_LoadFile(t, t->fileBrowser.files[k].path);
@@ -2397,14 +2396,6 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
             for(k = 0; k < nKeys; k++) if(!IsDigit(c->keys[k])) return;
         }
 
-    if(t->logging == LOGMODE_FILEBROWSER){
-        if(t->loggingText){
-            if(c->keys[0] == '/' || c->keys[0] == '\\'){
-                strcpy(t->fileBrowser.directory, t->loggingText);
-                FileBrowser_ChangeDirectory(&t->fileBrowser);
-            }
-        }
-    }
 
         if(t->logging < LOGMODE_MODES_INPUTLESS){
 
@@ -2419,6 +2410,15 @@ static void AddCharacters(TextEditor *t, TextEditorCommand *c){
                 t->loggingText = malloc(nKeys);
                 memcpy(t->loggingText, c->keys, nKeys);
                 t->loggingText[nKeys] = 0;
+            }
+        }
+
+        if(t->logging == LOGMODE_FILEBROWSER){
+            if(t->loggingText){
+                if(c->keys[0] == '/' || c->keys[0] == '\\'){
+                    strcpy(t->fileBrowser.directory, t->loggingText);
+                    FileBrowser_ChangeDirectory(&t->fileBrowser);
+                }
             }
         }
         return;
