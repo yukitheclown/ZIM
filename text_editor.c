@@ -1019,6 +1019,15 @@ static void DoSaveFile(TextEditor *t){
     t->file->unsaved = 0;
     FILE *fp = fopen(t->file->path, "w");
     fwrite(t->file->text,1,strlen(t->file->text),fp);
+    strcpy(t->fileBrowser.directory, t->file->path);
+    int k;
+    for(k = strlen(t->fileBrowser.directory)-2; k >= 0; k--)
+        if(t->fileBrowser.directory[k] == '/' || t->fileBrowser.directory[k] == '\\') break;
+
+    if(k > 0)
+        t->fileBrowser.directory[k+1] = 0;
+    FileBrowser_ChangeDirectory(&t->fileBrowser);
+    printf("%s\n", t->fileBrowser.directory);
     fclose(fp);
     EndLogging(t);
 }
