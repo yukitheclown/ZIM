@@ -3148,7 +3148,7 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
           t->loggingText[logLen] = 0;
         }
 #elif WINDOWS_COMPILE
-        FILE *fp = fopen(LOGCOMPILEFILE, "r");
+        FILE *fp = fopen(THOTH_LOGCOMPILEFILE, "r");
 
         if(t->loggingText) free(t->loggingText);
 
@@ -3679,7 +3679,7 @@ void Thoth_Editor_Event(Thoth_Editor *t, unsigned int key){
             }
 #endif
 #ifdef WINDOWS_COMPILE
-            system("make > " LOGCOMPILEFILE " 2>&1 &");
+            system("make > " THOTH_LOGCOMPILEFILE " 2>&1 &");
 #endif
             t->logging = THOTH_LOGMODE_CONSOLE;
             return;
