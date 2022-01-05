@@ -2,10 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include "config.h"
+#include "thoth.h"
 #include "window.h"
 
-void Config_Read(Config *cfg){
-    memset(cfg, 0, sizeof(Config));
+void Thoth_Config_Read(Thoth_Config *cfg){
+    memset(cfg, 0, sizeof(Thoth_Config));
 
     struct{
         int r;
@@ -24,30 +25,30 @@ void Config_Read(Config *cfg){
         {0,0,0},//bg
     };
 
-    memcpy(&cfg->colorPairs[COLOR_SIDE_NUMBERS-1], (int[]){ COLOR_WHITE, COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_NORMAL-1], (int[]){ COLOR_WHITE, COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_KEYWORD-1], (int[]){ COLOR_CYAN, COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_COMMENT-1], (int[]){ COLOR_GREY, COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_TOKEN-1], (int[]){ COLOR_BLUE, COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_NUM-1], (int[]){ COLOR_RED, COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_FUNCTION-1], (int[]){ COLOR_YELLOW, COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_STRING-1], (int[]){ COLOR_MAGENTA, COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_SELECTED-1], (int[]){ COLOR_BLACK ,COLOR_CYAN }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_SELECTED_DIRECTORY-1], (int[]){ COLOR_RED ,COLOR_CYAN }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_UNSELECTED_DIRECTORY-1], (int[]){ COLOR_RED ,COLOR_WHITE }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_AUTO_COMPLETE-1], (int[]){ COLOR_BLACK, COLOR_WHITE }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_LOG_UNSELECTED-1], (int[]){ COLOR_BLACK, COLOR_WHITE }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_CURSOR-1], (int[]){ COLOR_BLACK ,COLOR_MAGENTA }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_FIND-1], (int[]){ COLOR_BLACK ,COLOR_WHITE }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[COLOR_LINE_NUM-1], (int[]){ COLOR_GREY ,COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[TE_COLOR_BLACK-1], (int[]){ COLOR_BLACK ,COLOR_WHITE }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[TE_COLOR_WHITE-1], (int[]){ COLOR_WHITE ,COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[TE_COLOR_CYAN-1], (int[]){ COLOR_CYAN ,COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[TE_COLOR_RED-1], (int[]){ COLOR_RED ,COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[TE_COLOR_YELLOW-1], (int[]){ COLOR_YELLOW ,COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[TE_COLOR_BLUE-1], (int[]){ COLOR_BLUE ,COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[TE_COLOR_GREEN-1], (int[]){ COLOR_GREEN ,COLOR_BLACK }, sizeof(int)*2);
-    memcpy(&cfg->colorPairs[TE_COLOR_MAGENTA-1], (int[]){ COLOR_MAGENTA ,COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_SIDE_NUMBERS-1], (int[]){ THOTH_COLOR_WHITE, THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_NORMAL-1], (int[]){ THOTH_COLOR_WHITE, THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_KEYWORD-1], (int[]){ THOTH_COLOR_CYAN, THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_COMMENT-1], (int[]){ THOTH_COLOR_GREY, THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_TOKEN-1], (int[]){ THOTH_COLOR_BLUE, THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_NUM-1], (int[]){ THOTH_COLOR_RED, THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_FUNCTION-1], (int[]){ THOTH_COLOR_YELLOW, THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_STRING-1], (int[]){ THOTH_COLOR_MAGENTA, THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_SELECTED-1], (int[]){ THOTH_COLOR_BLACK ,THOTH_COLOR_CYAN }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_SELECTED_DIRECTORY-1], (int[]){ THOTH_COLOR_RED ,THOTH_COLOR_CYAN }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_UNSELECTED_DIRECTORY-1], (int[]){ THOTH_COLOR_RED ,THOTH_COLOR_WHITE }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_AUTO_COMPLETE-1], (int[]){ THOTH_COLOR_BLACK, THOTH_COLOR_WHITE }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_LOG_UNSELECTED-1], (int[]){ THOTH_COLOR_BLACK, THOTH_COLOR_WHITE }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_CURSOR-1], (int[]){ THOTH_COLOR_BLACK ,THOTH_COLOR_MAGENTA }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_FIND-1], (int[]){ THOTH_COLOR_BLACK ,THOTH_COLOR_WHITE }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_COLOR_LINE_NUM-1], (int[]){ THOTH_COLOR_GREY ,THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_TE_COLOR_BLACK-1], (int[]){ THOTH_COLOR_BLACK ,THOTH_COLOR_WHITE }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_TE_COLOR_WHITE-1], (int[]){ THOTH_COLOR_WHITE ,THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_TE_COLOR_CYAN-1], (int[]){ THOTH_COLOR_CYAN ,THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_TE_COLOR_RED-1], (int[]){ THOTH_COLOR_RED ,THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_TE_COLOR_YELLOW-1], (int[]){ THOTH_COLOR_YELLOW ,THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_TE_COLOR_BLUE-1], (int[]){ THOTH_COLOR_BLUE ,THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_TE_COLOR_GREEN-1], (int[]){ THOTH_COLOR_GREEN ,THOTH_COLOR_BLACK }, sizeof(int)*2);
+    memcpy(&cfg->colorPairs[THOTH_TE_COLOR_MAGENTA-1], (int[]){ THOTH_COLOR_MAGENTA ,THOTH_COLOR_BLACK }, sizeof(int)*2);
     //gruvbox
 
 
@@ -64,7 +65,7 @@ void Config_Read(Config *cfg){
     // {0x14/255.0f,0x14/255.0f,0x15/255.0f}, //bg
 
 
-    FILE *fp = fopen(CONFIG_FILE,"r");
+    FILE *fp = fopen(THOTH_CONFIG_FILE,"r");
     if(fp){
 
         while(!feof(fp)){
@@ -78,25 +79,25 @@ void Config_Read(Config *cfg){
             }
 
             if(strcmp(lineType, "COLOR_CYAN") == 0)
-                fscanf(fp, "%x %x %x", &defaultColors[COLOR_CYAN-1].r, &defaultColors[COLOR_CYAN-1].g, &defaultColors[COLOR_CYAN-1].b);
+                fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_CYAN-1].r, &defaultColors[THOTH_COLOR_CYAN-1].g, &defaultColors[THOTH_COLOR_CYAN-1].b);
             else if(strcmp(lineType, "COLOR_RED") == 0)
-                fscanf(fp, "%x %x %x", &defaultColors[COLOR_RED-1].r, &defaultColors[COLOR_RED-1].g, &defaultColors[COLOR_RED-1].b);
+                fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_RED-1].r, &defaultColors[THOTH_COLOR_RED-1].g, &defaultColors[THOTH_COLOR_RED-1].b);
             else if(strcmp(lineType, "COLOR_YELLOW") == 0)
-                fscanf(fp, "%x %x %x", &defaultColors[COLOR_YELLOW-1].r, &defaultColors[COLOR_YELLOW-1].g, &defaultColors[COLOR_YELLOW-1].b);
+                fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_YELLOW-1].r, &defaultColors[THOTH_COLOR_YELLOW-1].g, &defaultColors[THOTH_COLOR_YELLOW-1].b);
             else if(strcmp(lineType, "COLOR_BLUE") == 0)
-                fscanf(fp, "%x %x %x", &defaultColors[COLOR_BLUE-1].r, &defaultColors[COLOR_BLUE-1].g, &defaultColors[COLOR_BLUE-1].b);
+                fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_BLUE-1].r, &defaultColors[THOTH_COLOR_BLUE-1].g, &defaultColors[THOTH_COLOR_BLUE-1].b);
             else if(strcmp(lineType, "COLOR_GREEN") == 0)
-                fscanf(fp, "%x %x %x", &defaultColors[COLOR_GREEN-1].r, &defaultColors[COLOR_GREEN-1].g, &defaultColors[COLOR_GREEN-1].b);
+                fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_GREEN-1].r, &defaultColors[THOTH_COLOR_GREEN-1].g, &defaultColors[THOTH_COLOR_GREEN-1].b);
             else if(strcmp(lineType, "COLOR_MAGENTA") == 0)
-                fscanf(fp, "%x %x %x", &defaultColors[COLOR_MAGENTA-1].r, &defaultColors[COLOR_MAGENTA-1].g, &defaultColors[COLOR_MAGENTA-1].b);
+                fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_MAGENTA-1].r, &defaultColors[THOTH_COLOR_MAGENTA-1].g, &defaultColors[THOTH_COLOR_MAGENTA-1].b);
             else if(strcmp(lineType, "COLOR_WHITE") == 0)
-                fscanf(fp, "%x %x %x", &defaultColors[COLOR_WHITE-1].r, &defaultColors[COLOR_WHITE-1].g, &defaultColors[COLOR_WHITE-1].b);
+                fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_WHITE-1].r, &defaultColors[THOTH_COLOR_WHITE-1].g, &defaultColors[THOTH_COLOR_WHITE-1].b);
             else if(strcmp(lineType, "COLOR_BLACK") == 0)
-                fscanf(fp, "%x %x %x", &defaultColors[COLOR_BLACK-1].r, &defaultColors[COLOR_BLACK-1].g, &defaultColors[COLOR_BLACK-1].b);
+                fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_BLACK-1].r, &defaultColors[THOTH_COLOR_BLACK-1].g, &defaultColors[THOTH_COLOR_BLACK-1].b);
             else if(strcmp(lineType, "COLOR_GREY") == 0)
-                fscanf(fp, "%x %x %x", &defaultColors[COLOR_GREY-1].r, &defaultColors[COLOR_GREY-1].g, &defaultColors[COLOR_GREY-1].b);
+                fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_GREY-1].r, &defaultColors[THOTH_COLOR_GREY-1].g, &defaultColors[THOTH_COLOR_GREY-1].b);
             else if(strcmp(lineType, "COLOR_BG") == 0)
-                fscanf(fp, "%x %x %x", &defaultColors[COLOR_BG-1].r, &defaultColors[COLOR_BG-1].g, &defaultColors[COLOR_BG-1].b);
+                fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_BG-1].r, &defaultColors[THOTH_COLOR_BG-1].g, &defaultColors[THOTH_COLOR_BG-1].b);
 
 
             while(fgetc(fp) != '\n' && !feof(fp)){}
@@ -106,7 +107,7 @@ void Config_Read(Config *cfg){
 
 
     int k;
-    for(k = 0; k < NUM_COLORS-1; k++){
+    for(k = 0; k < THOTH_NUM_COLORS-1; k++){
         cfg->colors[k].r = defaultColors[k].r / 255.0f;
         cfg->colors[k].g = defaultColors[k].g / 255.0f;
         cfg->colors[k].b = defaultColors[k].b / 255.0f;

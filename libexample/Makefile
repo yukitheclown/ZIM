@@ -1,36 +1,15 @@
-# # wish i knew make, uncomment for library compile comment everything else
-# # EXECUTABLE=libthoth.a
-# CC=gcc
-# EXECUTABLE=libthoth.a
-# CFLAGS = -g -Wall -lm -DLIBRARY_COMPILE -DLINUX_COMPILE  $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2)
-
-# SOURCES=main.c text_editor.c window.c graphics.c log.c freetype.c file_browser.c config.c
-# OBJECTS=$(SOURCES:.c=.o)
-
-
-# all: $(SOURCES) $(EXECUTABLE)
-
-# $(EXECUTABLE): $(OBJECTS) 
-# 	ar -rc $@ $(OBJECTS)
-
-# .c.o:
-# 	$(CC) -c $(CFLAGS) $< -o $@
-
-# clean:
-# 	rm *.o
 
 # linux
 CC=gcc
-EXECUTABLE=thoth
-CFLAGS = -g -Wall -lm -DLINUX_COMPILE  $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2)
-# -DLINUX_INSTALL
-
+EXECUTABLE=thothtest
+CFLAGS =  -g -Wall -lm  $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2)
+# CFLAGS =  -g -Wall -lm  -DLINUX_INSTALL -DLINUX_COMPILE $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2)
 FREETYPELIBS = $(shell pkg-config --libs freetype2)
 GLEWLIBS = $(shell pkg-config --static --libs glew)
 SDLLIBS = $(shell pkg-config --libs sdl2)
-LDLIBS =-lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
 # add -pg for gdb
-
+LDLIBS =-lm -lutil -static-libgcc -L. -lthoth $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS) 
+# #
 # windows
 #  CC=i686-w64-mingw32-gcc
 #  EXECUTABLE=thoth.exe
@@ -41,7 +20,8 @@ LDLIBS =-lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
 #   -L/usr/i686-w64-mingw32/lib/libglew32.a -lpng -lz
 
 
-SOURCES=main.c text_editor.c window.c graphics.c log.c freetype.c file_browser.c config.c
+SOURCES=main.c window.c log.c
+
 OBJECTS=$(SOURCES:.c=.o)
 
 

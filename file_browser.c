@@ -7,10 +7,10 @@
 #include "types.h"
 #include "file_browser.h"
 
-#define FILEBROWSER_MAX 100
+#define THOTH_FILEBROWSER_MAX 100
 
-void FileBrowser_Init(FileBrowser *fb){
-    memset(fb,0,sizeof(FileBrowser));
+void Thoth_FileBrowser_Init(Thoth_FileBrowser *fb){
+    memset(fb,0,sizeof(Thoth_FileBrowser));
 #ifdef LINUX_COMPILE
     getcwd(fb->directory, MAX_PATH_LEN);
 #endif
@@ -18,14 +18,14 @@ void FileBrowser_Init(FileBrowser *fb){
     sprintf(fb->directory, "C:\\");
 #endif
 
-    FileBrowser_ChangeDirectory(fb);
+    Thoth_FileBrowser_ChangeDirectory(fb);
 }
-void FileBrowser_Free(FileBrowser *fb){
+void Thoth_FileBrowser_Free(Thoth_FileBrowser *fb){
     if(fb->files != NULL) free(fb->files);
     fb->files = NULL;
     fb->nFiles = 0;
 }
-void FileBrowser_ChangeDirectory(FileBrowser *fb){
+void Thoth_FileBrowser_ChangeDirectory(Thoth_FileBrowser *fb){
 
     if(fb->files) free(fb->files);
     fb->files = NULL;
@@ -56,7 +56,7 @@ void FileBrowser_ChangeDirectory(FileBrowser *fb){
         }
 
         fb->directory[m+1] = 0;
-        FileBrowser_ChangeDirectory(fb);
+        Thoth_FileBrowser_ChangeDirectory(fb);
         return;
     }
 
@@ -64,7 +64,7 @@ void FileBrowser_ChangeDirectory(FileBrowser *fb){
 
     while((dp = readdir(dir)) != NULL){
         
-        if(max++ > FILEBROWSER_MAX) break;
+        if(max++ > THOTH_FILEBROWSER_MAX) break;
 
         struct stat s;
         char temp[MAX_PATH_LEN];
@@ -77,7 +77,7 @@ void FileBrowser_ChangeDirectory(FileBrowser *fb){
 
             if(strcmp(dp->d_name, ".") == 0) continue;
             
-            fb->files = (FileBrowser_File *)realloc(fb->files, sizeof(FileBrowser_File) * ++fb->nFiles);
+            fb->files = (Thoth_FileBrowserFile *)realloc(fb->files, sizeof(Thoth_FileBrowserFile) * ++fb->nFiles);
             fb->files[fb->nFiles-1].dir = 1;
             strcpy(fb->files[fb->nFiles-1].name, dp->d_name);
 
@@ -103,7 +103,7 @@ void FileBrowser_ChangeDirectory(FileBrowser *fb){
 
         } else {
 
-            fb->files = (FileBrowser_File *)realloc(fb->files, sizeof(FileBrowser_File) * ++fb->nFiles);
+            fb->files = (Thoth_FileBrowserFile *)realloc(fb->files, sizeof(Thoth_FileBrowserFile) * ++fb->nFiles);
             strcpy(fb->files[fb->nFiles-1].path, temp);
             strcpy(fb->files[fb->nFiles-1].name, dp->d_name);
             fb->files[fb->nFiles-1].dir = 0;

@@ -7,20 +7,20 @@
 
 static FT_Library  ftLibrary;
 
-int FontFace_LoadFont(FontFace *font, const char *path){
+int Thoth_FontFace_LoadFont(Thoth_FontFace *font, const char *path){
 
     font->fontFace = NULL;
     font->fontTexture = 0;
 
     if(FT_New_Face(ftLibrary, path, 0, &font->fontFace)){
-        printf("FontFace_LoadFont: Could not load font.\n");
+        printf("Thoth_FontFace_LoadFont: Could not load font.\n");
         return 0;
     }
 
     return 1;
 }
 
-int FontFace_SetSize(FontFace *font, int size){
+int Thoth_FontFace_SetSize(Thoth_FontFace *font, int size){
 
     font->fontSize = size;
 
@@ -37,7 +37,7 @@ int FontFace_SetSize(FontFace *font, int size){
 
     for(i = 32; i < 128; i++){
         if(FT_Load_Char(font->fontFace, i, FT_LOAD_RENDER)){
-            printf("FontFace_SetSize: Error \n");
+            printf("Thoth_FontFace_SetSize: Error \n");
             continue;
         }
         w += g->bitmap.width;
@@ -59,7 +59,7 @@ int FontFace_SetSize(FontFace *font, int size){
     for(i = 32; i < 128; i++){
 
         if(FT_Load_Char(font->fontFace, i, FT_LOAD_RENDER)){
-            printf("FontFace_SetSize: Error \n");
+            printf("Thoth_FontFace_SetSize: Error \n");
             continue;
         }
 
@@ -103,7 +103,7 @@ int FontFace_SetSize(FontFace *font, int size){
 }
 
 
-// Vec2 FontFace_GetTextSize(FontFace *font, const char *text, int len, float sx, float sy){
+// Vec2 Thoth_FontFace_GetTextSize(Thoth_FontFace *font, const char *text, int len, float sx, float sy){
 
     // if(!text) return (Vec2){0,font->fontSize * sy};
 
@@ -136,16 +136,16 @@ int FontFace_SetSize(FontFace *font, int size){
     // return cursorPos;
 // }
 
-void FontFace_Delete(FontFace *font){
+void Thoth_FontFace_Delete(Thoth_FontFace *font){
     if(font->fontTexture != 0) glDeleteTextures(1,&font->fontTexture);
     if(font->fontFace) FT_Done_Face(font->fontFace);
 }
 
-void Text_Close(){
+void Thoth_Text_Close(){
     if(ftLibrary) FT_Done_FreeType(ftLibrary);
     ftLibrary = NULL;
 }
 
-void Text_Init(){
+void Thoth_Text_Init(){
     if(FT_Init_FreeType(&ftLibrary)) printf("Could not Init Freetype.\n");
 }

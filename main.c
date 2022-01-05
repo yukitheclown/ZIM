@@ -1,184 +1,276 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <SDL2/SDL.h>
 #include "text_editor.h"
 #include "window.h"
 #include "memory.h"
 #include "graphics.h"
 #include "config.h"
+#include "thoth.h"
 
 enum {
-    GODCODE_STATE_QUIT = 1,
-    GODCODE_STATE_UPDATE,
-    GODCODE_STATE_UPDATEDRAW,
-    GODCODE_STATE_RUNNING,
+    THOTH_STATE_QUIT = 1,
+    THOTH_STATE_UPDATE,
+    THOTH_STATE_UPDATEDRAW,
+    THOTH_STATE_RUNNING,
 };
 
 #define MOUSEUPDATETIME 100
 
-typedef struct {
-    int state;
-    u32 key;
-    TextEditor te;
-    Config cfg;
-    Graphics graphics;
-    int mousedown;
-    int mousex;
-    int mousey;
-    int mousemotiontime;
-} GodCode_t;
 
-static void MouseMotionUpdate(GodCode_t *gc){
-    int mousetime = SDL_GetTicks() - gc->mousemotiontime;
+
+#ifdef LINUX_COMPILE
+#ifndef LIBRARY_COMPILE
+
+static char configpath_g[MAX_PATH_LEN];
+
+char *Thoth_GetConfigPath(char *relpath){
+    char *path = getenv("HOME");
+    if(relpath == NULL)
+        sprintf(configpath_g,"%s%s",path,THOTH_CONFIG_PATH);
+    else
+        sprintf(configpath_g,"%s%s",path,relpath);
+    // ignored if exists
+    return configpath_g;
+}
+#endif 
+#endif
+
+
+static void MouseMotionUpdate(Thoth_t *t){
+    int mousetime = SDL_GetTicks() - t->mousemotiontime;
     if(mousetime > MOUSEUPDATETIME) {
-        int mouseupdate = TextEditor_SetCursorPosSelection(&gc->te, gc->mousex, gc->mousey);
+        int mouseupdate = Thoth_Editor_SetCursorPosSelection(&t->te, t->mousex, t->mousey);
         if(mouseupdate){
-            gc->state = GODCODE_STATE_UPDATEDRAW;
-            gc->mousemotiontime = SDL_GetTicks(); //because timeout, we only wanna see if its been since the
+            t->state = THOTH_STATE_UPDATEDRAW;
+            t->mousemotiontime = SDL_GetTicks(); //because timeout, we only wanna see if its been since the
         }
     }
 }
 
-void Event(GodCode_t *gc){
-
+#ifdef LIBRARY_COMPILE
+void Event(Thoth_t *t, SDL_Event ev){
+#else
+void Event(Thoth_t *t){
     SDL_Event ev;
-    if(gc->te.logging == LOGMODE_CONSOLE){
+    if(t->te.logging == THOTH_LOGMODE_CONSOLE){
         if(!SDL_WaitEventTimeout(&ev, 1000)){
-            gc->state = GODCODE_STATE_UPDATEDRAW;
+            t->state = THOTH_STATE_UPDATEDRAW;
             return;
         }
-    } else if(gc->mousedown){
+    } else if(t->mousedown){
         if(!SDL_WaitEventTimeout(&ev,MOUSEUPDATETIME)){
-            MouseMotionUpdate(gc);
+            MouseMotionUpdate(t);
             return;
         }
     } else {
         if(!SDL_WaitEvent(&ev)) return;
     }
+#endif
 
     if(ev.type == SDL_QUIT){
-        gc->state = GODCODE_STATE_QUIT;
+        t->state = THOTH_STATE_QUIT;
         return;
     }
 
     if(ev.type == SDL_MOUSEBUTTONDOWN && ev.button.button == SDL_BUTTON_LEFT){
 
-        if(!gc->mousedown){
-            int x = ev.button.x / Graphics_FontWidth(&gc->graphics);
-            int y = ev.button.y / Graphics_FontHeight(&gc->graphics);
+        if(!t->mousedown){
+            int x = ev.button.x / Thoth_Graphics_FontWidth(&t->graphics);
+            int y = ev.button.y / Thoth_Graphics_FontHeight(&t->graphics);
             if(ev.button.clicks >= 2) 
-                TextEditor_SetCursorPosDoubleClick(&gc->te, x, y);
+                Thoth_Editor_SetCursorPosDoubleClick(&t->te, x, y);
             else{
-                TextEditor_SetCursorPos(&gc->te, x, y);
-                gc->mousedown = 1;
-                gc->mousex = x;
-                gc->mousey = y;
+                Thoth_Editor_SetCursorPos(&t->te, x, y);
+                t->mousedown = 1;
+                t->mousex = x;
+                t->mousey = y;
             }
-            gc->state = GODCODE_STATE_UPDATEDRAW;
+            t->state = THOTH_STATE_UPDATEDRAW;
             return;
         }
     }
+
     if(ev.type == SDL_MOUSEBUTTONUP && ev.button.button == SDL_BUTTON_LEFT){
-        gc->mousedown = 0;
+        t->mousedown = 0;
         return;
     }
     if(ev.type == SDL_MOUSEMOTION){
-        if(gc->mousedown){
-            int x = ev.motion.x / Graphics_FontWidth(&gc->graphics);
-            int y = ev.motion.y / Graphics_FontHeight(&gc->graphics);
-            gc->mousex = x;
-            gc->mousey = y;
-            MouseMotionUpdate(gc);
+        if(t->mousedown){
+            int x = ev.motion.x / Thoth_Graphics_FontWidth(&t->graphics);
+            int y = ev.motion.y / Thoth_Graphics_FontHeight(&t->graphics);
+            t->mousex = x;
+            t->mousey = y;
+            MouseMotionUpdate(t);
             return;
         }
     }
     
     if(ev.type == SDL_KEYDOWN){
         
-        int key = gc->key;
+        int key = t->key;
 
-        if(ev.key.keysym.sym == SDLK_RETURN) key |= EDIT_ENTER_KEY;
+        if(ev.key.keysym.sym == SDLK_RETURN) key |= THOTH_ENTER_KEY;
         else if(ev.key.keysym.sym == SDLK_TAB) key = 9;
         else if(ev.key.keysym.sym == SDLK_ESCAPE) key = 27;
         else if(ev.key.keysym.sym == SDLK_BACKSPACE) key = 127;
-        else if(ev.key.keysym.sym == SDLK_LSHIFT || ev.key.keysym.sym == SDLK_RSHIFT) key |= EDIT_SHIFT_KEY;
-        else if(ev.key.keysym.sym == SDLK_LALT || ev.key.keysym.sym == SDLK_RALT) key |= EDIT_ALT_KEY;
-        else if(ev.key.keysym.sym == SDLK_LCTRL || ev.key.keysym.sym == SDLK_RCTRL) key |= EDIT_CTRL_KEY;
-        else if(ev.key.keysym.sym == SDLK_RIGHT) key |= EDIT_ARROW_RIGHT;
-        else if(ev.key.keysym.sym == SDLK_UP) key |= EDIT_ARROW_UP;
-        else if(ev.key.keysym.sym == SDLK_LEFT) key |= EDIT_ARROW_LEFT;
-        else if(ev.key.keysym.sym == SDLK_DOWN) key |= EDIT_ARROW_DOWN;
-        else if(key & EDIT_CTRL_KEY)
-            key = (gc->key&0xFF00) | (ev.key.keysym.sym & 0xFF);
+        else if(ev.key.keysym.sym == SDLK_LSHIFT || ev.key.keysym.sym == SDLK_RSHIFT) key |= THOTH_SHIFT_KEY;
+        else if(ev.key.keysym.sym == SDLK_LALT || ev.key.keysym.sym == SDLK_RALT) key |= THOTH_ALT_KEY;
+        else if(ev.key.keysym.sym == SDLK_LCTRL || ev.key.keysym.sym == SDLK_RCTRL) key |= THOTH_CTRL_KEY;
+        else if(ev.key.keysym.sym == SDLK_RIGHT) key |= THOTH_ARROW_RIGHT;
+        else if(ev.key.keysym.sym == SDLK_UP) key |= THOTH_ARROW_UP;
+        else if(ev.key.keysym.sym == SDLK_LEFT) key |= THOTH_ARROW_LEFT;
+        else if(ev.key.keysym.sym == SDLK_DOWN) key |= THOTH_ARROW_DOWN;
+        else if(key & THOTH_CTRL_KEY)
+            key = (t->key&0xFF00) | (ev.key.keysym.sym & 0xFF);
 
-        gc->key = key;
-        gc->state = GODCODE_STATE_UPDATE;
+        t->key = key;
+        t->state = THOTH_STATE_UPDATE;
 
 
     } else if(ev.type == SDL_KEYUP) {
 
-        if(ev.key.keysym.sym == SDLK_LSHIFT || ev.key.keysym.sym == SDLK_RSHIFT) gc->key ^= EDIT_SHIFT_KEY;
-        else if(ev.key.keysym.sym == SDLK_LALT || ev.key.keysym.sym == SDLK_RALT) gc->key ^= EDIT_ALT_KEY;
-        else if(ev.key.keysym.sym == SDLK_LCTRL || ev.key.keysym.sym == SDLK_RCTRL) gc->key ^= EDIT_CTRL_KEY;
-        else if(ev.key.keysym.sym == SDLK_RETURN) gc->key ^= EDIT_ENTER_KEY;
-        else if(ev.key.keysym.sym == SDLK_RIGHT) gc->key ^= EDIT_ARROW_RIGHT;
-        else if(ev.key.keysym.sym == SDLK_UP) gc->key ^= EDIT_ARROW_UP;
-        else if(ev.key.keysym.sym == SDLK_LEFT) gc->key ^= EDIT_ARROW_LEFT;
-        else if(ev.key.keysym.sym == SDLK_DOWN) gc->key ^= EDIT_ARROW_DOWN;
+        if(ev.key.keysym.sym == SDLK_LSHIFT || ev.key.keysym.sym == SDLK_RSHIFT) t->key ^= THOTH_SHIFT_KEY;
+        else if(ev.key.keysym.sym == SDLK_LALT || ev.key.keysym.sym == SDLK_RALT) t->key ^= THOTH_ALT_KEY;
+        else if(ev.key.keysym.sym == SDLK_LCTRL || ev.key.keysym.sym == SDLK_RCTRL) t->key ^= THOTH_CTRL_KEY;
+        else if(ev.key.keysym.sym == SDLK_RETURN) t->key ^= THOTH_ENTER_KEY;
+        else if(ev.key.keysym.sym == SDLK_RIGHT) t->key ^= THOTH_ARROW_RIGHT;
+        else if(ev.key.keysym.sym == SDLK_UP) t->key ^= THOTH_ARROW_UP;
+        else if(ev.key.keysym.sym == SDLK_LEFT) t->key ^= THOTH_ARROW_LEFT;
+        else if(ev.key.keysym.sym == SDLK_DOWN) t->key ^= THOTH_ARROW_DOWN;
 
 
     } else if(ev.type == SDL_TEXTINPUT){
-        gc->key = (gc->key&0xFF00) | (ev.text.text[0] & 0xFF);
-        gc->state = GODCODE_STATE_UPDATE;        
+        t->key = (t->key&0xFF00) | (ev.text.text[0] & 0xFF);
+        t->state = THOTH_STATE_UPDATE;        
 
+#ifndef LIBRARY_COMPILE
     } else if (ev.type == SDL_WINDOWEVENT){
         if(ev.window.event == SDL_WINDOWEVENT_RESIZED || ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED){
-            Graphics_Resize(&gc->graphics, ev.window.data1, ev.window.data2);
-            Graphics_Clear(&gc->graphics);
-            TextEditor_Draw(&gc->te);        
-            Graphics_Render(&gc->graphics);
+            Thoth_Graphics_Resize(&t->graphics, ev.window.data1, ev.window.data2);
+            Thoth_Graphics_Clear(&t->graphics);
+            Thoth_Editor_Draw(&t->te);        
+            Thoth_Graphics_Render(&t->graphics);
             Window_Swap();
         }
+#endif
     }
 }
 
+#ifdef LIBRARY_COMPILE
+void Thoth_Resize(Thoth_t *t, int x, int y, int w, int h){
+    Thoth_Graphics_Resize(&t->graphics, w, h);
+    Thoth_Graphics_ViewportXY(&t->graphics, x, y);
+    Thoth_Graphics_Clear(&t->graphics);
+    Thoth_Editor_Draw(&t->te);        
+    Thoth_Graphics_Render(&t->graphics);
+}
+
+Thoth_t *Thoth_Create(int w, int h){
+
+    Thoth_t *t = (Thoth_t *)malloc(sizeof(Thoth_t));
+
+    memset(t,0,sizeof(Thoth_t));
+
+    Thoth_Config_Read(&t->cfg);
+    Thoth_Graphics_Init(&t->graphics, &t->cfg, w, h);
+
+
+    Thoth_Editor_Init(&t->te, &t->graphics, &t->cfg);
+    Thoth_Editor_LoadFile(&t->te, NULL);
+
+    SDL_StartTextInput();
+
+   Thoth_Graphics_Clear(&t->graphics);
+   Thoth_Editor_Draw(&t->te);        
+   Thoth_Graphics_Render(&t->graphics);
+
+    return (void *)t;
+}
+
+int Thoth_Event(Thoth_t *t, SDL_Event ev){
+
+    Thoth_Graphics_Clear(&t->graphics);
+    Event(t, ev);
+
+   if(t->state == THOTH_STATE_UPDATE || t->state == THOTH_STATE_UPDATEDRAW){
+       if(t->state == THOTH_STATE_UPDATE){
+           int key = t->key;
+
+           if((t->key >> 8) == (THOTH_SHIFT_KEY >> 8)){
+               key = (t->key & 0xFF);
+           }
+           Thoth_Editor_Event(&t->te, key);
+           t->key = t->key & 0xff00;
+
+        }
+       t->state = THOTH_STATE_RUNNING;
+
+       Thoth_Graphics_Clear(&t->graphics);
+       Thoth_Editor_Draw(&t->te);        
+       Thoth_Graphics_Render(&t->graphics);
+       return 1;
+   }
+   return 0;
+}
+void Thoth_Render(Thoth_t *t){
+    Thoth_Graphics_Clear(&t->graphics);
+    Thoth_Editor_Draw(&t->te);        
+    Thoth_Graphics_Render(&t->graphics);
+}
+
+void Thoth_LoadFile(Thoth_t *t, char *path){
+    Thoth_Editor_LoadFile(&t->te, path);
+   Thoth_Graphics_Clear(&t->graphics);
+   Thoth_Editor_Draw(&t->te);        
+   Thoth_Graphics_Render(&t->graphics);
+}
+
+void Thoth_Destroy(Thoth_t *t){
+    Thoth_Graphics_Close(&t->graphics);
+    free(t);
+}
+#endif
+
+#ifndef LIBRARY_COMPILE
 int main(int argc, char **argv){
     Window_Open();
 
-    GodCode_t gc;
-    memset(&gc,0,sizeof(GodCode_t));
-    
+    Thoth_t t;
+    memset(&t,0,sizeof(Thoth_t));
+
 #ifdef LINUX_COMPILE
-    mkdir(Window_GetConfigPath(NULL), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    mkdir(Thoth_GetConfigPath(NULL), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 #endif
-  
-    Config_Read(&gc.cfg);
-    Graphics_Init( &gc.graphics, &gc.cfg);
+
+    Thoth_Config_Read(&t.cfg);
+    Thoth_Graphics_Init( &t.graphics, &t.cfg,WINDOW_INIT_WIDTH,WINDOW_INIT_HEIGHT);
 
 
-    TextEditor_Init(&gc.te, &gc.graphics, &gc.cfg);
+    Thoth_Editor_Init(&t.te, &t.graphics, &t.cfg);
 
     if(argc > 1){
         int k;
         for(k = 0; k < argc-1; k++)
-            TextEditor_LoadFile(&gc.te, argv[1+k]);
+            Thoth_Editor_LoadFile(&t.te, argv[1+k]);
     }
-    else if(gc.te.nFiles == 0)
-        TextEditor_LoadFile(&gc.te, NULL);
+    else if(t.te.nFiles == 0)
+        Thoth_Editor_LoadFile(&t.te, NULL);
 
 
     SDL_StartTextInput();
-    u32 currTime;
-    u32 frames = 0;
-    u32 lastSecond = SDL_GetTicks();
+    // u32 currTime;
+    // u32 frames = 0;
+    // u32 lastSecond = SDL_GetTicks();
 
-   Graphics_Clear(&gc.graphics);
-   TextEditor_Draw(&gc.te);        
-   Graphics_Render(&gc.graphics);
+   Thoth_Graphics_Clear(&t.graphics);
+   Thoth_Editor_Draw(&t.te);        
+   Thoth_Graphics_Render(&t.graphics);
    Window_Swap();
 
-    while(gc.state != GODCODE_STATE_QUIT){
+    while(t.state != THOTH_STATE_QUIT){
 
        // currTime = SDL_GetTicks();
 
@@ -194,43 +286,44 @@ int main(int argc, char **argv){
 
        // ++frames;
 
-       Event(&gc);
+       Event(&t);
 
-       if(gc.state == GODCODE_STATE_QUIT){
-            if(!TextEditor_Destroy(&gc.te))
-                gc.state = GODCODE_STATE_RUNNING;
+       if(t.state == THOTH_STATE_QUIT){
+            if(!Thoth_Editor_Destroy(&t.te))
+                t.state = THOTH_STATE_RUNNING;
        }
 
-       if(gc.state == GODCODE_STATE_UPDATE || gc.state == GODCODE_STATE_UPDATEDRAW){
+       if(t.state == THOTH_STATE_UPDATE || t.state == THOTH_STATE_UPDATEDRAW){
 
-           if(gc.state == GODCODE_STATE_UPDATE){
-               int key = gc.key;
+           if(t.state == THOTH_STATE_UPDATE){
+               int key = t.key;
 
-               if((gc.key >> 8) == (EDIT_SHIFT_KEY >> 8)){
-                   key = (gc.key & 0xFF);
+               if((t.key >> 8) == (THOTH_SHIFT_KEY >> 8)){
+                   key = (t.key & 0xFF);
                }
-               TextEditor_Event(&gc.te, key);
-                if(gc.te.quit){
-                    if(TextEditor_Destroy(&gc.te) > 0){
+               Thoth_Editor_Event(&t.te, key);
+                if(t.te.quit){
+                    if(Thoth_Editor_Destroy(&t.te) > 0){
                         break;
                     }
-                    gc.te.quit = 0;
+                    t.te.quit = 0;
                 }
 
-               gc.key = gc.key & 0xff00;
+               t.key = t.key & 0xff00;
 
             }    
-           gc.state = GODCODE_STATE_RUNNING;
+           t.state = THOTH_STATE_RUNNING;
 
-           Graphics_Clear(&gc.graphics);
-           TextEditor_Draw(&gc.te);        
-           Graphics_Render(&gc.graphics);
+           Thoth_Graphics_Clear(&t.graphics);
+           Thoth_Editor_Draw(&t.te);        
+           Thoth_Graphics_Render(&t.graphics);
            Window_Swap();
        }
     }
 
 
-    Graphics_Close(&gc.graphics);
+    Thoth_Graphics_Close(&t.graphics);
     Window_Close();
     return 0;
 }
+#endif

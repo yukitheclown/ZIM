@@ -33,18 +33,6 @@
 // // { "keys": ["shift+alt+ctrl+h"], "command": "move", "args": {"extend": true, "by": "words", "forward": false} },
 // // { "keys": ["shift+alt+ctrl+l"], "command": "move", "args": {"extend": true, "by": "word_ends", "forward": true} },
 
- enum {
-  THOTH_LOGMODE_NUM = 1,
-  THOTH_LOGMODE_TEXT,
-  THOTH_LOGMODE_TEXT_INSENSITIVE,
-  THOTH_LOGMODE_SAVE,
-  THOTH_LOGMODE_OPEN,
-  THOTH_LOGMODE_SWITCH_FILE,
-  THOTH_LOGMODE_FILEBROWSER,
-  THOTH_LOGMODE_MODES_INPUTLESS,
-  THOTH_LOGMODE_ALERT,
-  THOTH_LOGMODE_CONSOLE,
- };
 
  typedef struct {
 

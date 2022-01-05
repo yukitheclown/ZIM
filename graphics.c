@@ -10,12 +10,41 @@
 #include "window.h"
 #include "freetype.h"
 
+enum {
+    POS_LOC = 0,
+    UV_LOC,
+    COLORFG_LOC,
+    COLORBG_LOC,
+};
+
+typedef struct {
+    u32     x;
+    u32     y;
+    u16     u;
+    u16     v;
+} PosUV_t;
+
+#define MINFONTSIZE 6
+#define MAXFONTSIZE 70
+#define POS_ATTRIB "pos"
+#define UV_ATTRIB "uv"
+#define COLORFG_ATTRIB "colorFG"
+#define COLORBG_ATTRIB "colorBG"
+#define FONT_SIZE_BITS 4
+#define FONT_SIZE_MASK ((1 << FONT_SIZE_BITS)-1)
+#define FONTSIZE 10
+#define MAXTEXTHEIGHT 130
+#define MAXTEXTWIDTH 130
+#define RENDER_VRAM_SIZE THOTH_MAX_TEXT_CHARS*6// idk most text characters on screen possible
+#define TAB_SPACING 4
+#define SS_CHAR_SIZE 0.0625f
+
 #define STRDEF(x) STR(x)
 #define STR(x) #x
 
 const static u8 RectTriangleVerts[] = {0,0,1,0,1,1,1,1,0,1,0,0};
 
-static void Compile(Graphics *graphics, Shader_t *shader, const char *vSource, const char *fSource){
+static void Compile(Thoth_Graphics *graphics, Thoth_Shader *shader, const char *vSource, const char *fSource){
 
     shader->program = glCreateProgram();
     shader->fShader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -60,7 +89,7 @@ static void Compile(Graphics *graphics, Shader_t *shader, const char *vSource, c
     shader->uniColorLoc = glGetUniformLocation(shader->program, "uniformColor");
     shader->invViewportLoc = glGetUniformLocation(shader->program, "invViewport");
     shader->ncursesColorsLoc = glGetUniformLocation(shader->program, "colors");
-    glUniform3fv(shader->ncursesColorsLoc, NUM_COLORS-1, (float *)&graphics->cfg->colors[0].r);
+    glUniform3fv(shader->ncursesColorsLoc, THOTH_NUM_COLORS-1, (float *)&graphics->cfg->colors[0].r);
     glUniform2f(shader->invViewportLoc,1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h);
 }
 
@@ -220,7 +249,7 @@ void main(){
 }
 );
 
-static void CreateFrameBuffer(Graphics *graphics){
+static void CreateFrameBuffer(Thoth_Graphics *graphics){
 
     glGenFramebuffers(1,&graphics->fb_g);
     glBindFramebuffer(GL_FRAMEBUFFER, graphics->fb_g);
@@ -245,19 +274,19 @@ static void CreateFrameBuffer(Graphics *graphics){
 
     glViewport(0, 0, graphics->viewport.w, graphics->viewport.h);
 
-    glClearColor(graphics->cfg->colors[COLOR_BG-1].r,graphics->cfg->colors[COLOR_BG-1].g,graphics->cfg->colors[COLOR_BG-1].b,1);
+    glClearColor(graphics->cfg->colors[THOTH_COLOR_BG-1].r,graphics->cfg->colors[THOTH_COLOR_BG-1].g,graphics->cfg->colors[THOTH_COLOR_BG-1].b,1);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void Graphics_Init(Graphics *graphics, Config *cfg){
-    memset(graphics, 0, sizeof(Graphics));
+void Thoth_Graphics_Init(Thoth_Graphics *graphics, Thoth_Config *cfg, int w, int h){
+    memset(graphics, 0, sizeof(Thoth_Graphics));
     graphics->cfg = cfg;
     graphics->fontSize = FONTSIZE;
 
-    graphics->viewport.w = WINDOW_INIT_WIDTH;
-    graphics->viewport.h = WINDOW_INIT_HEIGHT;
+    graphics->viewport.w = w;
+    graphics->viewport.h = h;
 
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -265,13 +294,13 @@ void Graphics_Init(Graphics *graphics, Config *cfg){
     glDisable(GL_POLYGON_SMOOTH);
 	    
    
-    Text_Init();
+    Thoth_Text_Init();
 	
     // textures
 
     // Utils_LoadImage(&graphics->font_g, FONT_PATH);
-    FontFace_LoadFont(&graphics->fontTTF, FONT_PATH_TTF);
-    FontFace_SetSize(&graphics->fontTTF, graphics->fontSize);
+    Thoth_FontFace_LoadFont(&graphics->fontTTF, THOTH_FONT_PATH_TTF);
+    Thoth_FontFace_SetSize(&graphics->fontTTF, graphics->fontSize);
     // int k;
     // int x = 0;
     // for(k = 0; k < 128; k++){
@@ -289,11 +318,11 @@ void Graphics_Init(Graphics *graphics, Config *cfg){
     // }
 
     // compile graphics->shaders
-    Compile(graphics, &graphics->shaders[TEXTURED_SHADER], VS_Source, FS_Source);
-    Compile(graphics, &graphics->shaders[QUAD_SHADER], VS_Quad_Source, FS_Quad_Source);
-    Compile(graphics, &graphics->shaders[NCURSES_SHADER], VSNCurses_Source, FSNCurses_Source);
-    Compile(graphics, &graphics->shaders[NCURSES_BG_SHADER], VSNCursesBG_Source, FSNCursesBG_Source);
-    Compile(graphics, &graphics->shaders[TEXTURELESS_SHADER], VS_Textureless_Source, FS_Textureless_Source);
+    Compile(graphics, &graphics->shaders[THOTH_TEXTURED_SHADER], VS_Source, FS_Source);
+    Compile(graphics, &graphics->shaders[THOTH_QUAD_SHADER], VS_Quad_Source, FS_Quad_Source);
+    Compile(graphics, &graphics->shaders[THOTH_NCURSES_SHADER], VSNCurses_Source, FSNCurses_Source);
+    Compile(graphics, &graphics->shaders[THOTH_NCURSES_BG_SHADER], VSNCursesBG_Source, FSNCursesBG_Source);
+    Compile(graphics, &graphics->shaders[THOTH_TEXTURELESS_SHADER], VS_Textureless_Source, FS_Textureless_Source);
 
 
     glGenVertexArrays(1, &graphics->quadVao_g);
@@ -368,23 +397,23 @@ void Graphics_Init(Graphics *graphics, Config *cfg){
     glBindFramebuffer(GL_FRAMEBUFFER, graphics->fb_g);
 }
 
-static void DeleteShader(Shader_t *shader){
+static void DeleteShader(Thoth_Shader *shader){
     glDeleteProgram(shader->program);
     glDeleteShader(shader->fShader);
     glDeleteShader(shader->vShader);
 }
 
-void Graphics_Close(Graphics *graphics){
+void Thoth_Graphics_Close(Thoth_Graphics *graphics){
 
-    FontFace_Delete(&graphics->fontTTF);
-    Text_Close();
+    Thoth_FontFace_Delete(&graphics->fontTTF);
+    Thoth_Text_Close();
 
     glDeleteFramebuffers(1, &graphics->fb_g);
     glDeleteTextures(1, &graphics->fbTexture_g);
     
-    DeleteShader(&graphics->shaders[TEXTURED_SHADER]);
-    DeleteShader(&graphics->shaders[TEXTURELESS_SHADER]);
-    DeleteShader(&graphics->shaders[NCURSES_SHADER]);
+    DeleteShader(&graphics->shaders[THOTH_TEXTURED_SHADER]);
+    DeleteShader(&graphics->shaders[THOTH_TEXTURELESS_SHADER]);
+    DeleteShader(&graphics->shaders[THOTH_NCURSES_SHADER]);
 
     glDeleteVertexArrays(1, &graphics->quadVao_g);
     glDeleteBuffers(1, &graphics->quadVbo_g);
@@ -398,23 +427,27 @@ void Graphics_Close(Graphics *graphics){
     glDeleteBuffers(1, &graphics->ncursesColorFGVbo_g);
     glDeleteBuffers(1, &graphics->ncursesColorBGVbo_g);
 
-    glDeleteTextures(1, &graphics->font_g.texture);
 }
 
-void Graphics_Resize(Graphics *graphics, int w, int h){
+void Thoth_Graphics_ViewportXY(Thoth_Graphics *graphics, int x, int y){
+    graphics->viewport.x = x;
+    graphics->viewport.y = y;
+}
+
+void Thoth_Graphics_Resize(Thoth_Graphics *graphics, int w, int h){
     glBindTexture(GL_TEXTURE_2D, graphics->fbTexture_g);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
     graphics->viewport.w = w;
     graphics->viewport.h = h;
 }
 
-void Graphics_Zoom(Graphics *graphics, int by){
+void Thoth_Graphics_Zoom(Thoth_Graphics *graphics, int by){
     if(by < 0 && graphics->fontSize > MINFONTSIZE) graphics->fontSize += by;
     if(by > 0 && graphics->fontSize < MAXFONTSIZE) graphics->fontSize += by;
-    FontFace_SetSize(&graphics->fontTTF, graphics->fontSize);
+    Thoth_FontFace_SetSize(&graphics->fontTTF, graphics->fontSize);
 }
 
-void Graphics_Render(Graphics *graphics){
+void Thoth_Graphics_Render(Thoth_Graphics *graphics){
 
     // render
 
@@ -422,10 +455,10 @@ void Graphics_Render(Graphics *graphics){
 
     glBindVertexArray(graphics->quadVao_g);
 
-    glViewport(0, 0, graphics->viewport.w, graphics->viewport.h);
+    glViewport(graphics->viewport.x, graphics->viewport.y, graphics->viewport.w, graphics->viewport.h);
 
-    glUseProgram(graphics->shaders[QUAD_SHADER].program);
-    glUniform2f(graphics->shaders[QUAD_SHADER].invViewportLoc,1.0f, 1.0f);
+    glUseProgram(graphics->shaders[THOTH_QUAD_SHADER].program);
+    glUniform2f(graphics->shaders[THOTH_QUAD_SHADER].invViewportLoc,1.0f, 1.0f);
 
     glCullFace(GL_FRONT);
 
@@ -435,57 +468,16 @@ void Graphics_Render(Graphics *graphics){
     // // end
 }
 
-void Graphics_Clear(Graphics *graphics){
+void Thoth_Graphics_Clear(Thoth_Graphics *graphics){
     glBindFramebuffer(GL_FRAMEBUFFER, graphics->fb_g);
-    glViewport(0, 0, graphics->viewport.w, graphics->viewport.h);
+    glViewport(graphics->viewport.x, graphics->viewport.y, graphics->viewport.w, graphics->viewport.h);
 
-    glClearColor(graphics->cfg->colors[COLOR_BG-1].r,graphics->cfg->colors[COLOR_BG-1].g,graphics->cfg->colors[COLOR_BG-1].b,1);
+    glClearColor(graphics->cfg->colors[THOTH_COLOR_BG-1].r,graphics->cfg->colors[THOTH_COLOR_BG-1].g,graphics->cfg->colors[THOTH_COLOR_BG-1].b,1);
     glClear(GL_COLOR_BUFFER_BIT);
-    
     glCullFace(GL_BACK);
 }
 
-void Graphics_RenderSprite(Graphics *graphics, float x, float y, u16 w, u16 h, u16 tx, u16 ty, u16 tw, u16 th, Image_t tex){
-
-    glBindVertexArray(graphics->vao_g);
-
-    u32 offset = 0;
-    u16 pos[2];
-
-    float uv[2];
-
-    u32 k;
-    for(k = 0; k < 12; k+=2){
-
-        pos[0] = x + ((s16)RectTriangleVerts[k] * w);
-        pos[1] = y + ((s16)RectTriangleVerts[k+1] * h);
-
-        uv[0] = ((float)(RectTriangleVerts[k] * tw) + tx) * tex.invW;
-        uv[1] = ((float)(RectTriangleVerts[k+1] * th) + ty) * tex.invH;
-
-        glBindBuffer(GL_ARRAY_BUFFER, graphics->posVbo_g);
-        glBufferSubData(GL_ARRAY_BUFFER, offset*sizeof(pos), sizeof(pos), pos);
-        glBindBuffer(GL_ARRAY_BUFFER, graphics->uvVbo_g);
-        glBufferSubData(GL_ARRAY_BUFFER, offset*sizeof(uv), sizeof(uv), uv);
-    
-        ++offset;
-    }
-
-
-    glUseProgram(graphics->shaders[TEXTURED_SHADER].program);
-    glUniform2f(graphics->shaders[TEXTURED_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex.texture);
-
-    glBindVertexArray(graphics->vao_g);
-    glBindBuffer(GL_ARRAY_BUFFER, graphics->posVbo_g);
-
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-}
-
-
-void Graphics_RenderRect(Graphics *graphics, float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, u8 a){
+void Thoth_Graphics_RenderRect(Thoth_Graphics *graphics, float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, u8 a){
 
     glBindFramebuffer(GL_FRAMEBUFFER, graphics->fb_g);
     glBindVertexArray(graphics->vao_g);
@@ -506,9 +498,9 @@ void Graphics_RenderRect(Graphics *graphics, float x, float y, u16 w, u16 h, u8 
     }
 
 
-    glUseProgram(graphics->shaders[TEXTURELESS_SHADER].program);
-    glUniform4f(graphics->shaders[TEXTURELESS_SHADER].uniColorLoc, r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f); 
-    glUniform2f(graphics->shaders[TEXTURELESS_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
+    glUseProgram(graphics->shaders[THOTH_TEXTURELESS_SHADER].program);
+    glUniform4f(graphics->shaders[THOTH_TEXTURELESS_SHADER].uniColorLoc, r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f); 
+    glUniform2f(graphics->shaders[THOTH_TEXTURELESS_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
 
     glBindVertexArray(graphics->vao_g);
     glBindBuffer(GL_ARRAY_BUFFER, graphics->posVbo_g);
@@ -519,10 +511,10 @@ void Graphics_RenderRect(Graphics *graphics, float x, float y, u16 w, u16 h, u8 
 
     glEnableVertexAttribArray(UV_LOC);
 
-    glUniform4f(graphics->shaders[TEXTURELESS_SHADER].uniColorLoc, 1, 1, 1, 1); 
+    glUniform4f(graphics->shaders[THOTH_TEXTURELESS_SHADER].uniColorLoc, 1, 1, 1, 1); 
 }
 
-void Graphics_RenderRectLines(Graphics *graphics, float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, u8 a){
+void Thoth_Graphics_RenderRectLines(Thoth_Graphics *graphics, float x, float y, u16 w, u16 h, u8 r, u8 g, u8 b, u8 a){
 
     glBindVertexArray(graphics->vao_g);
 
@@ -541,9 +533,9 @@ void Graphics_RenderRectLines(Graphics *graphics, float x, float y, u16 w, u16 h
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(buffer), buffer);
 
 
-    glUseProgram(graphics->shaders[TEXTURELESS_SHADER].program);
-    glUniform4f(graphics->shaders[TEXTURELESS_SHADER].uniColorLoc, r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f); 
-    glUniform2f(graphics->shaders[TEXTURELESS_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
+    glUseProgram(graphics->shaders[THOTH_TEXTURELESS_SHADER].program);
+    glUniform4f(graphics->shaders[THOTH_TEXTURELESS_SHADER].uniColorLoc, r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f); 
+    glUniform2f(graphics->shaders[THOTH_TEXTURELESS_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
 
     glBindVertexArray(graphics->vao_g);
     glBindBuffer(GL_ARRAY_BUFFER, graphics->posVbo_g);
@@ -554,32 +546,32 @@ void Graphics_RenderRectLines(Graphics *graphics, float x, float y, u16 w, u16 h
 
     glEnableVertexAttribArray(UV_LOC);
 
-    glUniform4f(graphics->shaders[TEXTURELESS_SHADER].uniColorLoc, 1, 1, 1, 1); 
+    glUniform4f(graphics->shaders[THOTH_TEXTURELESS_SHADER].uniColorLoc, 1, 1, 1, 1); 
 }
 
-void Graphics_UseShader(Graphics *graphics, int shader){
+void Thoth_Graphics_UseShader(Thoth_Graphics *graphics, int shader){
     glUseProgram(graphics->shaders[shader].program);
 }
 
-u32 Graphics_FontWidth(Graphics *graphics){ return graphics->fontTTF.fontCharacters[(int)' '].ax; }
-u32 Graphics_FontHeight(Graphics *graphics){ return graphics->fontTTF.fontSize*1.3; }
+u32 Thoth_Graphics_FontWidth(Thoth_Graphics *graphics){ return graphics->fontTTF.fontCharacters[(int)' '].ax; }
+u32 Thoth_Graphics_FontHeight(Thoth_Graphics *graphics){ return graphics->fontTTF.fontSize*1.3; }
 
-u32 Graphics_TextCollumns(Graphics *graphics){
-   return graphics->viewport.h / Graphics_FontHeight(graphics); 
+u32 Thoth_Graphics_TextCollumns(Thoth_Graphics *graphics){
+   return graphics->viewport.h / Thoth_Graphics_FontHeight(graphics); 
 }
-u32 Graphics_TextRows(Graphics *graphics){
-   return graphics->viewport.w / Graphics_FontWidth(graphics);
+u32 Thoth_Graphics_TextRows(Thoth_Graphics *graphics){
+   return graphics->viewport.w / Thoth_Graphics_FontWidth(graphics);
 }
 
-void Graphics_SetFontSize(Graphics *graphics, u8 fs){
+void Thoth_Graphics_SetFontSize(Thoth_Graphics *graphics, u8 fs){
     graphics->fontSize = fs;
 }
 
-void Graphics_mvprintw(Graphics *graphics, float x, float y, char *str, int strLen){
+void Thoth_Graphics_mvprintw(Thoth_Graphics *graphics, float x, float y, char *str, int strLen){
 
 
-    float fontSizeX = Graphics_FontWidth(graphics);
-    float fontSizeY = Graphics_FontHeight(graphics);
+    float fontSizeX = Thoth_Graphics_FontWidth(graphics);
+    float fontSizeY = Thoth_Graphics_FontHeight(graphics);
     u32 k;
 
     // float graphics->fontSize = graphics->font_g.width / 16;
@@ -590,7 +582,7 @@ void Graphics_mvprintw(Graphics *graphics, float x, float y, char *str, int strL
     char p;
 
     int j;
-    for(j = 0; j < strLen && graphics->stringOffset < MAX_TEXT_CHARS*6; j++){
+    for(j = 0; j < strLen && graphics->stringOffset < THOTH_MAX_TEXT_CHARS*6; j++){
 
         if(x > graphics->viewport.w) break;
         if(y > graphics->viewport.h) break;
@@ -598,7 +590,7 @@ void Graphics_mvprintw(Graphics *graphics, float x, float y, char *str, int strL
         p = str[j];
         // if(p < 32) continue;
 
-        FontCharacter fc = graphics->fontTTF.fontCharacters[(int)p];
+        Thoth_FontCharacter fc = graphics->fontTTF.fontCharacters[(int)p];
 
         float x2 = x + fc.bl;
         float y2 = y - fc.bt;
@@ -608,7 +600,7 @@ void Graphics_mvprintw(Graphics *graphics, float x, float y, char *str, int strL
         // x += fc.ax;
         // y += fc.ay;
 
-        if(graphics->cfg->colorPairs[graphics->currentColorPair][0] != COLOR_BLACK){
+        if(graphics->cfg->colorPairs[graphics->currentColorPair][0] != THOTH_COLOR_BLACK){
             for(k = 0; k < 12; k+=2){
                 graphics->ncursesBgPos[graphics->bgOffset][0] = ((RectTriangleVerts[k] * fontSizeX) + x);
                 graphics->ncursesBgPos[graphics->bgOffset][1] = ((1-RectTriangleVerts[k+1] * fontSizeY) + y);
@@ -650,10 +642,10 @@ void Graphics_mvprintw(Graphics *graphics, float x, float y, char *str, int strL
 
 }
 
-void Graphics_RenderNCurses(Graphics *graphics){
+void Thoth_Graphics_RenderNCurses(Thoth_Graphics *graphics){
 
-    glUseProgram(graphics->shaders[NCURSES_BG_SHADER].program);
-    glUniform2f(graphics->shaders[NCURSES_BG_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
+    glUseProgram(graphics->shaders[THOTH_NCURSES_BG_SHADER].program);
+    glUniform2f(graphics->shaders[THOTH_NCURSES_BG_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
 
     glBindVertexArray(graphics->ncursesBgVao_g);
     glCullFace(GL_FRONT);
@@ -666,8 +658,8 @@ void Graphics_RenderNCurses(Graphics *graphics){
 
     graphics->bgOffset = 0;
 
-    glUseProgram(graphics->shaders[NCURSES_SHADER].program);
-    glUniform2f(graphics->shaders[NCURSES_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
+    glUseProgram(graphics->shaders[THOTH_NCURSES_SHADER].program);
+    glUniform2f(graphics->shaders[THOTH_NCURSES_SHADER].invViewportLoc, 1.0f/graphics->viewport.w, 1.0f/graphics->viewport.h); 
 
 
     glActiveTexture(GL_TEXTURE0);
@@ -694,14 +686,14 @@ void Graphics_RenderNCurses(Graphics *graphics){
 
 }
 
-void Graphics_attron(Graphics *graphics, u32 attr){
+void Thoth_Graphics_attron(Thoth_Graphics *graphics, u32 attr){
     graphics->currentColorPair = attr;
 }
 
-void Graphics_attroff(Graphics *graphics, u32 attr){
+void Thoth_Graphics_attroff(Thoth_Graphics *graphics, u32 attr){
 }
 
-void Graphics_init_pair(Graphics *graphics, u8 pair, u8 bg, u8 fg){
+void Thoth_Graphics_init_pair(Thoth_Graphics *graphics, u8 pair, u8 bg, u8 fg){
     graphics->cfg->colorPairs[pair][0] = fg-1;
     graphics->cfg->colorPairs[pair][1] = bg-1;
 }
