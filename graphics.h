@@ -36,7 +36,7 @@ enum {
 #endif
 
 
-#define THOTH_MAX_TEXT_CHARS 1300
+#define THOTH_MAX_TEXT_CHARS 10300
 
 typedef struct {
 	Thoth_Config 		*cfg;
