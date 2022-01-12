@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <SDL2/SDL.h>
+
 #include "text_editor.h"
 #include "window.h"
 #include "memory.h"
@@ -126,7 +127,7 @@ void Event(Thoth_t *t){
         else if(key & THOTH_CTRL_KEY)
             key = (t->key&0xFF00) | (ev.key.keysym.sym & 0xFF);
 
-        if(key != t->key)
+        if(key != t->key || key & THOTH_ARROW_RIGHT || key & THOTH_ARROW_UP || key & THOTH_ARROW_DOWN || key & THOTH_ARROW_LEFT)
             t->state = THOTH_STATE_UPDATE;
             
         t->key = key;

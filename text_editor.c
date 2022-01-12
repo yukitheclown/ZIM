@@ -30,12 +30,16 @@ enum {
 };
 
 
+static void LoggingMoveLines(Thoth_Editor *t, int num);
+static void LoggingRemoveCharacter(Thoth_Editor *t);
+static void LoggingAddCharacter(Thoth_Editor *t, char c);
 static void ClearAutoComplete(Thoth_Editor *t);
 static void FreeFile(Thoth_EditorFile *f);
 static void RefreshFile(Thoth_Editor *t);
 static int AddFile(Thoth_Editor *t, Thoth_EditorFile *f);
 static Thoth_EditorFile *CreateTextEditorFile(char *path);
 static void EndLogging(Thoth_Editor *t);
+static void StartLogging(Thoth_Editor *t, int mode);
 static void AlertLog(Thoth_Editor *t, const char *str);
 static int FindInsensitive(char *text, char *str, int len);
 static void FindTextGoto(Thoth_Editor *t, int dir, int insensitive);
@@ -193,15 +197,20 @@ static int GetCharsIntoLine(char *text, int cPos){
 
 static void AlertLog(Thoth_Editor *t, const char *str){
     EndLogging(t);
-    t->logging = THOTH_LOGMODE_ALERT;
+    StartLogging(t, THOTH_LOGMODE_ALERT);
     int bufferLen = strlen(str);
     t->loggingText = malloc(bufferLen+1);
     strcpy(t->loggingText, str);
     t->loggingText[bufferLen] = 0;
 }
 
+static void StartLogging(Thoth_Editor *t, int mode){
+    t->logging = mode; 
+}
+
 static void EndLogging(Thoth_Editor *t){
     t->logIndex = -1;
+
     if(t->loggingText) free(t->loggingText);
 
     if(t->logging == THOTH_LOGMODE_CONSOLE){
@@ -715,7 +724,7 @@ static void FreeCursors(Thoth_Editor *t){
     }
 
     t->nCursors = 0;
-    free(t->cursors);
+    if(t->cursors) free(t->cursors);
     t->cursors = NULL;
 }
 
@@ -944,7 +953,7 @@ static void UndoMoveLinesText(Thoth_Editor *t, Thoth_EditorCmd *c){
 
 static void GotoLine(Thoth_Editor *t, Thoth_EditorCmd *c){
     EndLogging(t);
-    t->logging = THOTH_LOGMODE_NUM;
+    StartLogging(t, THOTH_LOGMODE_NUM);
 }
 
 static void DoOpenFile(Thoth_Editor *t){
@@ -1043,13 +1052,11 @@ static void NewFile(Thoth_Editor *t, Thoth_EditorCmd *c){
     RefreshFile(t);
 }
 static void CloseFile(Thoth_Editor *t, Thoth_EditorCmd *c){
-    if(t->file->unsaved == 1){
-        t->file->unsaved++;
+
+    if(t->file->unsaved){
         AlertLog(t, "Unsaved file! Repeat `close keybind` to ignore & `escape` to close this message.");
         return;
     }
-    
-    EndLogging(t);
 
     int k;
     for(k = 0; k < t->nFiles; k++){
@@ -1059,7 +1066,7 @@ static void CloseFile(Thoth_Editor *t, Thoth_EditorCmd *c){
             for(; k < t->nFiles-1; k++)
                 t->files[k] = t->files[k+1];
             
-            t->files = (Thoth_EditorFile **)realloc(t->files,sizeof(Thoth_EditorFile*) * t->nFiles--);
+            t->files = (Thoth_EditorFile **)realloc(t->files,sizeof(Thoth_EditorFile*) * --t->nFiles);
             break;
         }
     }
@@ -1075,31 +1082,31 @@ static void CloseFile(Thoth_Editor *t, Thoth_EditorCmd *c){
 static void OpenFileBrowser(Thoth_Editor *t, Thoth_EditorCmd *c){
     EndLogging(t);
     t->logIndex = 0;
-    t->logging = THOTH_LOGMODE_FILEBROWSER;
+    StartLogging(t, THOTH_LOGMODE_FILEBROWSER);
 }
 static void OpenFile(Thoth_Editor *t, Thoth_EditorCmd *c){
     EndLogging(t);
     t->loggingText = malloc(strlen(t->fileBrowser.directory)+1);
     strcpy(t->loggingText, t->fileBrowser.directory);
     t->loggingText[strlen(t->fileBrowser.directory)] = 0;
-    t->logging = THOTH_LOGMODE_OPEN;
+    StartLogging(t, THOTH_LOGMODE_OPEN);
 }
 static void SwitchFile(Thoth_Editor *t, Thoth_EditorCmd *c){
     EndLogging(t);
     t->logIndex = 0;
-    t->logging = THOTH_LOGMODE_SWITCH_FILE;
+    StartLogging(t, THOTH_LOGMODE_SWITCH_FILE);
 }
 static void SaveAsFile(Thoth_Editor *t, Thoth_EditorCmd *c){
     EndLogging(t);
     t->loggingText = malloc(strlen(t->fileBrowser.directory)+1);
     strcpy(t->loggingText, t->fileBrowser.directory);
     t->loggingText[strlen(t->fileBrowser.directory)] = 0;
-    t->logging = THOTH_LOGMODE_SAVE;
+    StartLogging(t, THOTH_LOGMODE_SAVE);
 }
 static void SaveFile(Thoth_Editor *t, Thoth_EditorCmd *c){
     EndLogging(t);
     if(strlen(t->file->path) == 0){
-        t->logging = THOTH_LOGMODE_SAVE;
+        StartLogging(t, THOTH_LOGMODE_SAVE);
         return;
     }
     DoSaveFile(t);
@@ -1107,12 +1114,12 @@ static void SaveFile(Thoth_Editor *t, Thoth_EditorCmd *c){
 
 static void FindText(Thoth_Editor *t, Thoth_EditorCmd *c){
     EndLogging(t);
-    t->logging = THOTH_LOGMODE_TEXT;
+    StartLogging(t, THOTH_LOGMODE_TEXT);
 }
 
 static void FindTextInsensitive(Thoth_Editor *t, Thoth_EditorCmd *c){
     EndLogging(t);
-    t->logging = THOTH_LOGMODE_TEXT_INSENSITIVE;
+    StartLogging(t, THOTH_LOGMODE_TEXT_INSENSITIVE);
 }
 
 static int MoveCursorUpLine(Thoth_Editor *t, Thoth_EditorCur *cursor){
@@ -1169,42 +1176,10 @@ static void MoveLines(Thoth_Editor *t, Thoth_EditorCmd *c){
     if(t->autoCompleteLen > 0){
         t->autoCompleteIndex += c->num;
         if(t->autoCompleteIndex < 0) t->autoCompleteIndex = 0;
-        if(t->autoCompleteIndex > THOTH_MAX_AUTO_COMPLETE-1) t->autoCompleteIndex = THOTH_MAX_AUTO_COMPLETE-1;
+        if(t->autoCompleteIndex > t->autoCompleteLen-1) t->autoCompleteIndex = t->autoCompleteLen-1;
         return;
     }
 
-    if(t->logging == THOTH_LOGMODE_FILEBROWSER || t->logging == THOTH_LOGMODE_SWITCH_FILE){
-        
-        int nFiles = t->logging == THOTH_LOGMODE_FILEBROWSER ? t->fileBrowser.nFiles : t->nFiles;
-        
-        if( (t->loggingText == NULL || strlen(t->loggingText) == 0)){
-            t->logIndex += c->num;
-            if(t->logIndex < 0) t->logIndex = 0;
-            if(t->logIndex > nFiles-1) t->logIndex = nFiles-1;
-        }
-        
-        if(t->loggingText && strlen(t->loggingText) > 0){
-            t->logIndex += c->num;
-            if(t->logIndex < 0) t->logIndex = 0;
-    
-            int nMatching = 0;
-            int k;
-            for(k = 0; k < nFiles; k++){
-                char *name = t->logging == THOTH_LOGMODE_FILEBROWSER ? t->fileBrowser.files[k].name : t->files[k]->name;
-                int nameLen = strlen(name);
-                int logNameLen = strlen(basename(t->loggingText));
-                if(logNameLen <= nameLen){
-                    if(CaseLowerStrnCmp(basename(t->loggingText), name, logNameLen))
-                        nMatching++;
-
-                }
-            }
-            if(t->logIndex >= nMatching) t->logIndex = nMatching-1;
-
-        }
-
-        return;
-    }
 
     int k;
 
@@ -2092,6 +2067,7 @@ static void UndoRemoveCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
     }
 
     SaveCursors(t,c);
+
 }
 
 static void AutoComplete(Thoth_Editor *t){
@@ -2119,7 +2095,9 @@ static void AutoComplete(Thoth_Editor *t){
 
                 int j;
                 for(j = 0; findEnd + res + j < t->file->textLen && 
-                    j < THOTH_MAX_AUTO_COMPLETE_STRLEN && !IsToken(t->file->text[findEnd+res+j]); j++);
+                    j < THOTH_MAX_AUTO_COMPLETE_STRLEN && 
+                    !IsToken(t->file->text[findEnd+res+j]); j++){
+                }
 
 
                 int m;
@@ -2179,46 +2157,9 @@ static void ScrollScreen(Thoth_Editor *t, Thoth_EditorCmd *c){
     t->cursors[0].pos = k;
 }
 
+
 static void RemoveCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
 
-    if(t->logging){
-
-        if(t->logging < THOTH_LOGMODE_MODES_INPUTLESS){
-            
-            t->logIndex = -1;
-
-            if(t->loggingText){
-        
-                int searchLen = strlen(t->loggingText);
-        
-                if(searchLen - c->num <= 0){
-                    free(t->loggingText);
-                    t->loggingText = NULL;
-                    // t->logging = 0;
-                    return;
-                } else {
-                    char *tmp = malloc(searchLen - c->num + 1);
-                    memcpy(tmp, t->loggingText, searchLen - c->num);
-                    tmp[searchLen - c->num] = 0;
-                    free(t->loggingText);
-                    t->loggingText = tmp;
-                }
-            }
-        }
-    
-        if(t->logging == THOTH_LOGMODE_FILEBROWSER){
-            if(t->loggingText){
-                if(t->loggingText[strlen(t->loggingText)-1] == '/' ||
-                    t->loggingText[strlen(t->loggingText)-1] == '\\'){
-                    strcpy(t->fileBrowser.directory, t->loggingText);
-                    Thoth_FileBrowser_ChangeDirectory(&t->fileBrowser);
-                }
-            }
-        }
-
-
-        return;
-    }
 
     if(t->file->text == NULL) return;
 
@@ -2254,7 +2195,6 @@ static void RemoveCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
 
 static void UndoAddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
     
-    if(t->logging) return;
     if(t->file->text == NULL) return;
 
     LoadCursors(t, c);
@@ -2267,8 +2207,6 @@ static void UndoAddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
         }
     }
 
-    SaveCursors(t, c);
-
     if(t->autoCompleteSearchLen > 0){
         t->autoCompleteSearchLen -= t->cursors[0].addedLen;
         if(t->autoCompleteSearchLen > 0)
@@ -2276,6 +2214,9 @@ static void UndoAddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
         else
             t->autoCompleteSearchLen = 0;
     }
+
+    SaveCursors(t, c);
+
 
 
 }
@@ -2386,44 +2327,104 @@ static void IndentLine(Thoth_Editor *t, Thoth_EditorCmd *c){
     SaveCursors(t,c);
 }
 
-static void AddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
+static void LoggingRemoveCharacter(Thoth_Editor *t){
+    if(t->logging < THOTH_LOGMODE_MODES_INPUTLESS){
+        
+        t->logIndex = -1;
+
+        if(t->loggingText){
     
-    if(t->logging){
-        int nKeys = strlen(c->keys);
-
-        if(t->logging == THOTH_LOGMODE_NUM){
-            int k;
-            for(k = 0; k < nKeys; k++) if(!IsDigit(c->keys[k])) return;
-        }
-
-
-        if(t->logging < THOTH_LOGMODE_MODES_INPUTLESS){
-
-            if(t->loggingText){
-                int searchLen = strlen(t->loggingText);
-                t->loggingText = realloc(t->loggingText, searchLen+nKeys+1);
-                memcpy(&t->loggingText[searchLen], c->keys, nKeys);
-                t->loggingText[searchLen+nKeys] = 0;
-            }
-            else{
-                t->logIndex = 0;
-                t->loggingText = malloc(nKeys);
-                memcpy(t->loggingText, c->keys, nKeys);
-                t->loggingText[nKeys] = 0;
+            int searchLen = strlen(t->loggingText);
+    
+            if(searchLen - 1 <= 0){
+                free(t->loggingText);
+                t->loggingText = NULL;
+                return;
+            } else {
+                t->loggingText = realloc(t->loggingText, searchLen);
+                t->loggingText[searchLen-1] = 0;
             }
         }
-
-        if(t->logging == THOTH_LOGMODE_FILEBROWSER){
-            if(t->loggingText){
-                if(c->keys[0] == '/' || c->keys[0] == '\\'){
-                    strcpy(t->fileBrowser.directory, t->loggingText);
-                    Thoth_FileBrowser_ChangeDirectory(&t->fileBrowser);
-                }
-            }
-        }
-        return;
     }
 
+    if(t->logging == THOTH_LOGMODE_FILEBROWSER){
+        if(t->loggingText){
+            if(t->loggingText[strlen(t->loggingText)-1] == '/' ||
+                t->loggingText[strlen(t->loggingText)-1] == '\\'){
+                strcpy(t->fileBrowser.directory, t->loggingText);
+                Thoth_FileBrowser_ChangeDirectory(&t->fileBrowser);
+            }
+        }
+    }
+}
+static void LoggingMoveLines(Thoth_Editor *t, int num){
+
+    if(t->logging == THOTH_LOGMODE_FILEBROWSER || t->logging == THOTH_LOGMODE_SWITCH_FILE){
+        
+        int nFiles = t->logging == THOTH_LOGMODE_FILEBROWSER ? t->fileBrowser.nFiles : t->nFiles;
+        
+        if( (t->loggingText == NULL || strlen(t->loggingText) == 0)){
+            t->logIndex += num;
+            if(t->logIndex < 0) t->logIndex = 0;
+            if(t->logIndex > nFiles-1) t->logIndex = nFiles-1;
+        }
+        
+        if(t->loggingText && strlen(t->loggingText) > 0){
+            t->logIndex += num;
+            if(t->logIndex < 0) t->logIndex = 0;
+    
+            int nMatching = 0;
+            int k;
+            for(k = 0; k < nFiles; k++){
+                char *name = t->logging == THOTH_LOGMODE_FILEBROWSER ? t->fileBrowser.files[k].name : t->files[k]->name;
+                int nameLen = strlen(name);
+                int logNameLen = strlen(basename(t->loggingText));
+                if(logNameLen <= nameLen){
+                    if(CaseLowerStrnCmp(basename(t->loggingText), name, logNameLen))
+                        nMatching++;
+
+                }
+            }
+            if(t->logIndex >= nMatching) t->logIndex = nMatching-1;
+
+        }
+
+        return;
+    }
+}
+static void LoggingAddCharacter(Thoth_Editor *t, char c){
+
+    if(t->logging == THOTH_LOGMODE_NUM && !IsDigit(c)) return;
+
+
+    if(t->logging < THOTH_LOGMODE_MODES_INPUTLESS){
+
+        if(t->loggingText){
+            int searchLen = strlen(t->loggingText);
+            t->loggingText = realloc(t->loggingText, searchLen+2);
+            t->loggingText[searchLen] = c;
+            t->loggingText[searchLen+1] = 0;
+        }
+        else{
+            t->logIndex = 0;
+            t->loggingText = malloc(2);
+            t->loggingText[0] = c;
+            t->loggingText[1] = 0;
+        }
+    }
+
+    if(t->logging == THOTH_LOGMODE_FILEBROWSER){
+        if(t->loggingText){
+            if(c == '/' || c == '\\'){
+                strcpy(t->fileBrowser.directory, t->loggingText);
+                Thoth_FileBrowser_ChangeDirectory(&t->fileBrowser);
+            }
+        }
+    }
+}
+
+static void AddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
+    
     if(t->file->text == NULL) return;
 
     LoadCursors(t, c);
@@ -3249,15 +3250,15 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
     }
 
 
-
-    if(!t->file->text){
+    char *text = t->file->text;
+    if(!text){
         Thoth_Graphics_RenderNCurses(t->graphics);
         return;
     }
 
     // end logs
 
-    t->file->textLen = strlen(t->file->text);
+    t->file->textLen = strlen(text);
 
     int ctOffset = 0;
     x = 0;
@@ -3280,7 +3281,7 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
     scrollPos = k;
     ctOffset = k;
     for(; k < t->file->textLen; k++){
-        if(t->file->text[k] == '\n'){
+        if(text[k] == '\n'){
             y++;
             if(y == t->file->scroll+screenHeight-t->logY) { k++; break; }
         }
@@ -3292,7 +3293,7 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
         int renderTo = scrollPosMax, renderStart = scrollPos;
 
         for(k = scrollPos; k < renderStart; k++){
-            if(t->file->text[k] == '\n'){
+            if(text[k] == '\n'){
                 y++;
             }
         }
@@ -3308,20 +3309,20 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
             int comment = 0;
             int string = 0;
 
-            char c = t->file->text[k];
+            char c = text[k];
 
             char token = IsToken(c);
             if(!token){
 
-               if((k - ctOffset) == 1 && IsDigit(t->file->text[k-1])){
+               if((k - ctOffset) == 1 && IsDigit(text[k-1])){
 
-                    if(t->file->text[k] == 'x')
-                       for(++k; k < renderTo && IsHexadecimal(t->file->text[k]); k++);
+                    if(text[k] == 'x')
+                       for(++k; k < renderTo && IsHexadecimal(text[k]); k++);
                    else 
-                       for(; k < renderTo && IsDigit(t->file->text[k]); k++);
+                       for(; k < renderTo && IsDigit(text[k]); k++);
 
                    Thoth_Graphics_attron(t->graphics,THOTH_COLOR_NUM);
-                   Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
+                   Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[ctOffset], k - ctOffset);
                    x += k - ctOffset;
                    ctOffset = k;
 
@@ -3335,9 +3336,9 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
 
                 if(k - ctOffset > 0){
 
-                    if((k - ctOffset) == 1 && IsDigit(t->file->text[k-1])){
+                    if((k - ctOffset) == 1 && IsDigit(text[k-1])){
                         Thoth_Graphics_attron(t->graphics,THOTH_COLOR_NUM);
-                        Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], 1);
+                        Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[ctOffset], 1);
                         x++;
                         ctOffset = k;
                         goto addedStr;
@@ -3345,10 +3346,10 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
 
                     for(int m = 0; m < (int)(sizeof(keywords)/sizeof(char *)); m++){
                         if(strlen(keywords[m]) == (k - ctOffset) && 
-                            memcmp(&t->file->text[ctOffset], keywords[m], (k - ctOffset)) == 0) {
+                            memcmp(&text[ctOffset], keywords[m], (k - ctOffset)) == 0) {
                             
                             Thoth_Graphics_attron(t->graphics,THOTH_COLOR_KEYWORD);
-                            Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
+                            Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[ctOffset], k - ctOffset);
 
                             x += k - ctOffset;
                             ctOffset = k;
@@ -3362,10 +3363,10 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
                         // so that we can change colors at the token after the def
 
                         Thoth_Graphics_attron(t->graphics,THOTH_COLOR_FUNCTION);
-                        Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset); 
+                        Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[ctOffset], k - ctOffset); 
                         x += k - ctOffset;
                         Thoth_Graphics_attron(t->graphics,THOTH_COLOR_FUNCTION);
-                        Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[k], 1);
+                        Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[k], 1);
                         x++;
                         k++;
                         ctOffset = k;
@@ -3373,7 +3374,7 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
                     }
         
                     Thoth_Graphics_attron(t->graphics,THOTH_COLOR_NORMAL);
-                    Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
+                    Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[ctOffset], k - ctOffset);
                     x += k - ctOffset;
 
                     ctOffset = k;
@@ -3401,15 +3402,15 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
                     continue;
                 }
 
-                if(c == '/' && t->file->text[k+1] == '/') comment = 1;
-                else if(c == '/' && t->file->text[k+1] == '*') comment = 2;
+                if(c == '/' && text[k+1] == '/') comment = 1;
+                else if(c == '/' && text[k+1] == '*') comment = 2;
                 else if(c == '"') string = 1;
                 else if(c == '\'') string = 2;
         
         
                 if(c == ')' || c == '('){
                     Thoth_Graphics_attron(t->graphics,THOTH_COLOR_FUNCTION);
-                    Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], 1);
+                    Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[ctOffset], 1);
                     x++;
                     ctOffset = ++k;
                     continue;
@@ -3417,7 +3418,7 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
                 
                 if(c != ' ' && c != '(' && c != ')' && token && !comment && !string){
                     Thoth_Graphics_attron(t->graphics,THOTH_COLOR_TOKEN);
-                    Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], 1);
+                    Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[ctOffset], 1);
                     x++;
                     ctOffset = ++k;
                     continue;
@@ -3433,24 +3434,24 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
 
                     if(comment == 1){
                         for (; k < renderTo; k++){
-                            if(t->file->text[k] == '\n'){  break; }
+                            if(text[k] == '\n'){  break; }
                         }
 
 
                     } else { /* comment */
 
 
-                        for(;k < (renderTo-1) && !(t->file->text[k] == '*' && t->file->text[k+1] == '/'); k++);
+                        for(;k < (renderTo-1) && !(text[k] == '*' && text[k+1] == '/'); k++);
 
                         if(k < renderTo-1){
                             k++; // will run to end of file otherwise. 
                         }
                     }
 
-                    if(k > 0 && t->file->text[k-1] == '*' && t->file->text[k] == '/') k++;
+                    if(k > 0 && text[k-1] == '*' && text[k] == '/') k++;
 
                     Thoth_Graphics_attron(t->graphics,THOTH_COLOR_COMMENT);
-                    Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
+                    Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[ctOffset], k - ctOffset);
                     x += k - ctOffset;
                     ctOffset = k;
                     comment = 0;
@@ -3469,25 +3470,25 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
                         if(k == renderTo) break;
 
 
-                        if(t->file->text[k] == '\n') { break; }
-                        if(t->file->text[k] == '"' && string == 1 && !escaped) { break; }
-                        if(t->file->text[k] == '\'' && string == 2 && !escaped) { break; }
+                        if(text[k] == '\n') { break; }
+                        if(text[k] == '"' && string == 1 && !escaped) { break; }
+                        if(text[k] == '\'' && string == 2 && !escaped) { break; }
 
 
-                        if(t->file->text[k] == '\\' && !escaped)
+                        if(text[k] == '\\' && !escaped)
                             escaped = 1;
                         else
                             escaped = 0;
 
 
                     }
-                    if(t->file->text[k] != '\n')
+                    if(text[k] != '\n')
                         k++;
                     
                     if(k == renderTo) break;
 
                     Thoth_Graphics_attron(t->graphics,THOTH_COLOR_STRING);
-                    Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[ctOffset], k - ctOffset);
+                    Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[ctOffset], k - ctOffset);
                                     
                     x += k - ctOffset;
                     ctOffset = k;
@@ -3521,11 +3522,11 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
             x = 0; 
             y = 0;
             for(k = scrollPos; k < renderTo; k++){
-                if(t->file->text[k] == '\n'){
+                if(text[k] == '\n'){
                     y++;
                     x = 0;
                     continue;
-                } else if(t->file->text[k] == '\t'){
+                } else if(text[k] == '\t'){
                     if(k >= renderStart)
                         Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, "    ", 4);
                     x += 4;
@@ -3533,7 +3534,7 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
                 }
 
                 if(k >= renderStart && x < screenWidth && y < screenHeight){
-                    Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[k], 1);
+                    Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[k], 1);
                 }
                 x++;
             }
@@ -3547,11 +3548,11 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
         x = 0;
 
         for(; k < c->pos && k < scrollPosMax; k++){
-            if(t->file->text[k] == '\n'){
+            if(text[k] == '\n'){
                 x = 0;
                 y++;
                 continue;
-            } else if(t->file->text[k] == '\t'){
+            } else if(text[k] == '\t'){
                 x+=4;
                 continue;
             }
@@ -3563,10 +3564,10 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
         if((y >= screenHeight) ||
             x >= screenWidth) continue;
 
-        if(t->file->text[c->pos] == '\n' || t->file->text[c->pos] == '\t')
+        if(text[c->pos] == '\n' || text[c->pos] == '\t')
             Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, " ", 1);
         else
-            Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &t->file->text[c->pos], 1);
+            Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[c->pos], 1);
     
     }
 
@@ -3588,11 +3589,11 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
         x = 0;
         for(k = scrollPos; k < t->cursors[t->nCursors-1].pos; k++){
 
-            if(t->file->text[k] == '\n'){
+            if(text[k] == '\n'){
                 x = 0;
                 y++;
                 continue;
-            } else if(t->file->text[k] == '\t'){
+            } else if(text[k] == '\t'){
                 x+=4;
                 continue;
             }
@@ -3606,8 +3607,8 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
 
             char buffer[THOTH_MAX_AUTO_COMPLETE_STRLEN];
             memset(buffer, ' ', THOTH_MAX_AUTO_COMPLETE_STRLEN);
-            memcpy(buffer, &t->file->text[t->autoComplete[j].offset],t->autoComplete[j].len);
-            // Thoth_Graphics_mvprintw(t->graphicst->logX+x, t->logY+y+j+1, &t->file->text[t->autoComplete[j].offset], t->autoComplete[j].len);
+            memcpy(buffer, &text[t->autoComplete[j].offset],t->autoComplete[j].len);
+            // Thoth_Graphics_mvprintw(t->graphicst->logX+x, t->logY+y+j+1, &text[t->autoComplete[j].offset], t->autoComplete[j].len);
             Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y+j+1, buffer, THOTH_MAX_AUTO_COMPLETE_STRLEN);
         }
 
@@ -3633,8 +3634,32 @@ void Thoth_Editor_Event(Thoth_Editor *t, unsigned int key){
         EventEnter(t, key);
         return;
     }
-
     if(key>>8){
+
+        if(t->logging){
+
+            int k;
+            for(k = 0; k < t->nCommands; k++){
+
+                if(t->commands[k]->Execute == MoveLines && 
+                    t->commands[k]->keyBinding[0] == key){
+        
+                    LoggingMoveLines(t, t->commands[k]->num);
+                    return;
+                }
+                if(t->commands[k]->Execute == CloseFile && 
+                    t->commands[k]->keyBinding[0] == key){
+
+                    if(t->file->unsaved == 1){
+                        t->file->unsaved = 0;
+                        CloseFile(t,t->commands[k]);
+                        EndLogging(t);
+                        return;
+                    }
+
+                }    
+            }
+        }
 
         //ctrl/shift/alt or arrowkeys
 
@@ -3655,7 +3680,8 @@ void Thoth_Editor_Event(Thoth_Editor *t, unsigned int key){
             t->loggingText = malloc(strlen(buffer)+1);
             memcpy(t->loggingText, buffer, strlen(buffer));
             t->loggingText[strlen(buffer)] = 0;
-            
+
+
 #ifdef LINUX_COMPILE
             openpty(&t->ttyMaster, &t->ttySlave, NULL, NULL, NULL);
 
@@ -3666,14 +3692,19 @@ void Thoth_Editor_Event(Thoth_Editor *t, unsigned int key){
 
             t->ttyPid = fork();
             if (t->ttyPid == 0) {
+                chdir(t->fileBrowser.directory);
                 char *args[] = {"make",NULL};
                 execvp(args[0], args);
             }
 #endif
 #ifdef WINDOWS_COMPILE
+
+            chdir(t->fileBrowser.directory);
             system("make > " THOTH_LOGCOMPILEFILE " 2>&1 &");
 #endif
-            t->logging = THOTH_LOGMODE_CONSOLE;
+
+            
+            StartLogging(t, THOTH_LOGMODE_CONSOLE);
             return;
         }
         if(key == ((( unsigned int)'=') | THOTH_CTRL_KEY)){
@@ -3685,7 +3716,6 @@ void Thoth_Editor_Event(Thoth_Editor *t, unsigned int key){
             return;
         }
 
-        ClearAutoComplete(t);
 
         int k;
         for(k = 0; k < t->nCommands; k++){
@@ -3698,6 +3728,18 @@ void Thoth_Editor_Event(Thoth_Editor *t, unsigned int key){
         }
         return;
     }
+
+    if(t->logging){
+        if(key == 127){ // backspace
+            LoggingRemoveCharacter(t);
+            return;
+        }
+        if(key >= 32 && key <= 126){
+            LoggingAddCharacter(t, key);
+            return;
+        }
+    }
+
     if(key == 9){ // tab
         if(t->logging) return;
         ClearAutoComplete(t);

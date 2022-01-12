@@ -30,9 +30,9 @@ void Thoth_Resize(Thoth_t *t, int x, int y, int w, int h);
 #else
 #ifdef LINUX_COMPILE
 #define THOTH_CONFIG_PATH "/.config/thoth/"
-#define THOTH_CONFIG_FILE Window_GetConfigPath(CONFIG_PATH "thothconfig.cfg")
-#define THOTH_LOGFILE Window_GetConfigPath(CONFIG_PATH "thothproject.god")
-#define THOTH_LOGCOMPILEFILE Window_GetConfigPath(CONFIG_PATH "thothlog.txt")
+#define THOTH_CONFIG_FILE Thoth_GetConfigPath(THOTH_CONFIG_PATH "thothconfig.cfg")
+#define THOTH_LOGFILE Thoth_GetConfigPath(THOTH_CONFIG_PATH "thothproject.god")
+#define THOTH_LOGCOMPILEFILE Thoth_GetConfigPath(THOTH_CONFIG_PATH "thothlog.txt")
 char *Thoth_GetConfigPath(char *rel);
 #endif
 #endif

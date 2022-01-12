@@ -30,10 +30,6 @@ clean:
 # SDLLIBS = $(shell pkg-config --libs sdl2)
 # LDLIBS = -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
 # add -pg for gdb
-# all: $(SOURCES) $(EXECUTABLE)
-
-# $(EXECUTABLE): $(OBJECTS) 
-# 	$(CC) $(OBJECTS) $(LDLIBS) -o $@
 
 # windows
 #  CC=i686-w64-mingw32-gcc
@@ -49,15 +45,19 @@ clean:
 # OBJECTS=$(SOURCES:.c=.o)
 
 
+# all: $(SOURCES) $(EXECUTABLE)
+
+# $(EXECUTABLE): $(OBJECTS) 
+# 	$(CC) $(OBJECTS) $(LDLIBS) -o $@
 
 # # wihndows unused right now
-# all: createResourcesO $(SOURCES) $(EXECUTABLE)
+# # all: createResourcesO $(SOURCES) $(EXECUTABLE)
 
-# $(EXECUTABLE): $(OBJECTS) icon.o
-# 	$(CC) $(OBJECTS) icon.o $(LDLIBS) -o $@
+# # $(EXECUTABLE): $(OBJECTS) icon.o
+# # 	$(CC) $(OBJECTS) icon.o $(LDLIBS) -o $@
 
-# createResourcesO: icon.rc
-# 	i686-w64-mingw32-windres icon.rc -o icon.o
+# # createResourcesO: icon.rc
+# # 	i686-w64-mingw32-windres icon.rc -o icon.o
 
 # .c.o:
 # 	$(CC) -c $(CFLAGS) $< -o $@

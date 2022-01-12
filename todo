@@ -1,5 +1,9 @@
 sorted by importance:
 
+done: autocomplete bug
+done: bug with commands with logging, delete line for example even in log mode, and cant undo it.
+
+windows compile & compile into curr directory
 
 comments for other languages // not only
 filebroser max hardcoded 100, so allocation of too many files breaks it.
