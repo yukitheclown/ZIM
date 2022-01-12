@@ -27,8 +27,8 @@ highlighting for more languages than C, and general lua (function is a keyword)<
 check for file change outside editor and reload on window focus event<br>
 find replace<br>
 code folding<br>
-make libthoth for text editor embed for opengl games<br>
-<b><br>
+<br>
+<br>
 Example thothconfig.cfg</b><br>
 # gruvbox <br>
 COLOR_CYAN 0x8e 0xc0 0x7c<br>
