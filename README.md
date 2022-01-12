@@ -1,4 +1,4 @@
-LATEST TAG NOT YET UPDATED! COMPILE FOR NON BUGGY
+
 New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 <b>font</b>: https://github.com/larsenwork/monoid<br>
 ![Screenshot](Screenshots/Screenshot.png)
@@ -17,6 +17,7 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 ![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
+element rendering in graphics.c save gpu mem.<br>
 have only the active file in memory AND swap files<br>
 minimap<br>
 keybindings config<br>
