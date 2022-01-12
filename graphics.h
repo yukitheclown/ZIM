@@ -36,7 +36,9 @@ enum {
 #endif
 
 
-#define THOTH_MAX_TEXT_CHARS 1300
+// font size 10, 1920x1080, max chars on screen is 11505
+// but nobody programs like that lol
+#define THOTH_MAX_TEXT_CHARS 10000
 
 typedef struct {
 	Thoth_Config 		*cfg;

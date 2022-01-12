@@ -126,7 +126,7 @@ const char *keywords[] = {
     "abstract", "final", "from", "cast", "funcdef", "get", "import", "in", "inout", "interface", "is", "mixin", "not", "null", "or",
     "out", "override", "private", "protected", "return", "set", "shared", "super", "switch", "this", "true", "typedef", "uint",
     "uint8", "uint16", "uint32", "uint64", "void", "while", "xor", "end", "function", "local", "nil", "repeat", "then", "until",
-    "auto", "bool", "char", "class", "double", "float", "int", "enum", "const", "static", "include", "define", "ifndef", "endif"
+    "auto", "bool", "char", "class", "double", "float", "int", "enum", "const", "static", "include", "define", "ifndef", "endif", "ifdef",
 };
 
 static char *basename(char *path){
@@ -948,7 +948,7 @@ static void GotoLine(Thoth_Editor *t, Thoth_EditorCmd *c){
 }
 
 static void DoOpenFile(Thoth_Editor *t){
-    Thoth_Editor_LoadFile(t, t->loggingText);
+	Thoth_Editor_LoadFile(t, t->loggingText);
     RefreshFile(t);
     EndLogging(t);
 }
@@ -1079,6 +1079,9 @@ static void OpenFileBrowser(Thoth_Editor *t, Thoth_EditorCmd *c){
 }
 static void OpenFile(Thoth_Editor *t, Thoth_EditorCmd *c){
     EndLogging(t);
+    t->loggingText = malloc(strlen(t->fileBrowser.directory)+1);
+    strcpy(t->loggingText, t->fileBrowser.directory);
+    t->loggingText[strlen(t->fileBrowser.directory)] = 0;
     t->logging = THOTH_LOGMODE_OPEN;
 }
 static void SwitchFile(Thoth_Editor *t, Thoth_EditorCmd *c){
@@ -1088,6 +1091,9 @@ static void SwitchFile(Thoth_Editor *t, Thoth_EditorCmd *c){
 }
 static void SaveAsFile(Thoth_Editor *t, Thoth_EditorCmd *c){
     EndLogging(t);
+    t->loggingText = malloc(strlen(t->fileBrowser.directory)+1);
+    strcpy(t->loggingText, t->fileBrowser.directory);
+    t->loggingText[strlen(t->fileBrowser.directory)] = 0;
     t->logging = THOTH_LOGMODE_SAVE;
 }
 static void SaveFile(Thoth_Editor *t, Thoth_EditorCmd *c){
@@ -1681,45 +1687,30 @@ static void ToggleComment(Thoth_Editor *t, Thoth_EditorCmd *c){
 
 
         int startSelection = t->cursors[k].selection.startCursorPos - 
-        GetCharsIntoLine(t->file->text, t->cursors[k].selection.startCursorPos);
-        int endSelection = t->cursors[k].selection.startCursorPos + t->cursors[k].selection.len;
-
-        int toggled = 0;
+        GetCharsIntoLine(t->file->text, t->cursors[k].selection.startCursorPos) ;
+        int endSelection = (t->cursors[k].selection.startCursorPos + 
+        t->cursors[k].selection.len) - 1;
 
         int m;
         for(m = startSelection; m < endSelection; m++){
-            if(t->file->text[m] == '/' && t->file->text[m-1] == '/') {
-                toggled = 1;    
-                break;
-            }
-            if(t->file->text[m] == '\n')
-                break;
-        }
-
-        if(toggled == 1){
-            for(m = startSelection; m < endSelection; m++){
-                if(t->file->text[m] == '/' && t->file->text[m-1] == '/') {
-                    t->cursors[k].pos = m+1;
-                    RemoveStrFromText(t, &k, 2);
-                    t->cursors[k].selection.len -= 2;
-                    m--;
-                }
-            }
-
-            continue;
-        }
 
 
-        // if mixture of commenting/not in selection double comment, every line gets it.
-        t->cursors[k].pos = startSelection;
-        t->cursors[k].selection.len += 2;
-
-        for(m = startSelection; m < endSelection; m++){
-            if(t->file->text[m] == '\n'){
-                t->cursors[k].pos = m+1;
-                t->cursors[k].selection.len += 2;
+            if(strncmp(&t->file->text[m], "//", 2) == 0) {
+                t->cursors[k].pos = m+2;
+                RemoveStrFromText(t, &k, 2);
+                t->cursors[k].pos = m;
+                t->cursors[k].selection.len -= 2;
+                endSelection -= 2;
+            } else {
+                t->cursors[k].pos = m;
                 AddStrToText(t, &k, "//");
+                t->cursors[k].selection.len += 2;
+                endSelection+=2;
+                m += 2;
             }
+
+            for(; m < endSelection; m++)
+                if(t->file->text[m] == '\n') break;
         }
     }
 
@@ -3256,6 +3247,7 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
         sprintf(buffer, "%i", t->file->scroll+k);
         Thoth_Graphics_mvprintw(t->graphics,0, t->logY+k, buffer, strlen(buffer));
     }
+
 
 
     if(!t->file->text){

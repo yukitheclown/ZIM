@@ -126,8 +126,11 @@ void Event(Thoth_t *t){
         else if(key & THOTH_CTRL_KEY)
             key = (t->key&0xFF00) | (ev.key.keysym.sym & 0xFF);
 
+        if(key != t->key)
+            t->state = THOTH_STATE_UPDATE;
+            
         t->key = key;
-        t->state = THOTH_STATE_UPDATE;
+
 
 
     } else if(ev.type == SDL_KEYUP) {
