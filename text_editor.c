@@ -1906,10 +1906,10 @@ static void AddSavedText(Thoth_Editor *t, char *str, int len, int *cursorIndex){
     if(t->cursors[*cursorIndex].savedText){
         free(t->cursors[*cursorIndex].savedText);
     }
-        // int len2 = strlen(t->cursors[*cursorIndex].savedText);
-        // t->cursors[*cursorIndex].savedText = (char *)realloc(t->cursors[*cursorIndex].savedText, len2 + len + 1);
-        // t->cursors[*cursorIndex].savedText[len+len2] = 0;
-        // memcpy(&t->cursors[*cursorIndex].savedText[len2], str, len);
+    //     int len2 = strlen(t->cursors[*cursorIndex].savedText);
+    //     t->cursors[*cursorIndex].savedText = (char *)realloc(t->cursors[*cursorIndex].savedText, len2 + len + 1);
+    //     t->cursors[*cursorIndex].savedText[len+len2] = 0;
+    //     memcpy(&t->cursors[*cursorIndex].savedText[len2], str, len);
     // } else {
         t->cursors[*cursorIndex].savedText = (char *)malloc(len + 1);
         t->cursors[*cursorIndex].savedText[len] = 0;
@@ -2201,14 +2201,14 @@ static void UndoAddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
 
     int k;
     for(k = c->nSavedCursors-1; k >= 0; k--){
-        RemoveStrFromText(t, &k, c->savedCursors[k].addedLen);
+        RemoveStrFromText(t, &k, c->num);
         if(k < c->nSavedCursors && c->savedCursors[k].savedText){
             AddStrToText(t, &k, c->savedCursors[k].savedText);
         }
     }
 
     if(t->autoCompleteSearchLen > 0){
-        t->autoCompleteSearchLen -= t->cursors[0].addedLen;
+        t->autoCompleteSearchLen -= c->num;
         if(t->autoCompleteSearchLen > 0)
             AutoComplete(t);
         else
@@ -2217,7 +2217,7 @@ static void UndoAddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
 
     SaveCursors(t, c);
 
-
+    c->num = 0;
 
 }
 
@@ -2432,11 +2432,13 @@ static void AddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
     // RefreshEditorCommand(c);
 
     int k;
+    char *keys = &c->keys[c->num];
+    c->num = strlen(c->keys);
 
     // make sure autocomplete only starts after a token, if canceled.
     if(t->autoCompleteSearchLen > 0 || IsToken(t->file->text[t->cursors[0].pos-1])){
-        for(k = 0; k < strlen(c->keys); k++){
-            if(!IsToken(c->keys[k])){
+        for(k = 0; k < strlen(keys); k++){
+            if(!IsToken(keys[k])){
                 t->autoCompleteSearchLen++;
             } else {
                 t->autoCompleteSearchLen = 0;
@@ -2446,8 +2448,8 @@ static void AddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
 
     for(k = 0; k < t->nCursors; k++){
         EraseAllSelectedText(t, &k, c);
-        AddStrToText(t, &k, c->keys);
-        t->cursors[k].addedLen += strlen(c->keys);
+        AddStrToText(t, &k, keys);
+        t->cursors[k].addedLen += strlen(keys);
     }
 
     SaveCursors(t, c);
@@ -2625,22 +2627,29 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
         t->file->sHistory = t->file->historyPos;
     }
     Thoth_EditorFile *f = t->file;
-    Thoth_EditorCmd **lastCmd = &f->history[f->sHistory-1];
+    
+    Thoth_EditorCmd **lastCmd = NULL;
+    char *lastKeys = NULL;
+    int lastLen = 0;
 
+    if(f->sHistory > 0 && f->history) {
+        lastCmd = &f->history[f->sHistory-1];
+        lastKeys = (*lastCmd)->keys;
+        if(lastKeys) lastLen = strlen(lastKeys);
+    }
     // appears to work at postponing pushing to history stack
     // until tokens
     
-    if(f->sHistory > 0
-         && (*lastCmd)->Execute == AddCharacters
-         && !IsToken(c->keys[0]) && 
-         !IsToken((*lastCmd)->keys[strlen((*lastCmd)->keys)-1])){
-    
-        (*lastCmd)->keys = realloc((*lastCmd)->keys, 
-            strlen(c->keys) + 1);
-        
-        strcpy((*lastCmd)->keys,c->keys);
+    if(lastCmd && (*lastCmd)->Execute == AddCharacters
+         && c->keys && !IsToken(c->keys[0]) && 
+         lastKeys && !IsToken(lastKeys[lastLen-1])){
+
+        (*lastCmd)->num = lastLen;
+        (*lastCmd)->keys = realloc(lastKeys, lastLen + strlen(c->keys) + 1);
+        strcpy(&lastKeys[lastLen],c->keys);
 
         (*lastCmd)->Execute(t,*lastCmd);
+        (*lastCmd)->num = lastLen + strlen(c->keys);
 
     } else {
 
