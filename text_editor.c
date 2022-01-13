@@ -2447,7 +2447,7 @@ static void AddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
     for(k = 0; k < t->nCursors; k++){
         EraseAllSelectedText(t, &k, c);
         AddStrToText(t, &k, c->keys);
-        t->cursors[k].addedLen = strlen(c->keys);
+        t->cursors[k].addedLen += strlen(c->keys);
     }
 
     SaveCursors(t, c);
@@ -2624,15 +2624,42 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
 
         t->file->sHistory = t->file->historyPos;
     }
+    Thoth_EditorFile *f = t->file;
+    Thoth_EditorCmd **lastCmd = &f->history[f->sHistory-1];
 
-    t->file->history = (Thoth_EditorCmd **)realloc(t->file->history, ++t->file->sHistory * sizeof(Thoth_EditorCmd *));
-    t->file->history[t->file->sHistory-1] = CopyCommand(c);
-    t->file->history[t->file->sHistory-1]->Execute(t,t->file->history[t->file->sHistory-1]);
+    // appears to work at postponing pushing to history stack
+    // until tokens
+    
+    if(f->sHistory > 0
+         && (*lastCmd)->Execute == AddCharacters
+         && !IsToken(c->keys[0]) && 
+         !IsToken((*lastCmd)->keys[strlen((*lastCmd)->keys)-1])){
+    
+        (*lastCmd)->keys = realloc((*lastCmd)->keys, 
+            strlen(c->keys) + 1);
+        
+        strcpy((*lastCmd)->keys,c->keys);
+
+        (*lastCmd)->Execute(t,*lastCmd);
+
+    } else {
+
+        f->history = (Thoth_EditorCmd **)realloc(f->history, 
+            ++f->sHistory * sizeof(Thoth_EditorCmd *));
+        
+        lastCmd = &f->history[f->sHistory-1];
+        
+        *lastCmd = CopyCommand(c);
+        (*lastCmd)->Execute(t,*lastCmd);
+        f->historyPos++;
+    }
+
+    
     if(c->scroll == SCR_CENT)
         UpdateScrollCenter(t);
     else
         UpdateScroll(t);
-    t->file->historyPos++;
+    
 }
 
 static void AddCommand(Thoth_Editor *t, Thoth_EditorCmd *c){

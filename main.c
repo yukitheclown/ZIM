@@ -294,7 +294,7 @@ int main(int argc, char **argv){
 
        if(t.state == THOTH_STATE_QUIT){
             if(!Thoth_Editor_Destroy(&t.te))
-                t.state = THOTH_STATE_RUNNING;
+                t.state = THOTH_STATE_UPDATEDRAW;
        }
 
        if(t.state == THOTH_STATE_UPDATE || t.state == THOTH_STATE_UPDATEDRAW){

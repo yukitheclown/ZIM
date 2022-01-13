@@ -1,7 +1,6 @@
 sorted by importance:
 
-done: autocomplete bug
-done: bug with commands with logging, delete line for example even in log mode, and cant undo it.
+done: undoing speedup, undos characters up to tokens.
 
 windows compile & compile into curr directory
 
