@@ -1,5 +1,6 @@
 #include "graphics.h"
 #include "thoth.h"
+#include "log.h"
 #include "window.h"
 #include "text_editor.h"
 #include "file_browser.h"
@@ -630,12 +631,14 @@ static int MoveByWordsFunc(char *text, int len, int start, int dir){
     if(dir < 0 && start > 0){
         
         if(text[start-1] == '\n'){
+
             start -= 1;
+
         } else {
 
-            // @#$|(a)sdff             
-            // if(!IsToken(text[start] && IsToken(text[start-1]))){
-            if(text[start] == '\n'){
+            // @#$|(a)sdff
+            if((!IsToken(text[start] && IsToken(text[start-1])))
+            || text[start] == '\n'){
                 start--;
             } else {
                 start--;
@@ -647,7 +650,7 @@ static int MoveByWordsFunc(char *text, int len, int start, int dir){
                     while(start >= 0){
                         char c = text[--start];
                         if(c == '\n') { ++start; break; }
-                        if(!IsToken(c)) { break; }
+                        if(!IsToken(c)) { ++start; break; }
                     }
                 } else {
                     start = GetWordStart(text, start); 
@@ -657,8 +660,7 @@ static int MoveByWordsFunc(char *text, int len, int start, int dir){
 
     } else {
 
-        // if(!IsToken(text[start] && IsToken(text[start+1])))
-        if(text[start] == '\n'){
+        if(!IsToken(text[start] && IsToken(text[start+1])) || text[start] == '\n'){
 
             start++;
 
@@ -1947,18 +1949,41 @@ static void EraseAllSelectedText(Thoth_Editor *t, int *cursorIndex, Thoth_Editor
     RemoveStrFromText(t, cursorIndex, cursor->selection.len);
 }
 
+static void PutsCursor(Thoth_EditorCur c){
+    
+    printf("CURSOR:\n");
+    printf("\tselection: startPos: %i len: %i \n", 
+        c.selection.startCursorPos, c.selection.len);
+
+    if(c.clipboard)
+        printf("\tclipboard: %s \n", c.clipboard);
+
+    if(c.savedText)
+        printf("\tsavedText: %s \n", c.savedText);
+
+    printf("\taddedLen: %i\n", c.addedLen);
+    printf("\tpos: %i\n", c.pos);
+}
+
 static void SaveCursors(Thoth_Editor *t, Thoth_EditorCmd *c){
+
+    int k;
+
+    for(k = 0; k < c->nSavedCursors; k++){
+        // PutsCursor(c->savedCursors[k]);
+    }
 
     if(c->savedCursors){
 
         free(c->savedCursors);
     }
+    
 
     c->savedCursors = (Thoth_EditorCur *)malloc(sizeof(Thoth_EditorCur) * t->nCursors);
     c->nSavedCursors = t->nCursors;
 
-    int k;
     for(k = 0; k < t->nCursors; k++){
+
         if(t->cursors[k].pos < 0) t->cursors[k].pos = 0;
 
         memcpy(&c->savedCursors[k], &t->cursors[k], sizeof(Thoth_EditorCur));
@@ -2201,14 +2226,14 @@ static void UndoAddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
 
     int k;
     for(k = c->nSavedCursors-1; k >= 0; k--){
-        RemoveStrFromText(t, &k, c->num);
+        RemoveStrFromText(t, &k, strlen(c->keys));
         if(k < c->nSavedCursors && c->savedCursors[k].savedText){
             AddStrToText(t, &k, c->savedCursors[k].savedText);
         }
     }
 
     if(t->autoCompleteSearchLen > 0){
-        t->autoCompleteSearchLen -= c->num;
+        t->autoCompleteSearchLen -= strlen(c->keys);
         if(t->autoCompleteSearchLen > 0)
             AutoComplete(t);
         else
@@ -2559,11 +2584,18 @@ static void UndoCommands(Thoth_Editor *t, int num){
     if(t->file->historyPos == 0 || t->file->historyPos - num < 0)
         return;
 
+    Thoth_EditorCmd *cmd;
+
     int k;
     for(k = 0; k < num; k++){
-        if(t->file->history[(t->file->historyPos-1)-k]->Undo){
-            t->file->history[(t->file->historyPos-1)-k]->Undo(t, t->file->history[(t->file->historyPos-1)-k]);
-            if(t->file->history[(t->file->historyPos-1)-k]->scroll == SCR_CENT)
+
+        cmd = t->file->history[(t->file->historyPos-1)-k];
+        
+        if(cmd->Undo){
+            
+            cmd->Undo(t, cmd);
+            
+            if(cmd->scroll == SCR_CENT)
                 UpdateScrollCenter(t);
             else
                 UpdateScroll(t);
@@ -2637,22 +2669,35 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
         lastKeys = (*lastCmd)->keys;
         if(lastKeys) lastLen = strlen(lastKeys);
     }
-    // appears to work at postponing pushing to history stack
-    // until tokens
+
+    // typedef void (*EditFunc)(Thoth_Editor*, Thoth_EditorCmd*);
+
+    // EditFunc BufferExpandFuncs[2] = {
+    //     AddCharacters,
+    //     RemoveCharacters
+    // };
+    // int BufferExpandFuncsLen = sizeof(BufferExpandFuncs)/sizeof(EditFunc);
+
+    // int k;
+    // for(k = 0; k < BufferExpandFuncsLen; k++){
+    //     if(BufferExpandFuncs[k] == c->Execute
+    //         && lastCmd && (*lastCmd)->Execute == BufferExpandFuncs[k]
+    //          && c->keys && !IsToken(c->keys[0]) && 
+    //          lastKeys && !IsToken(lastKeys[lastLen-1])){
+
+
+    //         (*lastCmd)->num = lastLen;
+    //         (*lastCmd)->keys = realloc(lastKeys, lastLen + strlen(c->keys) + 1);
+    //         strcpy(&lastKeys[lastLen],c->keys);
+                                  
+    //         (*lastCmd)->Execute(t,*lastCmd);
+    //         (*lastCmd)->num = lastLen + strlen(c->keys);
+
+    //         break;
+    //     }
+    // }
     
-    if(lastCmd && (*lastCmd)->Execute == AddCharacters
-         && c->keys && !IsToken(c->keys[0]) && 
-         lastKeys && !IsToken(lastKeys[lastLen-1])){
-
-        (*lastCmd)->num = lastLen;
-        (*lastCmd)->keys = realloc(lastKeys, lastLen + strlen(c->keys) + 1);
-        strcpy(&lastKeys[lastLen],c->keys);
-
-        (*lastCmd)->Execute(t,*lastCmd);
-        (*lastCmd)->num = lastLen + strlen(c->keys);
-
-    } else {
-
+    // if(k == BufferExpandFuncsLen){
         f->history = (Thoth_EditorCmd **)realloc(f->history, 
             ++f->sHistory * sizeof(Thoth_EditorCmd *));
         
@@ -2661,7 +2706,7 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
         *lastCmd = CopyCommand(c);
         (*lastCmd)->Execute(t,*lastCmd);
         f->historyPos++;
-    }
+    // }
 
     
     if(c->scroll == SCR_CENT)

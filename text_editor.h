@@ -100,7 +100,6 @@ typedef struct {
   int                     unsaved;
   int                     cursorPos;
   int                     historyPos;
-
   Thoth_EditorCmd       **history;
   int                     sHistory;
 

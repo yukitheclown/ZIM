@@ -51,13 +51,13 @@ $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(OBJECTS) $(LDLIBS) -o $@
 
 # # wihndows unused right now
-# # all: createResourcesO $(SOURCES) $(EXECUTABLE)
+# all: createResourcesO $(SOURCES) $(EXECUTABLE)
 
-# # $(EXECUTABLE): $(OBJECTS) icon.o
-# # 	$(CC) $(OBJECTS) icon.o $(LDLIBS) -o $@
+# $(EXECUTABLE): $(OBJECTS) icon.o
+# 	$(CC) $(OBJECTS) icon.o $(LDLIBS) -o $@
 
-# # createResourcesO: icon.rc
-# # 	i686-w64-mingw32-windres icon.rc -o icon.o
+# createResourcesO: icon.rc
+# 	i686-w64-mingw32-windres icon.rc -o icon.o
 
 .c.o:
 	$(CC) -c $(CFLAGS) $< -o $@

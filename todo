@@ -1,6 +1,6 @@
 sorted by importance:
 
-done: undoing speedup, undos characters up to tokens.
+bug: ctrl+d wraparound never stops(fixed i think)
 
 windows compile & compile into curr directory
 
