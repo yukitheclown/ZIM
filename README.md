@@ -1,4 +1,3 @@
-Latest build really Buggy!! Messed it up with the last feature.
 
 New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 <b>font</b>: https://github.com/larsenwork/monoid<br>
