@@ -3,32 +3,31 @@
 # CC=gcc
 # EXECUTABLE=libthoth.a
 # CFLAGS = -g -Wall -lm -DLIBRARY_COMPILE -DLINUX_COMPILE  $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2)
-
+# 
 # SOURCES=main.c text_editor.c window.c graphics.c log.c freetype.c file_browser.c config.c
 # OBJECTS=$(SOURCES:.c=.o)
-
-
+# 
+# 
 # all: $(SOURCES) $(EXECUTABLE)
-
+# 
 # $(EXECUTABLE): $(OBJECTS) 
 # 	ar -rc $@ $(OBJECTS)
-
+# 
 # .c.o:
 # 	$(CC) -c $(CFLAGS) $< -o $@
-
+# 
 # clean:
 # 	rm *.o
 
-# # linux
+# # linuxa
 CC=gcc
-EXECUTABLE=thoth
-CFLAGS = -g -Wall -lm -DLINUX_COMPILE  $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2)
-# -DLINUX_INSTALL
+EXECUTABLE=zim
+CFLAGS = -g -Wall -lm -DLINUX_COMPILE  $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2) -DLINUX_INSTALL
 
 FREETYPELIBS = $(shell pkg-config --libs freetype2)
 GLEWLIBS = $(shell pkg-config --static --libs glew)
 SDLLIBS = $(shell pkg-config --libs sdl2)
-LDLIBS = -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
+LDLIBS = -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS) -pg
 # add -pg for gdb
 
 # windows
@@ -50,7 +49,7 @@ all: $(SOURCES) $(EXECUTABLE)
 $(EXECUTABLE): $(OBJECTS) 
 	$(CC) $(OBJECTS) $(LDLIBS) -o $@
 
-# # wihndows unused right now
+# wihndows unused right now
 # all: createResourcesO $(SOURCES) $(EXECUTABLE)
 
 # $(EXECUTABLE): $(OBJECTS) icon.o

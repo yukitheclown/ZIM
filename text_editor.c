@@ -1803,7 +1803,7 @@ static void UndoDeleteLine(Thoth_Editor *t, Thoth_EditorCmd *c){
         // Thoth_EditorCur *cursor = &t->cursors[k];
         AddStrToText(t, &k, c->savedCursors[k].savedText);
     }
-    // SaveCursors(t, c);
+    SaveCursors(t, c);
 }
 
 static void DeleteLine(Thoth_Editor *t, Thoth_EditorCmd *c){
@@ -1937,6 +1937,10 @@ static void EraseAllSelectedText(Thoth_Editor *t, int *cursorIndex, Thoth_Editor
 
     int newSize = textLen - (endCursorPos - startCursorPos);
 
+    AddSavedText(t, &t->file->text[startCursorPos], cursor->selection.len, cursorIndex);
+    cursor->pos = endCursorPos;
+    RemoveStrFromText(t, cursorIndex, cursor->selection.len);
+
     if(newSize <= 0){
         if(t->file->text) free(t->file->text);
         t->file->text = malloc(1);
@@ -1944,9 +1948,6 @@ static void EraseAllSelectedText(Thoth_Editor *t, int *cursorIndex, Thoth_Editor
         return;
     }
 
-    AddSavedText(t, &t->file->text[startCursorPos], cursor->selection.len, cursorIndex);
-    cursor->pos = endCursorPos;
-    RemoveStrFromText(t, cursorIndex, cursor->selection.len);
 }
 
 static void PutsCursor(Thoth_EditorCur c){
@@ -2025,25 +2026,42 @@ static void AddStrToText(Thoth_Editor *t, int *cursorIndex, char *text){
 
     t->file->unsaved = 1;
 
-    int textLen = strlen(t->file->text);
 
     int len = strlen(text);
 
     int pos = t->cursors[*cursorIndex].pos;
 
-    char *text1 = (char *)malloc(textLen);
+    int textLen = strlen(t->file->text);
+    
+    if(pos > textLen) pos = textLen;
 
-    memcpy(text1,t->file->text,textLen);
-    free(t->file->text);
+    if(textLen > 0){
+        char *text1 = (char *)malloc(textLen);
 
-    t->file->text = (char *)malloc(textLen+len+1);
-    memcpy(t->file->text, text1, pos);
+        memcpy(text1,t->file->text,textLen);
+
+        free(t->file->text);
+        t->file->text = (char *)malloc(textLen+len+1);
+    
+        memcpy(t->file->text, text1, pos);
+
+        if(textLen - pos > 0){
+            memcpy(&t->file->text[pos + len], &text1[pos], (textLen - pos));
+        }
+        free(text1);
+
+        memcpy(&t->file->text[pos], text, len);
+    
+    } else {
+        t->file->text = (char *)realloc(t->file->text,len+1);
+        memcpy(&t->file->text[0], text, len);
+
+    }
+
+
+
     t->file->text[textLen + len] = 0;
 
-    // if(textLen - pos > 0)
-    memcpy(&t->file->text[pos + len], &text1[pos], (textLen - pos));
-    memcpy(&t->file->text[pos], text, len);
-    free(text1);
 
     t->file->textLen = strlen(t->file->text);
     t->cursors[*cursorIndex].pos += len;
@@ -3052,11 +3070,15 @@ static int CursorPos(Thoth_Editor *t, int x, int y){
         int lx;
         for(lx = k; k < t->file->textLen; lx++){
             if(t->file->text[lx] == '\n') break;
+            if(t->file->text[lx] == '\t' ) x-=3;
         }
 
         lx -= k;
 
-        if(x > lx) x = lx;
+        if(x > lx){
+             x = lx;
+        }
+
     }
 
 

@@ -18,11 +18,11 @@
 
 
 ; The name of the installer
-Name "Thoth"
+Name "Zim"
 
 
 ; The file to write
-OutFile "thoth.exe"
+OutFile "zim.exe"
 
 ; Request application privileges for Windows Vista and higher
 RequestExecutionLevel admin
@@ -32,11 +32,11 @@ Unicode True
 
 
 ; The default installation directory
-InstallDir $PROGRAMFILES\Thoth
+InstallDir $PROGRAMFILES\Zim
 
 ; Registry key to check for directory (so if you install again, it will 
 ; overwrite the old one automatically)
-InstallDirRegKey HKLM "Software\Thoth" "Install_Dir"
+InstallDirRegKey HKLM "Software\Zim" "Install_Dir"
 
 ;--------------------------------
 SetFont Verdana 8
@@ -64,7 +64,7 @@ UninstPage instfiles un.thothImage
 ;--------------------------------
 
 ; The stuff to install
-Section "Thoth (required)"
+Section "Zim (required)"
 
   SectionIn RO
   ; Set output path to the installation directory.
@@ -74,23 +74,23 @@ Section "Thoth (required)"
   File /r "thoth-windows\*"
   
   ; Write the installation path into the registry
-  WriteRegStr HKLM SOFTWARE\Thoth "Install_Dir" "$INSTDIR"
+  WriteRegStr HKLM SOFTWARE\Zim "Install_Dir" "$INSTDIR"
   
   ; Write the uninstall keys for Windows
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Thoth" "DisplayName" "Thoth"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Thoth" "UninstallString" '"$INSTDIR\uninstall.exe"'
-  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Thoth" "NoModify" 1
-  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Thoth" "NoRepair" 1
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Zim" "DisplayName" "Zim"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Zim" "UninstallString" '"$INSTDIR\uninstall.exe"'
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Zim" "NoModify" 1
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Zim" "NoRepair" 1
   WriteUninstaller "$INSTDIR\uninstall.exe"
 SectionEnd
 
 ; Optional section (can be disabled by the user)
 Section "Start Menu Shortcuts"
 
-  CreateDirectory "$SMPROGRAMS\Thoth"
-  CreateShortcut "$SMPROGRAMS\Thoth\Uninstall.lnk" "$INSTDIR\uninstall.exe"
-  CreateShortcut "$DESKTOP\thoth.lnk" "$INSTDIR\thoth.exe" "" "$INSTDIR\thoth.ico" 0
-  CreateShortcut "$SMPROGRAMS\Thoth\Thoth.lnk" "$INSTDIR\thoth.exe"
+  CreateDirectory "$SMPROGRAMS\Zim"
+  CreateShortcut "$SMPROGRAMS\Zim\Uninstall.lnk" "$INSTDIR\uninstall.exe"
+  CreateShortcut "$DESKTOP\zim.lnk" "$INSTDIR\zim.exe" "" "$INSTDIR\zim.ico" 0
+  CreateShortcut "$SMPROGRAMS\Zim\Zim.lnk" "$INSTDIR\Zim.exe"
 
 SectionEnd
 ;--------------------------------
@@ -100,19 +100,19 @@ SectionEnd
 Section "Uninstall"
   
   ; Remove registry keys
-  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Thoth"
-  DeleteRegKey HKLM SOFTWARE\Thoth
+  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Zim"
+  DeleteRegKey HKLM SOFTWARE\Zim
 
   ; Remove files and uninstaller
   RMDir /r $INSTDIR
  
 
   ; Remove shortcuts, if any
-  Delete "$SMPROGRAMS\Thoth\*.lnk"
-  Delete "$DESKTOP\thoth.lnk"
+  Delete "$SMPROGRAMS\Zim\*.lnk"
+  Delete "$DESKTOP\zim.lnk"
 
   ; Remove directories
-  RMDir "$SMPROGRAMS\Thoth"
+  RMDir "$SMPROGRAMS\Zim"
   RMDir "$INSTDIR"
 
 SectionEnd
