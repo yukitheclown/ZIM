@@ -18,6 +18,8 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 ![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
+windows crashing <br>
+windows keybindings interfere with system bindings ctrl+alt+left<br>
 Faster undoing: done. Needs testing <br>
 element rendering in graphics.c save gpu mem.<br>
 have only the active file in memory AND swap files<br>
