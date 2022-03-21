@@ -72,6 +72,7 @@ Section "Zim (required)"
   
   ; Put file there
   File /r "thoth-windows\*"
+  CreateDirectory "$APPDATA\zim"
   
   ; Write the installation path into the registry
   WriteRegStr HKLM SOFTWARE\Zim "Install_Dir" "$INSTDIR"
@@ -105,6 +106,7 @@ Section "Uninstall"
 
   ; Remove files and uninstaller
   RMDir /r $INSTDIR
+  RMDir /r "$APPDATA\zim"
  
 
   ; Remove shortcuts, if any

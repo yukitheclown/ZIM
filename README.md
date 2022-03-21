@@ -18,6 +18,7 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 ![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
+convert spaces to tabs, macro. <br>
 Faster undoing: done. Needs testing <br>
 element rendering in graphics.c save gpu mem.<br>
 have only the active file in memory AND swap files<br>

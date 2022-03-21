@@ -32,7 +32,7 @@ LDLIBS = -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS) -pg
 
 # windows
 #  CC=i686-w64-mingw32-gcc
-#  EXECUTABLE=thoth.exe
+#  EXECUTABLE=zim.exe
 #  CFLAGS = -w -Wl,-subsystem,windows -w -fpermissive -Wl,--no-undefined -g -DWINDOWS_COMPILE -I/usr/i686-w64-mingw32/include/freetype2/ -DGLEW_STATIC -Dmain=SDL_main
 #  LDLIBS = -L/usr/i686-w64-mingw32/lib/ -lmingw32 -lSDL2main -lSDL2 -mwindows \
 #   -lm -lcomctl32 -lwinmm -lmingw32 \

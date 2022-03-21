@@ -37,8 +37,10 @@ char *Thoth_GetConfigPath(char *rel);
 #endif
 #endif
 #ifdef WINDOWS_COMPILE
-#define THOTH_CONFIG_FILE "thothconfig.cfg"
-#define THOTH_LOGFILE "zimproject.zim"
-#define THOTH_LOGCOMPILEFILE "zimlog.txt"
+#define THOTH_CONFIG_PATH "\\zim\\"
+#define THOTH_CONFIG_FILE Thoth_GetConfigPath(THOTH_CONFIG_PATH "zimconfig.cfg")
+#define THOTH_LOGFILE Thoth_GetConfigPath(THOTH_CONFIG_PATH "zimproject.zim")
+#define THOTH_LOGCOMPILEFILE Thoth_GetConfigPath(THOTH_CONFIG_PATH "zimlog.txt")
+char *Thoth_GetConfigPath(char *rel);
 #endif
 #endif
