@@ -27,13 +27,13 @@ enum {
 
 #define THOTH_MAX_COLOR_PAIRS 32
 
-#ifdef LINUX_INSTALL
+//#ifdef LINUX_INSTALL
 // #define THOTH_FONT_PATH "/usr/local/share/thoth/font.png"
-#define THOTH_FONT_PATH_TTF "/usr/local/share/thoth/Monoid-Regular.ttf"
-#else
+//#define THOTH_FONT_PATH_TTF "/usr/local/share/thoth/Monoid-Regular.ttf"
+//#else
 // #define THOTH_FONT_PATH "resources/font.png"
 #define THOTH_FONT_PATH_TTF "resources/Monoid-Regular.ttf"
-#endif
+//#endif
 
 
 // font size 10, 1920x1080, max chars on screen is 11505
