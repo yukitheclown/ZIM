@@ -18,6 +18,8 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 ![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
+Fix newline bug<br>
+Fix windows version needing admin privs<br>
 convert spaces to tabs, macro. <br>
 Faster undoing: done. Needs testing <br>
 element rendering in graphics.c save gpu mem.<br>
