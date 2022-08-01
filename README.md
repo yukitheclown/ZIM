@@ -1,5 +1,4 @@
 ![Screenshot](Screenshots/thoth.bmp)<br>
-Windows version really buggy needs admin privs<br>
 https://rotatedev.itch.io/zim BINARIES<br>
 New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 <b>font</b>: https://github.com/larsenwork/monoid<br>
