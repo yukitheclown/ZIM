@@ -7,7 +7,6 @@
 #include "types.h"
 #include "file_browser.h"
 
-#define THOTH_FILEBROWSER_MAX 100
 
 void Thoth_FileBrowser_Init(Thoth_FileBrowser *fb){
 	memset(fb,0,sizeof(Thoth_FileBrowser));
@@ -21,14 +20,10 @@ void Thoth_FileBrowser_Init(Thoth_FileBrowser *fb){
 	Thoth_FileBrowser_ChangeDirectory(fb);
 }
 void Thoth_FileBrowser_Free(Thoth_FileBrowser *fb){
-	if(fb->files != NULL) free(fb->files);
-	fb->files = NULL;
 	fb->nFiles = 0;
 }
 void Thoth_FileBrowser_ChangeDirectory(Thoth_FileBrowser *fb){
 
-	if(fb->files) free(fb->files);
-	fb->files = NULL;
 	fb->nFiles = 0;
 
 	int len = strlen(fb->directory);
@@ -77,7 +72,7 @@ void Thoth_FileBrowser_ChangeDirectory(Thoth_FileBrowser *fb){
 
 			if(strcmp(dp->d_name, ".") == 0) continue;
 			
-			fb->files = (Thoth_FileBrowserFile *)realloc(fb->files, sizeof(Thoth_FileBrowserFile) * ++fb->nFiles);
+			fb->nFiles++;
 			fb->files[fb->nFiles-1].dir = 1;
 			strcpy(fb->files[fb->nFiles-1].name, dp->d_name);
 
@@ -102,10 +97,10 @@ void Thoth_FileBrowser_ChangeDirectory(Thoth_FileBrowser *fb){
 			strcpy(fb->files[fb->nFiles-1].path, temp);
 
 		} else {
-
-			fb->files = (Thoth_FileBrowserFile *)realloc(fb->files, sizeof(Thoth_FileBrowserFile) * ++fb->nFiles);
+			fb->nFiles++;
 			strcpy(fb->files[fb->nFiles-1].path, temp);
 			strcpy(fb->files[fb->nFiles-1].name, dp->d_name);
+
 			fb->files[fb->nFiles-1].dir = 0;
 		}
 

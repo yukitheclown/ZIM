@@ -18,7 +18,7 @@ enum {
 	THOTH_STATE_RUNNING,
 };
 
-#define MOUSEUPDATETIME 100
+#define MOUSEUPDATETIME 50
 
 
 
@@ -85,14 +85,14 @@ void Event(Thoth_t *t){
 		if(!t->mousedown){
 			int x = ev.button.x / Thoth_Graphics_FontWidth(&t->graphics);
 			int y = ev.button.y / Thoth_Graphics_FontHeight(&t->graphics);
-			if(ev.button.clicks >= 2) 
-				Thoth_Editor_SetCursorPosDoubleClick(&t->te, x, y);
-			else{
+			// if(ev.button.clicks >= 2) 
+				// Thoth_Editor_SetCursorPosDoubleClick(&t->te, x, y);
+			// else{
 				Thoth_Editor_SetCursorPos(&t->te, x, y);
 				t->mousedown = 1;
 				t->mousex = x;
 				t->mousey = y;
-			}
+			// }
 			t->state = THOTH_STATE_UPDATEDRAW;
 			return;
 		}

@@ -15,7 +15,7 @@
 #include <pty.h>
 #endif
 #ifdef WINDOWS_COMPILE
-#include <fileapi.h>    
+#include <windows.h>
 #endif
 #include <math.h>
 
@@ -66,7 +66,7 @@ static int GetWordStart(char *text, int cPos);
 static int GetStartOfPrevLine(char *text, int cPos);
 static void DoOpenFile(Thoth_Editor *t);
 static void DoSaveFile(Thoth_Editor *t);
-static void OpenFile(Thoth_Editor *t, Thoth_EditorCmd *c);
+static void OpenFileZim(Thoth_Editor *t, Thoth_EditorCmd *c);
 static void NewFile(Thoth_Editor *t, Thoth_EditorCmd *c);
 static void SwitchFile(Thoth_Editor *t, Thoth_EditorCmd *c);
 void Thoth_Editor_LoadFile(Thoth_Editor *t, char *path);
@@ -1030,7 +1030,7 @@ static void DoSwitchFile(Thoth_Editor *t){
 
 static void DoSaveFile(Thoth_Editor *t){
 	t->file->unsaved = 0;
-	FILE *fp = fopen(t->file->path, "w");
+	FILE *fp = fopen(t->file->path, "wb");
 
 	fwrite(t->file->text,1,strlen(t->file->text),fp);
 	strcpy(t->fileBrowser.directory, t->file->path);
@@ -1088,7 +1088,7 @@ static void OpenFileBrowser(Thoth_Editor *t, Thoth_EditorCmd *c){
 	t->logIndex = 0;
 	StartLogging(t, THOTH_LOGMODE_FILEBROWSER);
 }
-static void OpenFile(Thoth_Editor *t, Thoth_EditorCmd *c){
+static void OpenFileZim(Thoth_Editor *t, Thoth_EditorCmd *c){
 	EndLogging(t);
 	t->loggingText = malloc(strlen(t->fileBrowser.directory)+1);
 	strcpy(t->loggingText, t->fileBrowser.directory);
@@ -1116,7 +1116,7 @@ static void SaveFile(Thoth_Editor *t, Thoth_EditorCmd *c){
 	DoSaveFile(t);
 }
 
-static void FindText(Thoth_Editor *t, Thoth_EditorCmd *c){
+static void FindTextZim(Thoth_Editor *t, Thoth_EditorCmd *c){
 	EndLogging(t);
 	StartLogging(t, THOTH_LOGMODE_TEXT);
 }
@@ -1839,14 +1839,16 @@ static void DeleteLine(Thoth_Editor *t, Thoth_EditorCmd *c){
 		}
 
 
+		if(start > 0) { start--; end--; }// include newline
 		cursor->pos = end;
 		AddSavedText(t, &t->file->text[start], end-start, &k);
 		RemoveStrFromText(t, &k, end-start);
+
 	}
 
-	SaveCursors(t,c);
 	RemoveSelections(t);
 	RemoveExtraCursors(t);
+	SaveCursors(t,c);
 }
 
 static void Copy(Thoth_Editor *t, Thoth_EditorCmd *c){
@@ -1969,6 +1971,9 @@ static void PutsCursor(Thoth_EditorCur c){
 }
 
 static void SaveCursors(Thoth_Editor *t, Thoth_EditorCmd *c){
+	
+	t->cursorsState++;
+	c->cursorsState = t->cursorsState;
 
 	int k;
 
@@ -2118,7 +2123,7 @@ static void UndoRemoveCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
 static void AutoComplete(Thoth_Editor *t){
 
 	t->autoCompleteLen = 0;
-	if(t->autoCompleteSearchLen > 0){
+	if(t->autoCompleteSearchLen > 0 && t->nCursors == 1){
 
 		if(t->autoCompleteSearchLen > THOTH_MAX_AUTO_COMPLETE_STRLEN) return;
 
@@ -2519,7 +2524,6 @@ static void Redo(Thoth_Editor *t, Thoth_EditorCmd *c){
 static void FreeCommand(Thoth_EditorCmd *c){
 
 	if(c->keys) free(c->keys);
-	if(c->keyBinding) free(c->keyBinding);
 
 	if(c->savedCursors){
 
@@ -2580,9 +2584,7 @@ static Thoth_EditorCmd *CreateCommand(const unsigned int binding[], const char *
 
 		int len = 0;
 		while(binding[len] != 0) len++;
-
-		res->keyBinding = (unsigned int *)malloc(len+1);
-		res->keyBinding[len+1] = 0;
+		res->keyBinding[len] = 0;
 		memcpy(res->keyBinding, binding, len * sizeof(unsigned int));
 	}
 
@@ -2681,43 +2683,47 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
 	Thoth_EditorFile *f = t->file;
 	
 	Thoth_EditorCmd **lastCmd = NULL;
-	char *lastKeys = NULL;
+	char **lastKeys = NULL;
 	int lastLen = 0;
 
 	if(f->sHistory > 0 && f->history) {
 		lastCmd = &f->history[f->sHistory-1];
-		lastKeys = (*lastCmd)->keys;
-		if(lastKeys) lastLen = strlen(lastKeys);
+		lastKeys = &(*lastCmd)->keys;
+		if(*lastKeys) lastLen = strlen(*lastKeys);
 	}
 
-	// typedef void (*EditFunc)(Thoth_Editor*, Thoth_EditorCmd*);
+	typedef void (*EditFunc)(Thoth_Editor*, Thoth_EditorCmd*);
 
-	// EditFunc BufferExpandFuncs[2] = {
-	//     AddCharacters,
-	//     RemoveCharacters
-	// };
-	// int BufferExpandFuncsLen = sizeof(BufferExpandFuncs)/sizeof(EditFunc);
+	EditFunc BufferExpandFuncs[2] = {
+	    AddCharacters,
+	    RemoveCharacters
+	};
+	int BufferExpandFuncsLen = sizeof(BufferExpandFuncs)/sizeof(EditFunc);
 
-	// int k;
-	// for(k = 0; k < BufferExpandFuncsLen; k++){
-	//     if(BufferExpandFuncs[k] == c->Execute
-	//         && lastCmd && (*lastCmd)->Execute == BufferExpandFuncs[k]
-	//          && c->keys && !IsToken(c->keys[0]) && 
-	//          lastKeys && !IsToken(lastKeys[lastLen-1])){
+	int k;
+	for(k = 0; k < BufferExpandFuncsLen; k++){
+	    if(BufferExpandFuncs[k] == c->Execute
+	        && lastCmd && (*lastCmd)->Execute == BufferExpandFuncs[k]
+	         && c->keys && !IsToken(c->keys[0]) && 
+	         lastKeys && !IsToken((*lastKeys)[lastLen-1])
+	         && t->cursorsState == (*lastCmd)->cursorsState)
+	    	{
 
 
-	//         (*lastCmd)->num = lastLen;
-	//         (*lastCmd)->keys = realloc(lastKeys, lastLen + strlen(c->keys) + 1);
-	//         strcpy(&lastKeys[lastLen],c->keys);
+
+	        (*lastCmd)->num = lastLen;
+	        (*lastCmd)->keys = realloc(*lastKeys, lastLen + strlen(c->keys) + 1);
+	        strcpy(&((*lastKeys)[lastLen]),c->keys);
 								  
-	//         (*lastCmd)->Execute(t,*lastCmd);
-	//         (*lastCmd)->num = lastLen + strlen(c->keys);
+	        (*lastCmd)->Execute(t,*lastCmd);
+	        (*lastCmd)->num = lastLen + strlen(c->keys);
+	        (*lastCmd)->cursorsState = t->cursorsState; // only changed by other commands
 
-	//         break;
-	//     }
-	// }
+	        break;
+	    }
+	}
 	
-	// if(k == BufferExpandFuncsLen){
+	if(k == BufferExpandFuncsLen){
 		f->history = (Thoth_EditorCmd **)realloc(f->history, 
 			++f->sHistory * sizeof(Thoth_EditorCmd *));
 		
@@ -2726,7 +2732,7 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
 		*lastCmd = CopyCommand(c);
 		(*lastCmd)->Execute(t,*lastCmd);
 		f->historyPos++;
-	// }
+	}
 
 	
 	if(c->scroll == SCR_CENT)
@@ -2808,7 +2814,7 @@ void Thoth_Editor_LoadFile(Thoth_Editor *t, char *pathRel){
 
 	char path[MAX_PATH_LEN] = {0};
 #ifdef WINDOWS_COMPILE
-	GetFullPathNameA(pathRel, MAX_PATH_LEN, path, NULL);
+	GetFullPathName(pathRel, MAX_PATH_LEN, path, NULL);
 #endif
 #ifdef LINUX_COMPILE
 	char *tmp = realpath(pathRel, NULL);
@@ -2831,7 +2837,7 @@ void Thoth_Editor_LoadFile(Thoth_Editor *t, char *pathRel){
 	}
 
 
-	FILE *fp = fopen(path, "r");
+	FILE *fp = fopen(path, "rb");
 
 	if(!fp){
 		t->file->text = malloc(1);
@@ -2865,12 +2871,10 @@ void Thoth_Editor_LoadFile(Thoth_Editor *t, char *pathRel){
 	//not enough checking. but itll save it from opening images on accident and crashing.
 
 	t->file->text = (char *)malloc(len + 1);
-	t->file->text[len] = 0;
-
-	t->file->textLen = len;
-
 	fread(t->file->text, sizeof(char), len, fp);
+	t->file->text[len] = '\0';
 
+	t->file->textLen = strlen(t->file->text);
 	fclose(fp);
 }
 
@@ -2915,7 +2919,7 @@ void Thoth_Editor_Init(Thoth_Editor *t, Thoth_Graphics *g, Thoth_Config *cfg){
 	AddCommand(t, CreateCommand((unsigned int[]){THOTH_CTRL_KEY|THOTH_SHIFT_KEY|THOTH_ARROW_DOWN  , 0}, "", 1, SCR_NORM, MoveLinesText, UndoMoveLinesText));
 
 	AddCommand(t, CreateCommand((unsigned int[]){THOTH_CTRL_KEY|THOTH_SHIFT_KEY|'o'  , 0}, "", 0, SCR_NORM, OpenFileBrowser, NULL));
-	AddCommand(t, CreateCommand((unsigned int[]){THOTH_CTRL_KEY|'o'  , 0}, "", 0, SCR_NORM, OpenFile, NULL));
+	AddCommand(t, CreateCommand((unsigned int[]){THOTH_CTRL_KEY|'o'  , 0}, "", 0, SCR_NORM, OpenFileZim, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){THOTH_CTRL_KEY|'n'  , 0}, "", 0, SCR_NORM, NewFile, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){THOTH_CTRL_KEY|'w'  , 0}, "", 0, SCR_NORM, CloseFile, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){THOTH_CTRL_KEY|'p'  , 0}, "", 0, SCR_NORM, SwitchFile, NULL));
@@ -2930,7 +2934,7 @@ void Thoth_Editor_Init(Thoth_Editor *t, Thoth_Graphics *g, Thoth_Config *cfg){
 
 	AddCommand(t, CreateCommand((unsigned int[]){THOTH_CTRL_KEY|'g'  , 0}, "", 0, SCR_CENT, GotoLine, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){THOTH_CTRL_KEY|'f'  , 0}, "", 0, SCR_CENT, FindTextInsensitive, NULL));
-	AddCommand(t, CreateCommand((unsigned int[]){THOTH_CTRL_KEY|THOTH_SHIFT_KEY|'f'  , 0}, "", 0, SCR_CENT, FindText, NULL));
+	AddCommand(t, CreateCommand((unsigned int[]){THOTH_CTRL_KEY|THOTH_SHIFT_KEY|'f'  , 0}, "", 0, SCR_CENT, FindTextZim, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){THOTH_ENTER_KEY|THOTH_CTRL_KEY  , 0}, "", 0, SCR_CENT, EventCtrlEnter, NULL));
 	// AddCommand(t, CreateCommand((unsigned int[]){'d'|THOTH_CTRL_KEY  , 0}, "", 0, SelectNextWord, NULL));
 
@@ -3096,6 +3100,15 @@ static int CursorPos(Thoth_Editor *t, int x, int y){
 
 	return 0;
 }
+
+void Text_Editor_Scroll(Thoth_Editor *t, int y){
+	// ClearAutoComplete(t);
+	// RemoveExtraCursors(t);
+	// t->cursors[0].pos = CursorPos(t, 0, -y);
+	// UpdateScrollCenter(t);
+	
+}
+
 void Thoth_Editor_SetCursorPosDoubleClick(Thoth_Editor *t, int x, int y){
 	
 	t->cursors[0].pos = CursorPos(t,x,y);
@@ -3411,6 +3424,7 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
 	
 		// begin render files text
 
+
 		for(; k < renderTo; ){
 
 			int comment = 0;
@@ -3593,9 +3607,12 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
 						k++;
 					
 					if(k == renderTo) break;
+					if(k >= renderTo-1) k--;
+
 
 					Thoth_Graphics_attron(t->graphics,THOTH_COLOR_STRING);
-					Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[ctOffset], k - ctOffset);
+					Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y,
+					 &text[ctOffset], k - ctOffset);
 									
 					x += k - ctOffset;
 					ctOffset = k;
@@ -3777,7 +3794,7 @@ void Thoth_Editor_Event(Thoth_Editor *t, unsigned int key){
 		if(key == ((( unsigned int)'b') | THOTH_CTRL_KEY)){
 	
 			if(strlen(t->file->path) > 0){
-				FILE *fp = fopen(t->file->path, "w");
+				FILE *fp = fopen(t->file->path, "wb");
 				fwrite(t->file->text,1,strlen(t->file->text),fp);
 				fclose(fp);
 			}
@@ -3803,6 +3820,8 @@ void Thoth_Editor_Event(Thoth_Editor *t, unsigned int key){
 				char *args[] = {"make",NULL};
 				execvp(args[0], args);
 			}
+
+			StartLogging(t, THOTH_LOGMODE_CONSOLE);
 #endif
 #ifdef WINDOWS_COMPILE
 
@@ -3812,8 +3831,8 @@ void Thoth_Editor_Event(Thoth_Editor *t, unsigned int key){
 			sprintf(sys, "make > %s  2>&1 &", logpath);
 #endif
 
-			
-			StartLogging(t, THOTH_LOGMODE_CONSOLE);
+	// windows broken			
+			// StartLogging(t, THOTH_LOGMODE_CONSOLE);
 			return;
 		}
 		if(key == ((( unsigned int)'=') | THOTH_CTRL_KEY)){
@@ -3888,7 +3907,7 @@ static void UnsavedFileOnExit(Thoth_Editor *t, Thoth_EditorFile *file){
 
 int Thoth_Editor_Destroy(Thoth_Editor *t){
 	
-	FILE *fp = fopen(THOTH_LOGFILE, "w");
+	FILE *fp = fopen(THOTH_LOGFILE, "wb");
 	int nFiles = 0;
 	int k;
 

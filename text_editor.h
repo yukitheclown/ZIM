@@ -61,10 +61,11 @@
 
  struct Thoth_EditorCmd {
 
-  unsigned int *keyBinding;
+  unsigned int keyBinding[8];
   char *keys;
   int num;
   unsigned char scroll;
+  u64 cursorsState;
   
   Thoth_EditorCur *savedCursors;
   int nSavedCursors;
@@ -81,9 +82,9 @@
   //no longer used, now clipboard is from system, lines seperated by \n
   char *clipboard;
   int sClipboard;
+  int cursorsState;
   char *savedText;
   int addedLen;
-
   int pos;
  };
 
@@ -96,6 +97,7 @@ typedef struct {
 } Thoth_AutoCompleteOffset;
 
 typedef struct {
+  char                    *text;
   int                     scroll;
   int                     unsaved;
   int                     cursorPos;
@@ -104,7 +106,6 @@ typedef struct {
   int                     sHistory;
 
 
-  char                    *text;
   int                     textLen;
   char                    name[MAX_FILENAME];
   char                    path[MAX_PATH_LEN];
@@ -115,31 +116,33 @@ typedef struct {
   Thoth_Config            *cfg;
   Thoth_Graphics         *graphics;
   Thoth_EditorCmd       **commands;
-  int                     nCommands;
+  Thoth_AutoCompleteOffset      autoComplete[THOTH_MAX_AUTO_COMPLETE];
+  Thoth_EditorCur        *cursors;
+  Thoth_EditorFile          **files;
+  Thoth_EditorFile          *file;
+  Thoth_FileBrowser       fileBrowser;
+  
 
+  u64                     cursorsState;
+  int                     nCommands;
   int                     selectNextWordTerminator; // "select" not get it in the phrase selecting
 
   int                     autoCompleteSearchLen;
   int                     autoCompleteLen;
-  Thoth_AutoCompleteOffset      autoComplete[THOTH_MAX_AUTO_COMPLETE];
   int                     autoCompleteIndex;
 
   int                     logging;
   int                     logIndex;
   char                    *loggingText;
 
-  Thoth_EditorFile          **files;
   int                     nFiles;
-  Thoth_EditorFile          *file;
 
-  Thoth_EditorCur        *cursors;
   int                     mouseSelection;
   int                     nCursors;
   int                     logX;
   int                     logY;
 
   int                     quit;
-  Thoth_FileBrowser       fileBrowser;
 
   int                     ttyPid;
   int                     ttyMaster;
@@ -156,5 +159,6 @@ int Thoth_Editor_Destroy(Thoth_Editor *t);
 void Thoth_Editor_Init(Thoth_Editor *t, Thoth_Graphics *g, Thoth_Config *cfg);
 void Thoth_Editor_SetCursorPos(Thoth_Editor *t, int x, int y);
 int Thoth_Editor_SetCursorPosSelection(Thoth_Editor *t, int x, int y);
+int Thoth_Editor_Scroll(Thoth_Editor *t, int y);
 void Thoth_Editor_SetCursorPosDoubleClick(Thoth_Editor *t, int x, int y);
  #endif

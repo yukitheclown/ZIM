@@ -20,14 +20,25 @@
 # 	rm *.o
 
 # # linuxa
-CC=gcc
-EXECUTABLE=zim
-CFLAGS = -g -Wall -lm -DLINUX_COMPILE  $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2) -DLINUX_INSTALL
+# CC=gcc
+# EXECUTABLE=zim
+# CFLAGS = -g -Wall -lm -DLINUX_COMPILE  $(shell sdl2-config --cflags) $(shell pkg-config --cflags freetype2) -DLINUX_INSTALL
 
-FREETYPELIBS = $(shell pkg-config --libs freetype2)
-GLEWLIBS = $(shell pkg-config --static --libs glew)
-SDLLIBS = $(shell pkg-config --libs sdl2)
-LDLIBS = -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS) -pg
+# FREETYPELIBS = $(shell pkg-config --libs freetype2)
+# GLEWLIBS = $(shell pkg-config --static --libs glew)
+# SDLLIBS = $(shell pkg-config --libs sdl2)
+# LDLIBS = -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS) -pg
+# add -pg for gdb
+
+
+CC=mingw32-gcc
+EXECUTABLE=zim.exe
+CFLAGS = -g -Wall -lm -DWINDOWS_COMPILE -DLINUX_INSTALL
+
+FREETYPELIBS = -lfreetype
+GLEWLIBS = -lglew32 -lopengl32 -mwindows
+SDLLIBS = -lsdl2main -lsdl2
+LDLIBS = -lm -lmingw32 $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS) 
 # add -pg for gdb
 
 # windows
@@ -44,22 +55,22 @@ SOURCES=main.c text_editor.c window.c graphics.c log.c freetype.c file_browser.c
 OBJECTS=$(SOURCES:.c=.o)
 
 
-all: $(SOURCES) $(EXECUTABLE)
+# all: $(SOURCES) $(EXECUTABLE)
 
-$(EXECUTABLE): $(OBJECTS) 
-	$(CC) $(OBJECTS) $(LDLIBS) -o $@
+# $(EXECUTABLE): $(OBJECTS) 
+# 	$(CC) $(OBJECTS) $(LDLIBS) -o $@
 
 # wihndows unused right now
-# all: createResourcesO $(SOURCES) $(EXECUTABLE)
+all: createResourcesO $(SOURCES) $(EXECUTABLE)
 
-# $(EXECUTABLE): $(OBJECTS) icon.o
-# 	$(CC) $(OBJECTS) icon.o $(LDLIBS) -o $@
+$(EXECUTABLE): $(OBJECTS) icon.o
+	$(CC) $(OBJECTS) icon.o $(LDLIBS) -o $@
 
-# createResourcesO: icon.rc
-# 	i686-w64-mingw32-windres icon.rc -o icon.o
+createResourcesO: icon.rc
+	windres icon.rc -o icon.o
 
 .c.o:
 	$(CC) -c $(CFLAGS) $< -o $@
 
 clean:
-	rm *.o
+	del *.o

@@ -33,8 +33,7 @@ find replace<br>
 code folding<br>
 <br>
 <br>
-Example zimconfig.cfg</b><br>
-#%appdata%/zim/ or .config/zim/<br>
+Example thothconfig.cfg</b><br>
 # gruvbox <br>
 COLOR_CYAN 0x8e 0xc0 0x7c<br>
 COLOR_RED 0xfb 0x49 0x34<br>
