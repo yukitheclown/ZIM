@@ -1839,7 +1839,6 @@ static void DeleteLine(Thoth_Editor *t, Thoth_EditorCmd *c){
 		}
 
 
-		if(start > 0) { start--; end--; }// include newline
 		cursor->pos = end;
 		AddSavedText(t, &t->file->text[start], end-start, &k);
 		RemoveStrFromText(t, &k, end-start);
@@ -1972,8 +1971,6 @@ static void PutsCursor(Thoth_EditorCur c){
 
 static void SaveCursors(Thoth_Editor *t, Thoth_EditorCmd *c){
 	
-	t->cursorsState++;
-	c->cursorsState = t->cursorsState;
 
 	int k;
 
@@ -2502,12 +2499,52 @@ static void AddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
 		t->cursors[k].addedLen += strlen(keys);
 	}
 
-	SaveCursors(t, c);
 
-	AutoComplete(t);
+	SaveCursors(t, c);
 
 	for(k = 0; k < t->nCursors; k++)
 		memset(&t->cursors[k].selection, 0, sizeof(Thoth_EditorSelection));
+
+	AutoComplete(t);
+
+
+}
+static void ExpandAddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
+	
+	if(t->file->text == NULL) return;
+
+	LoadCursors(t, c);
+
+	// RefreshEditorCommand(c);
+
+	int k;
+	char *keys = &c->keys[c->num];
+	c->num = strlen(c->keys);
+
+	// make sure autocomplete only starts after a token, if canceled.
+	if(t->autoCompleteSearchLen > 0 || IsToken(t->file->text[t->cursors[0].pos-1])){
+		for(k = 0; k < strlen(keys); k++){
+			if(!IsToken(keys[k])){
+				t->autoCompleteSearchLen++;
+			} else {
+				t->autoCompleteSearchLen = 0;
+			}
+		}        
+	}
+
+	for(k = 0; k < t->nCursors; k++){
+		AddStrToText(t, &k, keys);
+		t->cursors[k].addedLen += strlen(keys);
+	}
+
+
+	SaveCursors(t, c);
+
+	for(k = 0; k < t->nCursors; k++)
+		memset(&t->cursors[k].selection, 0, sizeof(Thoth_EditorSelection));
+
+	AutoComplete(t);
+
 
 }
 
@@ -2602,7 +2639,7 @@ static Thoth_EditorCmd *CreateCommand(const unsigned int binding[], const char *
 }
 
 static void UndoCommands(Thoth_Editor *t, int num){
-
+	t->lastCmd = NULL;
 	if(t->file->historyPos == 0 || t->file->historyPos - num < 0)
 		return;
 
@@ -2663,6 +2700,7 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
 
 	if(c->Undo == NULL || t->logging){
 		c->Execute(t, c);
+		t->lastCmd = NULL;
 		if(c->scroll == SCR_CENT)
 			UpdateScrollCenter(t);
 		else
@@ -2682,13 +2720,10 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
 	}
 	Thoth_EditorFile *f = t->file;
 	
-	Thoth_EditorCmd **lastCmd = NULL;
 	char **lastKeys = NULL;
 	int lastLen = 0;
-
-	if(f->sHistory > 0 && f->history) {
-		lastCmd = &f->history[f->sHistory-1];
-		lastKeys = &(*lastCmd)->keys;
+	if(t->lastCmd){
+		lastKeys = &(*t->lastCmd)->keys;
 		if(*lastKeys) lastLen = strlen(*lastKeys);
 	}
 
@@ -2696,28 +2731,25 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
 
 	EditFunc BufferExpandFuncs[2] = {
 	    AddCharacters,
-	    RemoveCharacters
+	    // RemoveCharacters
 	};
 	int BufferExpandFuncsLen = sizeof(BufferExpandFuncs)/sizeof(EditFunc);
 
 	int k;
 	for(k = 0; k < BufferExpandFuncsLen; k++){
 	    if(BufferExpandFuncs[k] == c->Execute
-	        && lastCmd && (*lastCmd)->Execute == BufferExpandFuncs[k]
+	        && t->lastCmd && (*t->lastCmd)->Execute == BufferExpandFuncs[k]
 	         && c->keys && !IsToken(c->keys[0]) && 
-	         lastKeys && !IsToken((*lastKeys)[lastLen-1])
-	         && t->cursorsState == (*lastCmd)->cursorsState)
+	         lastKeys && !IsToken((*lastKeys)[lastLen-1]))
 	    	{
 
-
-
-	        (*lastCmd)->num = lastLen;
-	        (*lastCmd)->keys = realloc(*lastKeys, lastLen + strlen(c->keys) + 1);
+	        (*t->lastCmd)->num = lastLen;
+	        (*t->lastCmd)->keys = realloc(*lastKeys, lastLen + strlen(c->keys) + 1);
 	        strcpy(&((*lastKeys)[lastLen]),c->keys);
-								  
-	        (*lastCmd)->Execute(t,*lastCmd);
-	        (*lastCmd)->num = lastLen + strlen(c->keys);
-	        (*lastCmd)->cursorsState = t->cursorsState; // only changed by other commands
+					
+	        // (*t->lastCmd)->Execute(t,*t->lastCmd);
+	        ExpandAddCharacters(t, *t->lastCmd);
+	        (*t->lastCmd)->num = lastLen + strlen(c->keys);
 
 	        break;
 	    }
@@ -2727,10 +2759,10 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
 		f->history = (Thoth_EditorCmd **)realloc(f->history, 
 			++f->sHistory * sizeof(Thoth_EditorCmd *));
 		
-		lastCmd = &f->history[f->sHistory-1];
+		t->lastCmd = &f->history[f->sHistory-1];
 		
-		*lastCmd = CopyCommand(c);
-		(*lastCmd)->Execute(t,*lastCmd);
+		*t->lastCmd = CopyCommand(c);
+		(*t->lastCmd)->Execute(t,*t->lastCmd);
 		f->historyPos++;
 	}
 
@@ -2955,8 +2987,8 @@ void Thoth_Editor_Init(Thoth_Editor *t, Thoth_Graphics *g, Thoth_Config *cfg){
 	AddCommand(t, CreateCommand((unsigned int[]){'h'|THOTH_ALT_KEY|THOTH_CTRL_KEY  , 0}, "", -1, SCR_NORM, MoveByWords, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){'l'|THOTH_ALT_KEY|THOTH_CTRL_KEY  , 0}, "", 1, SCR_NORM, MoveByWords, NULL));
 
-	AddCommand(t, CreateCommand((unsigned int[]){']'|THOTH_ALT_KEY|THOTH_CTRL_KEY  , 0}, "", 1, SCR_NORM, IndentLine, NULL));
-	AddCommand(t, CreateCommand((unsigned int[]){'['|THOTH_ALT_KEY|THOTH_CTRL_KEY  , 0}, "", -1, SCR_NORM, IndentLine, NULL));
+	AddCommand(t, CreateCommand((unsigned int[]){']'|THOTH_CTRL_KEY  , 0}, "", 1, SCR_NORM, IndentLine, NULL));
+	AddCommand(t, CreateCommand((unsigned int[]){'['|THOTH_CTRL_KEY  , 0}, "", -1, SCR_NORM, IndentLine, NULL));
 
 	AddCommand(t, CreateCommand((unsigned int[]){THOTH_ARROW_LEFT|THOTH_SHIFT_KEY|THOTH_CTRL_KEY  , 0}, "", -1, SCR_NORM, ExpandSelectionWords, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){THOTH_ARROW_RIGHT|THOTH_SHIFT_KEY|THOTH_CTRL_KEY  , 0}, "", 1, SCR_NORM, ExpandSelectionWords, NULL));

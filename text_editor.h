@@ -65,7 +65,6 @@
   char *keys;
   int num;
   unsigned char scroll;
-  u64 cursorsState;
   
   Thoth_EditorCur *savedCursors;
   int nSavedCursors;
@@ -82,7 +81,6 @@
   //no longer used, now clipboard is from system, lines seperated by \n
   char *clipboard;
   int sClipboard;
-  int cursorsState;
   char *savedText;
   int addedLen;
   int pos;
@@ -121,9 +119,8 @@ typedef struct {
   Thoth_EditorFile          **files;
   Thoth_EditorFile          *file;
   Thoth_FileBrowser       fileBrowser;
-  
+  Thoth_EditorCmd         **lastCmd;  
 
-  u64                     cursorsState;
   int                     nCommands;
   int                     selectNextWordTerminator; // "select" not get it in the phrase selecting
 
