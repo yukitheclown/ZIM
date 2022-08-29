@@ -1803,7 +1803,9 @@ static void UndoDeleteLine(Thoth_Editor *t, Thoth_EditorCmd *c){
 	for(k = 0; k < t->nCursors; k++){
 
 		// Thoth_EditorCur *cursor = &t->cursors[k];
+		int pos = t->cursors[k].pos;
 		AddStrToText(t, &k, c->savedCursors[k].savedText);
+		t->cursors[k].pos = pos;
 	}
 	SaveCursors(t, c);
 }
