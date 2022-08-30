@@ -1,86 +1,24 @@
 CURSOR:
-	selection: startPos: 195 len: 7 
-	savedText: testing 
+	selection: startPos: 13 len: 13 
+	savedText: 				int test
+ 
 	addedLen: 0
-	pos: 195
+	pos: 13
 CURSOR:
-	selection: startPos: 72 len: 7 
-	savedText: testing 
+	selection: startPos: 15 len: 13 
+	savedText: 				int test
+ 
 	addedLen: 0
-	pos: 72
+	pos: 15
 CURSOR:
-	selection: startPos: 146 len: 7 
-	savedText: testing 
+	selection: startPos: 13 len: 13 
+	savedText: 				int test
+ 
 	addedLen: 0
-	pos: 146
+	pos: 13
 CURSOR:
-	selection: startPos: 160 len: 7 
-	savedText: testing 
-	addedLen: 0
-	pos: 160
-CURSOR:
-	selection: startPos: 174 len: 7 
-	savedText: testing 
-	addedLen: 0
-	pos: 174
-CURSOR:
-	selection: startPos: 42 len: 7 
-	savedText: testing 
-	addedLen: 0
-	pos: 42
-CURSOR:
-	selection: startPos: 50 len: 7 
-	savedText: testing 
-	addedLen: 0
-	pos: 50
-CURSOR:
-	selection: startPos: 72 len: 7 
-	savedText: testing 
-	addedLen: 3
-	pos: 72
-CURSOR:
-	selection: startPos: 146 len: 7 
-	savedText: testing 
-	addedLen: 3
-	pos: 146
-CURSOR:
-	selection: startPos: 160 len: 7 
-	savedText: testing 
-	addedLen: 3
-	pos: 160
-CURSOR:
-	selection: startPos: 174 len: 7 
-	savedText: testing 
-	addedLen: 3
-	pos: 174
-CURSOR:
-	selection: startPos: 42 len: 7 
-	savedText: testing 
-	addedLen: 3
-	pos: 42
-CURSOR:
-	selection: startPos: 50 len: 7 
-	savedText: testing 
-	addedLen: 3
-	pos: 50
-CURSOR:
-	selection: startPos: 0 len: 199 
-	savedText: #include <stdio.h>
-
-typedef struct {
-	int foo1;
-	int foo2;
-	int foo3;
-} Testing_t;
-
-int main(int argc, char **argv){
-
-	Testing_t test;
-	test.foo1 = 19;
-	test.foo2 = 20;
-	test.foo3 = 39;
-
-	return 0;
-} 
-	addedLen: 0
-	pos: 0
+	selection: startPos: 15 len: 13 
+	savedText: 				int test
+ 
+	addedLen: 16
+	pos: 15

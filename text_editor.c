@@ -2282,82 +2282,35 @@ static void IndentLine(Thoth_Editor *t, Thoth_EditorCmd *c){
 	int k;
 	for(k = 0; k < t->nCursors; k++){
 
-		int prev = t->cursors[k].pos;
-		if(t->cursors[k].selection.len == 0){
+		if(!t->cursors[k].selection.len){
+			int charsinto = GetCharsIntoLine(t->file->text, t->cursors[k].pos);
+			int start = t->cursors[k].pos - charsinto;
+			while(t->file->text[start] == '\t' && start < t->file->textLen) start++;
 
-			if(t->file->text[prev] != '\n')
-				t->cursors[k].pos = prev - GetCharsIntoLine(t->file->text, t->cursors[k].pos);
-
-			if(c->num > 0){
-				Thoth_EditorCmd *command = CreateCommand((const unsigned int[]){0}, "\t", 0, SCR_CENT, AddCharacters, UndoAddCharacters);
-				ExecuteCommand(t,command);
-				FreeCommand(command);
-			} else {
-				if (t->file->text[t->cursors[k].pos] == '\t' || t->file->text[t->cursors[k].pos] == ' '){
-					t->cursors[k].pos++;
-					Thoth_EditorCmd *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_CENT,
-						RemoveCharacters, UndoRemoveCharacters);
-					ExecuteCommand(t,command);
-					FreeCommand(command);
-				} 
-			}
-
-		} else {
-
-			Thoth_EditorSelection selection = t->cursors[k].selection;
-
-			int startCursorPos=t->cursors[k].selection.startCursorPos;
-			RemoveSelections(t);
-
-			int next = startCursorPos;
-
-			if(t->file->text[next] != '\n')
-				next = startCursorPos - GetCharsIntoLine(t->file->text, next);
-
-			do {
-				t->cursors[k].pos = next;
-
-				if(c->num > 0){
-					if(next == selection.startCursorPos){
-						selection.startCursorPos++;
-					} else {
-						selection.len++;
-					}
-					Thoth_EditorCmd *command = CreateCommand((const unsigned int[]){0}, 
-						"\t", 0, SCR_CENT, AddCharacters, UndoAddCharacters);
-					ExecuteCommand(t,command);
-					FreeCommand(command);
-					prev++;
-				} else {
-					if (t->file->text[t->cursors[k].pos] == '\t' || t->file->text[t->cursors[k].pos] == ' '){
-	
-						if(next == selection.startCursorPos){
-							selection.startCursorPos--;
-						} else {
-							selection.len--;
-						}
-	
-						t->cursors[k].pos++;
-						Thoth_EditorCmd *command = CreateCommand((const unsigned int[]){0}, 0, 1, SCR_CENT, 
-							RemoveCharacters, UndoRemoveCharacters);
-						ExecuteCommand(t,command);
-						FreeCommand(command);
-						prev--;
-					} 
+			if(c->num < 0){
+				if(start > 0 && t->file->text[start-1] == '\t'){
+					t->cursors[k].pos = start;
+					RemoveStrFromText(t, &k, 1);
 				}
+				
+			} else {
 
-				next = GetStartOfNextLine(t->file->text, t->file->textLen, next);
-
-	
-			} while(next < selection.startCursorPos+selection.len);
-
-			// AddCharacters in Tab will delete everything;
-			t->cursors[k].selection = selection;
+				t->cursors[k].pos = start;
+				AddStrToText(t, &k, "\t");
+			}
 		}
-
-
-		t->cursors[k].pos = prev;
 	}
+	
+	SaveCursors(t,c);
+}
+
+static void UndoIndentLine(Thoth_Editor *t, Thoth_EditorCmd *c){
+
+	LoadCursors(t,c);
+	Thoth_EditorCmd *command = CreateCommand((const unsigned int[]){0}, "\t", -c->num, SCR_CENT, IndentLine, NULL);
+	ExecuteCommand(t,command);
+	FreeCommand(command);
+
 	SaveCursors(t,c);
 }
 
@@ -2830,7 +2783,7 @@ void Thoth_Editor_LoadFile(Thoth_Editor *t, char *pathRel){
 		t->file->text[0] = 0;
 		strcpy(t->file->name, "new file");
 		AddFile(t, t->file);
-		return;
+		goto endfile;
 	}
 
 	char path[MAX_PATH_LEN] = {0};
@@ -2852,7 +2805,7 @@ void Thoth_Editor_LoadFile(Thoth_Editor *t, char *pathRel){
 		FreeFile(file);
 		t->file = t->files[exists];
 		// check to reload?
-		return;
+		goto endfile;
 	} else {
 		t->file = file;
 	}
@@ -2863,7 +2816,7 @@ void Thoth_Editor_LoadFile(Thoth_Editor *t, char *pathRel){
 	if(!fp){
 		t->file->text = malloc(1);
 		t->file->text[0] = 0;
-		return;
+		goto endfile;
 	}
 
 
@@ -2897,6 +2850,9 @@ void Thoth_Editor_LoadFile(Thoth_Editor *t, char *pathRel){
 
 	t->file->textLen = strlen(t->file->text);
 	fclose(fp);
+
+endfile:
+	RefreshFile(t);
 }
 
 
@@ -2976,8 +2932,8 @@ void Thoth_Editor_Init(Thoth_Editor *t, Thoth_Graphics *g, Thoth_Config *cfg){
 	AddCommand(t, CreateCommand((unsigned int[]){'h'|THOTH_ALT_KEY|THOTH_CTRL_KEY  , 0}, "", -1, SCR_NORM, MoveByWords, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){'l'|THOTH_ALT_KEY|THOTH_CTRL_KEY  , 0}, "", 1, SCR_NORM, MoveByWords, NULL));
 
-	AddCommand(t, CreateCommand((unsigned int[]){']'|THOTH_CTRL_KEY  , 0}, "", 1, SCR_NORM, IndentLine, NULL));
-	AddCommand(t, CreateCommand((unsigned int[]){'['|THOTH_CTRL_KEY  , 0}, "", -1, SCR_NORM, IndentLine, NULL));
+	AddCommand(t, CreateCommand((unsigned int[]){']'|THOTH_CTRL_KEY  , 0}, "", 1, SCR_NORM, IndentLine, UndoIndentLine));
+	AddCommand(t, CreateCommand((unsigned int[]){'['|THOTH_CTRL_KEY  , 0}, "", -1, SCR_NORM, IndentLine, UndoIndentLine));
 
 	AddCommand(t, CreateCommand((unsigned int[]){THOTH_ARROW_LEFT|THOTH_SHIFT_KEY|THOTH_CTRL_KEY  , 0}, "", -1, SCR_NORM, ExpandSelectionWords, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){THOTH_ARROW_RIGHT|THOTH_SHIFT_KEY|THOTH_CTRL_KEY  , 0}, "", 1, SCR_NORM, ExpandSelectionWords, NULL));

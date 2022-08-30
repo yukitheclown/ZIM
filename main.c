@@ -75,6 +75,13 @@ void Event(Thoth_t *t){
 	}
 #endif
 
+	if(ev.type == SDL_DROPFILE){
+		char *drop = ev.drop.file;
+		Thoth_Editor_LoadFile(&t->te, drop);
+		t->state = THOTH_STATE_UPDATEDRAW;
+		SDL_free(drop);
+		return;
+	}
 	if(ev.type == SDL_QUIT){
 		t->state = THOTH_STATE_QUIT;
 		return;

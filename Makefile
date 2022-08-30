@@ -27,7 +27,7 @@ CFLAGS = -g -Wall -lm -DLINUX_COMPILE  $(shell sdl2-config --cflags) $(shell pkg
 FREETYPELIBS = $(shell pkg-config --libs freetype2)
 GLEWLIBS = $(shell pkg-config --static --libs glew)
 SDLLIBS = $(shell pkg-config --libs sdl2)
-LDLIBS = -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS) 
+LDLIBS = -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS) -lpng
 # add -pg for gdb
 
 
@@ -51,7 +51,7 @@ LDLIBS = -lm -lutil -static-libgcc $(GLEWLIBS) $(SDLLIBS) $(FREETYPELIBS)
 #   -L/usr/i686-w64-mingw32/lib/libglew32.a -lpng -lz
 
 
-SOURCES=main.c text_editor.c window.c graphics.c log.c freetype.c file_browser.c config.c
+SOURCES=main.c text_editor.c window.c graphics.c log.c freetype.c file_browser.c config.c utils.c
 OBJECTS=$(SOURCES:.c=.o)
 
 
