@@ -29,8 +29,9 @@ enum {
   SCR_NORM = 0,
   SCR_CENT,
 };
+static FILE *logfile = NULL;
 
-
+static void PutsCursor(Thoth_EditorCur c);
 static void LoggingMoveLines(Thoth_Editor *t, int num);
 static void LoggingRemoveCharacter(Thoth_Editor *t);
 static void LoggingAddCharacter(Thoth_Editor *t, char c);
@@ -515,44 +516,51 @@ static void ResolveCursorCollisions(Thoth_Editor *t, int *cursorIndex){
 	int j, f;
 	for(j = 0; j < t->nCursors; j++){
 		for(f = 0; f < t->nCursors; f++){
-			if(f != j && t->cursors[j].pos == t->cursors[f].pos){
-				
-				
+	
+			if(f != j){
+					Thoth_EditorCur *c1 = &t->cursors[j];
+					Thoth_EditorCur *c2 = &t->cursors[f];
 
-				if(j+1 < t->nCursors){
+					if((c1->selection.len && c2->selection.len && ((c1->selection.startCursorPos <= c2->selection.startCursorPos + c2->selection.len)
+						&& c1->selection.startCursorPos >= c2->selection.startCursorPos)) || c1->pos == c2->pos){
+					
 
-					if(t->cursors[j].savedText){
-						
-						if(t->cursors[f].savedText){
-							int len1 = strlen(t->cursors[j].savedText);
-							int len2 = strlen(t->cursors[f].savedText);
-							t->cursors[j].savedText = realloc(t->cursors[j].savedText, len1+len2+1);
-							t->cursors[j].savedText[len1+len2] = 0;
+					if(j+1 < t->nCursors){
 
-							memcpy(&t->cursors[j].savedText[len1], t->cursors[f].savedText, len2);
+						if(t->cursors[j].savedText){
+							
+							if(t->cursors[f].savedText){
+								int len1 = strlen(t->cursors[j].savedText);
+								int len2 = strlen(t->cursors[f].savedText);
+								t->cursors[j].savedText = realloc(t->cursors[j].savedText, len1+len2+1);
+								t->cursors[j].savedText[len1+len2] = 0;
+
+								memcpy(&t->cursors[j].savedText[len1], t->cursors[f].savedText, len2);
+							}
+							
+							free(t->cursors[f].savedText);
+
+							t->cursors[f].savedText = t->cursors[j].savedText;
 						}
-						
-						free(t->cursors[f].savedText);
 
-						t->cursors[f].savedText = t->cursors[j].savedText;
+						t->cursors[f].addedLen += t->cursors[j].addedLen;
 					}
 
-					t->cursors[f].addedLen += t->cursors[j].addedLen;
-				}
+					int m;
+					for(m = j; m < t->nCursors-1; m++){
+						t->cursors[m] = t->cursors[m+1];
+					}
 
-				int m;
-				for(m = j; m < t->nCursors-1; m++){
-					t->cursors[m] = t->cursors[m+1];
-				}
-
-				t->cursors = realloc(t->cursors, --t->nCursors * sizeof(Thoth_EditorCur));                 
+					t->cursors = realloc(t->cursors, --t->nCursors * sizeof(Thoth_EditorCur));                 
 
 
-				if(cursorIndex && *cursorIndex >= j)
-					(*cursorIndex)--;
+					if(cursorIndex && *cursorIndex >= j)
+						(*cursorIndex)--;
 
-				j--;
-				break;
+					j--;
+					break;
+
+					}
 			}
 		}
 	}
@@ -1428,22 +1436,16 @@ static void Paste(Thoth_Editor *t, Thoth_EditorCmd *c){
 	// RefreshEditorCommand(c);
 
 	char *clipboard = SDL_GetClipboardText();
+	if(c->keys && strlen(c->keys)){
+		clipboard = c->keys;
+	} else {
+		if(c->keys) free(c->keys);
+		c->keys = malloc(strlen(clipboard)+1);
+		strcpy(c->keys,clipboard);
+		c->keys[strlen(clipboard)] = 0;
+	}
+
 	int clipboardLen = strlen(clipboard);
-
-	int line = 0;
-
-	int f;
-	for(f = 0; f < clipboardLen; f++){
-		if(clipboard[f] == '\n') line++;
-	}
-
-	if(line != t->nCursors){
-		// \n is fine, but not for the final line
-		clipboard[strlen(clipboard)-1] = 0;
-		clipboardLen--;
-	}
-
-	f = 0;
 
 	int k;
 
@@ -1451,30 +1453,8 @@ static void Paste(Thoth_Editor *t, Thoth_EditorCmd *c){
 		
 		EraseAllSelectedText(t, &k, c);
 
-		// if(t->cursors[k].clipboard == NULL) continue;
-		// c->addedLens[k] = strlen(t->cursors[k].clipboard);
-
-		if(t->nCursors == line){
-			int start = f;
-			char tmp = 0;
-
-			for(; f < clipboardLen; f++){
-				if(clipboard[f] == '\n'){
-					tmp = clipboard[f];
-					f++;
-					break;
-				}
-			}
-			if(tmp) clipboard[f-1] = 0;
-			AddStrToText(t, &k, &clipboard[start]);
-			t->cursors[k].addedLen = (f-1) - start;
-			clipboard[f-1] = tmp;
-		} else {
 			AddStrToText(t, &k, clipboard);
 			t->cursors[k].addedLen = clipboardLen;
-		}
-
-
 	}
 
 	SaveCursors(t, c);
@@ -1928,12 +1908,12 @@ static void EraseAllSelectedText(Thoth_Editor *t, int *cursorIndex, Thoth_Editor
 		
 
 	if(t->file->text == NULL) return;
-
+	
 	Thoth_EditorCur *cursor = &t->cursors[*cursorIndex];
 
 	if(t->file->text == NULL || cursor->selection.len == 0) return;
 
-	int textLen = t->file->textLen;
+	int textLen = strlen(t->file->text);
 
 	int startCursorPos, endCursorPos;
 
@@ -1945,30 +1925,34 @@ static void EraseAllSelectedText(Thoth_Editor *t, int *cursorIndex, Thoth_Editor
 	AddSavedText(t, &t->file->text[startCursorPos], cursor->selection.len, cursorIndex);
 	cursor->pos = endCursorPos;
 	RemoveStrFromText(t, cursorIndex, cursor->selection.len);
+	
+	PutsCursor(*cursor);
 
 	if(newSize <= 0){
 		if(t->file->text) free(t->file->text);
 		t->file->text = malloc(1);
 		t->file->text[0] = 0;
 		return;
+	} else {
+		t->file->textLen = strlen(t->file->text);
 	}
 
 }
 
 static void PutsCursor(Thoth_EditorCur c){
 	
-	printf("CURSOR:\n");
-	printf("\tselection: startPos: %i len: %i \n", 
+	fprintf(logfile, "CURSOR:\n");
+	fprintf(logfile, "\tselection: startPos: %i len: %i \n", 
 		c.selection.startCursorPos, c.selection.len);
 
 	if(c.clipboard)
-		printf("\tclipboard: %s \n", c.clipboard);
+		fprintf(logfile, "\tclipboard: %s \n", c.clipboard);
 
 	if(c.savedText)
-		printf("\tsavedText: %s \n", c.savedText);
+		fprintf(logfile, "\tsavedText: %s \n", c.savedText);
 
-	printf("\taddedLen: %i\n", c.addedLen);
-	printf("\tpos: %i\n", c.pos);
+	fprintf(logfile, "\taddedLen: %i\n", c.addedLen);
+	fprintf(logfile, "\tpos: %i\n", c.pos);
 }
 
 static void SaveCursors(Thoth_Editor *t, Thoth_EditorCmd *c){
@@ -2090,6 +2074,7 @@ static void RemoveStrFromText(Thoth_Editor *t, int *cursorIndex, int len){
 	int textLen = strlen(t->file->text);
 
 	if(pos < textLen){
+		len = pos + len > textLen ? textLen - pos : len;
 		memcpy(&t->file->text[pos], &t->file->text[pos+len], textLen - (pos + len));
 	}
 
@@ -2497,6 +2482,8 @@ static void AddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
 
 	for(k = 0; k < t->nCursors; k++){
 		EraseAllSelectedText(t, &k, c);
+	}
+	for(k = 0; k < t->nCursors; k++){
 		AddStrToText(t, &k, keys);
 		t->cursors[k].addedLen += strlen(keys);
 	}
@@ -2919,7 +2906,7 @@ void Thoth_Editor_Init(Thoth_Editor *t, Thoth_Graphics *g, Thoth_Config *cfg){
 	t->graphics = g;
 	t->cfg = cfg;
 
-
+	logfile = fopen("log.txt", "wb");
 
 	Thoth_Graphics_init_pair(t->graphics,THOTH_COLOR_SIDE_NUMBERS, THOTH_COLOR_WHITE, THOTH_COLOR_BLACK);
 	Thoth_Graphics_init_pair(t->graphics,THOTH_COLOR_NORMAL, THOTH_COLOR_WHITE, THOTH_COLOR_BLACK);

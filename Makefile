@@ -73,4 +73,4 @@ $(EXECUTABLE): $(OBJECTS)
 	$(CC) -c $(CFLAGS) $< -o $@
 
 clean:
-	del *.o
+	rm *.o

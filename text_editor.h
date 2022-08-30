@@ -68,7 +68,6 @@
   
   Thoth_EditorCur *savedCursors;
   int nSavedCursors;
-
   void (*Execute)(Thoth_Editor *, Thoth_EditorCmd *c);
   void (*Undo)(Thoth_Editor *, Thoth_EditorCmd *c);
  };

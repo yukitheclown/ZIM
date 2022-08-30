@@ -1,1 +1,1 @@
-redo delete wrong  line
+selection collisions
