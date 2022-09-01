@@ -32,7 +32,7 @@ typedef struct {
 #define COLORBG_ATTRIB "colorBG"
 #define FONT_SIZE_BITS 4
 #define FONT_SIZE_MASK ((1 << FONT_SIZE_BITS)-1)
-#define FONTSIZE 10
+#define FONTSIZE 12
 #define MAXTEXTHEIGHT 130
 #define MAXTEXTWIDTH 130
 #define RENDER_VRAM_SIZE THOTH_MAX_TEXT_CHARS*6// idk most text characters on screen possible

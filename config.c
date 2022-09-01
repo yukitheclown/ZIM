@@ -23,6 +23,52 @@ void Thoth_Config_Read(Thoth_Config *cfg){
 		{127,127,127},//grey
 		{0,0,0},//bg
 	};
+	
+	cfg->keybinds[THOTH_MoveLines_UP] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|THOTH_ARROW_UP;
+	cfg->keybinds[THOTH_MoveLines_DOWN] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|THOTH_ARROW_DOWN;
+	cfg->keybinds[THOTH_OpenFileBrowser] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|'o';
+	cfg->keybinds[THOTH_OpenFileZim] = THOTH_CTRL_KEY|'o';
+	cfg->keybinds[THOTH_NewFile] = THOTH_CTRL_KEY|'n';
+	cfg->keybinds[THOTH_CloseFile] = THOTH_CTRL_KEY|'w';
+	cfg->keybinds[THOTH_SwitchFile] = THOTH_CTRL_KEY|'p';
+	cfg->keybinds[THOTH_SaveAsFile] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|'s';
+	cfg->keybinds[THOTH_SaveFile] = THOTH_CTRL_KEY|'s';
+	cfg->keybinds[THOTH_ToggleComment] = THOTH_CTRL_KEY|'/';
+	cfg->keybinds[THOTH_MoveBrackets] = THOTH_CTRL_KEY|'m';
+	cfg->keybinds[THOTH_SelectBrackets] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|'j';
+	cfg->keybinds[THOTH_GotoLine] = THOTH_CTRL_KEY|'g';
+	cfg->keybinds[THOTH_FindTextInsensitive] = THOTH_CTRL_KEY|'f';
+	cfg->keybinds[THOTH_FindTextZim] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|'f';
+	cfg->keybinds[THOTH_EventCtrlEnter] = THOTH_ENTER_KEY|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_SelectNextWord] = 	'd'|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_AddCursorCommand_UP] = THOTH_ARROW_UP|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_AddCursorCommand_DOWN] = THOTH_ARROW_DOWN|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_ExpandSelectionLines] = 	'l'|THOTH_SHIFT_KEY|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_DeleteLine] = 'k'|THOTH_SHIFT_KEY|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_MoveByChars_BACK] = 	'h'|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_MoveByChars_FORWARD] = 	'l'|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_MoveLines_UP] = 	'j'|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_MoveLines_DOWN] = 	'k'|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_MoveByWords_BACK] = 'h'|THOTH_ALT_KEY|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_MoveByWords_FORWARD] = 'l'|THOTH_ALT_KEY|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_IndentLine_FORWARD] = ']'|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_IndentLine_BACK] = '['|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_ExpandSelectionWords_BACK] = THOTH_ARROW_LEFT|THOTH_SHIFT_KEY|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_ExpandSelectionWords_FORWARD] = THOTH_ARROW_RIGHT|THOTH_SHIFT_KEY|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_ScrollScreen_UP] = THOTH_ARROW_UP|THOTH_SHIFT_KEY;
+	cfg->keybinds[THOTH_ScrollScreen_DOWN] = THOTH_ARROW_DOWN|THOTH_SHIFT_KEY;
+	cfg->keybinds[THOTH_MoveByChars_BACK] = THOTH_ARROW_LEFT;
+	cfg->keybinds[THOTH_MoveByChars_FORWARD] = THOTH_ARROW_RIGHT;
+	cfg->keybinds[THOTH_MoveLines_UP] = THOTH_ARROW_UP;
+	cfg->keybinds[THOTH_MoveLines_DOWN] = THOTH_ARROW_DOWN;
+	cfg->keybinds[THOTH_SelectAll] = THOTH_CTRL_KEY|'a';
+	cfg->keybinds[THOTH_Undo] = 	'z'|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_Redo] = 	'y'|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_Cut] = 	'x'|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_Copy] = 	'c'|THOTH_CTRL_KEY;
+	cfg->keybinds[THOTH_Paste] ='v'|THOTH_CTRL_KEY;
+
+
 
 	memcpy(&cfg->colorPairs[THOTH_COLOR_SIDE_NUMBERS-1], (int[]){ THOTH_COLOR_WHITE, THOTH_COLOR_BLACK }, sizeof(int)*2);
 	memcpy(&cfg->colorPairs[THOTH_COLOR_NORMAL-1], (int[]){ THOTH_COLOR_WHITE, THOTH_COLOR_BLACK }, sizeof(int)*2);

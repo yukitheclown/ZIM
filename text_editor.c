@@ -1449,13 +1449,42 @@ static void Paste(Thoth_Editor *t, Thoth_EditorCmd *c){
 
 	int k;
 
-	for(k = 0; k < t->nCursors; k++){
-		
-		EraseAllSelectedText(t, &k, c);
-
-			AddStrToText(t, &k, clipboard);
-			t->cursors[k].addedLen = clipboardLen;
+	int lines = 0;
+	for(k = 0; k < clipboardLen; k++){
+		if(clipboard[k] == '\n') lines++;
 	}
+
+	if(lines == t->nCursors){
+		
+		int curline = 0;
+		for(k = 0; k < t->nCursors; k++){
+				int start = curline;
+				char tmp = 0;
+				for(; curline < clipboardLen; curline++){
+					if(clipboard[curline] == '\n'){
+						tmp = clipboard[curline];
+						clipboard[curline] = 0;
+						break;
+					}
+				}
+				
+				EraseAllSelectedText(t, &k, c);
+				AddStrToText(t, &k, &clipboard[start]);
+				clipboard[curline] = tmp;
+				t->cursors[k].addedLen = curline - start;
+				curline++;
+		}		
+
+	} else {
+
+		for(k = 0; k < t->nCursors; k++){
+				EraseAllSelectedText(t, &k, c);
+				AddStrToText(t, &k, clipboard);
+				t->cursors[k].addedLen = clipboardLen;
+		}
+
+	}
+
 
 	SaveCursors(t, c);
 
@@ -1855,12 +1884,12 @@ static void Copy(Thoth_Editor *t, Thoth_EditorCmd *c){
 			buffer = realloc(buffer, bufferLen+1);
 			buffer[bufferLen] = 0;
 			memcpy(&buffer[bufferLen-((end-start)+1)], &t->file->text[start], end-start);
-			buffer[bufferLen - 1] = '\n';
+			if(t->nCursors > 1) buffer[bufferLen - 1] = '\n';
 		} else {
 			bufferLen = (end-start) + 1;
 			buffer = malloc(bufferLen+1);
 			buffer[bufferLen] = 0;
-			buffer[bufferLen - 1] = '\n';
+			if(t->nCursors > 1) buffer[bufferLen - 1] = '\n';
 			memcpy(buffer, &t->file->text[start], end-start);
 		}
 
@@ -2282,7 +2311,54 @@ static void IndentLine(Thoth_Editor *t, Thoth_EditorCmd *c){
 	int k;
 	for(k = 0; k < t->nCursors; k++){
 
-		if(!t->cursors[k].selection.len){
+		Thoth_EditorSelection sel = t->cursors[k].selection;
+		if(sel.len){
+
+			int startCursorPos=sel.startCursorPos;
+			// RemoveSelections(t);
+
+			int next = startCursorPos;
+
+			if(t->file->text[next] != '\n')
+				next = startCursorPos - GetCharsIntoLine(t->file->text, next);
+
+			do {
+				t->cursors[k].pos = next;
+
+				if(c->num > 0){
+						if(next != sel.startCursorPos){
+							sel.startCursorPos++;
+						} else {
+							sel.startCursorPos--;
+							sel.len+=2;
+						}
+					AddStrToText(t, &k, "\t");
+				} else {
+					if (t->file->text[t->cursors[k].pos] == '\t'){
+	
+						if(next == sel.startCursorPos){
+							sel.startCursorPos--;
+						} else {
+							sel.startCursorPos++;
+							sel.len-=2;
+						}
+	
+						t->cursors[k].pos++;
+						RemoveStrFromText(t, &k, 1);
+					} 
+				}
+
+				next = GetStartOfNextLine(t->file->text, t->file->textLen, next);
+
+	
+			} while(next < sel.startCursorPos+sel.len);
+
+			// AddCharacters in Tab will delete everything;
+			t->cursors[k].selection = sel;
+		}
+
+		if(!sel.len){
+
 			int charsinto = GetCharsIntoLine(t->file->text, t->cursors[k].pos);
 			int start = t->cursors[k].pos - charsinto;
 			while(t->file->text[start] == '\t' && start < t->file->textLen) start++;
@@ -3726,6 +3802,7 @@ void Thoth_Editor_Event(Thoth_Editor *t, unsigned int key){
 		RemoveSelections(t);
 		RemoveExtraCursors(t);
 		EndLogging(t);
+		t->lastCmd = NULL;
 		t->autoCompleteIndex = 0;
 		UpdateScrollCenter(t);
 		return;
