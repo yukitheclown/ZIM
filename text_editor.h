@@ -48,7 +48,6 @@
 
  typedef struct {
 
-
   int startCursorPos;
   int len;
 
@@ -68,6 +67,8 @@
   
   Thoth_EditorCur *savedCursors;
   int nSavedCursors;
+  Thoth_EditorCur *hiddenCursors;
+  int nHiddenCursors;
   void (*Execute)(Thoth_Editor *, Thoth_EditorCmd *c);
   void (*Undo)(Thoth_Editor *, Thoth_EditorCmd *c);
  };
