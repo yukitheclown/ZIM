@@ -24,8 +24,8 @@ void Thoth_Config_Read(Thoth_Config *cfg){
 		{0,0,0},//bg
 	};
 	
-	cfg->keybinds[THOTH_MoveLines_UP] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|THOTH_ARROW_UP;
-	cfg->keybinds[THOTH_MoveLines_DOWN] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|THOTH_ARROW_DOWN;
+	cfg->keybinds[THOTH_MoveLinesText_UP] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|THOTH_ARROW_UP;
+	cfg->keybinds[THOTH_MoveLinesText_DOWN] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|THOTH_ARROW_DOWN;
 	cfg->keybinds[THOTH_OpenFileBrowser] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|'o';
 	cfg->keybinds[THOTH_OpenFileZim] = THOTH_CTRL_KEY|'o';
 	cfg->keybinds[THOTH_NewFile] = THOTH_CTRL_KEY|'n';
@@ -57,10 +57,6 @@ void Thoth_Config_Read(Thoth_Config *cfg){
 	cfg->keybinds[THOTH_ExpandSelectionWords_FORWARD] = THOTH_ARROW_RIGHT|THOTH_SHIFT_KEY|THOTH_CTRL_KEY;
 	cfg->keybinds[THOTH_ScrollScreen_UP] = THOTH_ARROW_UP|THOTH_SHIFT_KEY;
 	cfg->keybinds[THOTH_ScrollScreen_DOWN] = THOTH_ARROW_DOWN|THOTH_SHIFT_KEY;
-	cfg->keybinds[THOTH_MoveByChars_BACK] = THOTH_ARROW_LEFT;
-	cfg->keybinds[THOTH_MoveByChars_FORWARD] = THOTH_ARROW_RIGHT;
-	cfg->keybinds[THOTH_MoveLines_UP] = THOTH_ARROW_UP;
-	cfg->keybinds[THOTH_MoveLines_DOWN] = THOTH_ARROW_DOWN;
 	cfg->keybinds[THOTH_SelectAll] = THOTH_CTRL_KEY|'a';
 	cfg->keybinds[THOTH_Undo] = 	'z'|THOTH_CTRL_KEY;
 	cfg->keybinds[THOTH_Redo] = 	'y'|THOTH_CTRL_KEY;
@@ -110,7 +106,39 @@ void Thoth_Config_Read(Thoth_Config *cfg){
 	
 
 	FILE *fp = fopen(THOTH_CONFIG_FILE,"r");
+
 	if(fp){
+
+		void ReadCommand(unsigned int *keybinding){
+
+			*keybinding = 0;
+
+			while(!feof(fp)){
+				char bind[32];
+				fscanf(fp, "%s ", bind);
+				if(fgetc(fp) == '\n') break;
+				if(strlen(bind) == 1) *keybinding |= bind[0];
+				else {				
+					if(strcmp(bind, "CTRL") == 0)
+						*keybinding |= THOTH_CTRL_KEY;
+					else if(strcmp(bind, "ALT") == 0)
+						*keybinding |= THOTH_ALT_KEY;
+					else if(strcmp(bind, "SHIFT") == 0)
+						*keybinding |= THOTH_SHIFT_KEY;
+					else if(strcmp(bind, "ENTER") == 0)
+						*keybinding |= THOTH_ENTER_KEY;
+					else if(strcmp(bind, "ARROW_DOWN") == 0)
+						*keybinding |= THOTH_ARROW_DOWN;
+					else if(strcmp(bind, "ARROW_UP") == 0)
+						*keybinding |= THOTH_ARROW_UP;
+					else if(strcmp(bind, "ARROW_LEFT") == 0)
+						*keybinding |= THOTH_ARROW_LEFT;
+					else if(strcmp(bind, "ARROW_RIGHT") == 0)
+						*keybinding |= THOTH_ARROW_RIGHT;
+				}
+			}			
+		}
+
 	    while(!feof(fp)){
 			char lineType[100];
 
@@ -141,7 +169,85 @@ void Thoth_Config_Read(Thoth_Config *cfg){
 			    fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_GREY-1].r, &defaultColors[THOTH_COLOR_GREY-1].g, &defaultColors[THOTH_COLOR_GREY-1].b);
 			else if(strcmp(lineType, "COLOR_BG") == 0)
 			    fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_BG-1].r, &defaultColors[THOTH_COLOR_BG-1].g, &defaultColors[THOTH_COLOR_BG-1].b);
-			
+			else if(strcmp(lineType, "MoveLinesText_UP") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_MoveLinesText_UP]);
+			else if(strcmp(lineType, "MoveLinesText_DOWN") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_MoveLinesText_DOWN]);
+			else if(strcmp(lineType, "OpenFileBrowser") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_OpenFileBrowser]);
+			else if(strcmp(lineType, "OpenFileZim") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_OpenFileZim]);
+			else if(strcmp(lineType, "NewFile") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_NewFile]);
+			else if(strcmp(lineType, "CloseFile") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_CloseFile]);
+			else if(strcmp(lineType, "SwitchFile") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_SwitchFile]);
+			else if(strcmp(lineType, "SaveAsFile") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_SaveAsFile]);
+			else if(strcmp(lineType, "SaveFile") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_SaveFile]);
+			else if(strcmp(lineType, "ToggleComment") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_ToggleComment]);
+			else if(strcmp(lineType, "MoveBrackets") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_MoveBrackets]);
+			else if(strcmp(lineType, "SelectBrackets") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_SelectBrackets]);
+			else if(strcmp(lineType, "GotoLine") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_GotoLine]);
+			else if(strcmp(lineType, "FindTextInsensitive") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_FindTextInsensitive]);
+			else if(strcmp(lineType, "FindTextZim") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_FindTextZim]);
+			else if(strcmp(lineType, "EventCtrlEnter") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_EventCtrlEnter]);
+			else if(strcmp(lineType, "SelectNextWord") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_SelectNextWord]);
+			else if(strcmp(lineType, "AddCursorCommand_UP") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_AddCursorCommand_UP]);
+			else if(strcmp(lineType, "AddCursorCommand_DOWN") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_AddCursorCommand_DOWN]);
+			else if(strcmp(lineType, "ExpandSelectionLines") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_ExpandSelectionLines]);
+			else if(strcmp(lineType, "DeleteLine") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_DeleteLine]);
+			else if(strcmp(lineType, "MoveByChars_BACK") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_MoveByChars_BACK]);
+			else if(strcmp(lineType, "MoveByChars_FORWARD") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_MoveByChars_FORWARD]);
+			else if(strcmp(lineType, "MoveLines_UP") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_MoveLines_UP]);
+			else if(strcmp(lineType, "MoveLines_DOWN") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_MoveLines_DOWN]);
+			else if(strcmp(lineType, "MoveByWords_BACK") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_MoveByWords_BACK]);
+			else if(strcmp(lineType, "MoveByWords_FORWARD") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_MoveByWords_FORWARD]);
+			else if(strcmp(lineType, "IndentLine_FORWARD") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_IndentLine_FORWARD]);
+			else if(strcmp(lineType, "IndentLine_BACK") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_IndentLine_BACK]);
+			else if(strcmp(lineType, "ExpandSelectionWords_BACK") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_ExpandSelectionWords_BACK]);
+			else if(strcmp(lineType, "ExpandSelectionWords_FORWARD") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_ExpandSelectionWords_FORWARD]);
+			else if(strcmp(lineType, "ScrollScreen_UP") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_ScrollScreen_UP]);
+			else if(strcmp(lineType, "ScrollScreen_DOWN") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_ScrollScreen_DOWN]);
+			else if(strcmp(lineType, "SelectAll") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_SelectAll]);
+			else if(strcmp(lineType, "Undo") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_Undo]);
+			else if(strcmp(lineType, "Redo") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_Redo]);
+			else if(strcmp(lineType, "Cut") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_Cut]);
+			else if(strcmp(lineType, "Copy") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_Copy]);
+			else if(strcmp(lineType, "Paste") == 0)
+				ReadCommand(&cfg->keybinds[THOTH_Paste]);
+
 
 			while(fgetc(fp) != '\n' && !feof(fp)){}
 		}
