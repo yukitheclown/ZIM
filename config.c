@@ -105,19 +105,25 @@ void Thoth_Config_Read(Thoth_Config *cfg){
 	// {0x14/255.0f,0x14/255.0f,0x15/255.0f}, //bg
 	
 
-	FILE *fp = fopen(THOTH_CONFIG_FILE,"r");
+	FILE *fp = fopen(THOTH_CONFIG_FILE,"rb");
 
 	if(fp){
 
 		void ReadCommand(unsigned int *keybinding){
 
 			*keybinding = 0;
+			if(fgetc(fp) != '(') return;
+			if(fgetc(fp) != ' ') return;
 
 			while(!feof(fp)){
+
 				char bind[32];
 				fscanf(fp, "%s ", bind);
-				if(fgetc(fp) == '\n') break;
+				if(bind[0] == ')') return;
+
+
 				if(strlen(bind) == 1) *keybinding |= bind[0];
+
 				else {				
 					if(strcmp(bind, "CTRL") == 0)
 						*keybinding |= THOTH_CTRL_KEY;
@@ -143,6 +149,7 @@ void Thoth_Config_Read(Thoth_Config *cfg){
 			char lineType[100];
 
 			fscanf(fp, "%s : ", lineType);
+			
 			if(lineType[0] == '#'){
 			    while(!feof(fp) && fgetc(fp) != '\n'){}
 			    continue;

@@ -2836,10 +2836,14 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
 		f->history = (Thoth_EditorCmd **)realloc(f->history, 
 			++f->sHistory * sizeof(Thoth_EditorCmd *));
 		
-		t->lastCmd = &f->history[f->sHistory-1];
 		
+		t->lastCmd = &f->history[f->sHistory-1];
 		*t->lastCmd = CopyCommand(c);
 		(*t->lastCmd)->Execute(t,*t->lastCmd);
+
+		if(c->keys && IsToken(c->keys[0])){
+			t->lastCmd = NULL;
+		}
 		f->historyPos++;
 	}
 
@@ -3674,8 +3678,15 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
 					} else { /* comment */
 
 
-						for(;k < (renderTo-1) && !(text[k] == '*' && text[k+1] == '/'); k++);
-
+					for(;k < (renderTo-1) && !(text[k] == '*' && text[k+1] == '/'); k++){
+						if(text[k] == '\n'){
+							Thoth_Graphics_attron(t->graphics,THOTH_COLOR_COMMENT);
+							Thoth_Graphics_mvprintw(t->graphics,t->logX+x, t->logY+y, &text[ctOffset], k - ctOffset);
+							ctOffset = k;
+							x = 0;
+							y++;
+						}
+					}
 						if(k < renderTo-1){
 							k++; // will run to end of file otherwise. 
 						}
