@@ -2775,9 +2775,10 @@ static void RemoveExtraCursors(Thoth_Editor *t){
 
 static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
 
+
 	if(c->Undo == NULL || t->logging){
-		c->Execute(t, c);
 		t->lastCmd = NULL;
+		c->Execute(t, c);
 		if(c->scroll == SCR_CENT)
 			UpdateScrollCenter(t);
 		else
