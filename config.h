@@ -7,6 +7,7 @@ enum {
 	THOTH_MoveLinesText_UP= 1,
 	THOTH_MoveLinesText_DOWN,
 	THOTH_OpenFileBrowser,
+	THOTH_Help,
 	THOTH_OpenFileZim,
 	THOTH_NewFile,
 	THOTH_CloseFile,
@@ -99,6 +100,7 @@ typedef struct {
 	Thoth_RGBColor colors[THOTH_NUM_COLORS];
 	int colorPairs[THOTH_TE_NUM_COLOR_PAIRS][2];
 	unsigned int keybinds[THOTH_NUM_KEYBINDS];
+	char makecmd[32];
 } Thoth_Config;
 
 void Thoth_Config_Read(Thoth_Config *cfg);

@@ -23,11 +23,18 @@ void Thoth_Config_Read(Thoth_Config *cfg){
 		{127,127,127},//grey
 		{0,0,0},//bg
 	};
-	
+	#ifdef LINUX_COMPILE
+	strcpy(cfg->makecmd, "make");
+	#endif
+	#ifdef WINDOWS_COMPILE
+	strcpy(cfg->makecmd, "mingw32-make");
+	#endif
+
 	cfg->keybinds[THOTH_MoveLinesText_UP] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|THOTH_ARROW_UP;
 	cfg->keybinds[THOTH_MoveLinesText_DOWN] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|THOTH_ARROW_DOWN;
 	cfg->keybinds[THOTH_OpenFileBrowser] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|'o';
 	cfg->keybinds[THOTH_OpenFileZim] = THOTH_CTRL_KEY|'o';
+	cfg->keybinds[THOTH_Help] = THOTH_CTRL_KEY|'m';
 	cfg->keybinds[THOTH_NewFile] = THOTH_CTRL_KEY|'n';
 	cfg->keybinds[THOTH_CloseFile] = THOTH_CTRL_KEY|'w';
 	cfg->keybinds[THOTH_SwitchFile] = THOTH_CTRL_KEY|'p';
@@ -156,6 +163,8 @@ void Thoth_Config_Read(Thoth_Config *cfg){
 			}
 			
 
+			if(strcmp(lineType, "MakeCMD") == 0)
+			    fscanf(fp, "%s", cfg->makecmd);
 			if(strcmp(lineType, "COLOR_CYAN") == 0)
 			    fscanf(fp, "%x %x %x", &defaultColors[THOTH_COLOR_CYAN-1].r, &defaultColors[THOTH_COLOR_CYAN-1].g, &defaultColors[THOTH_COLOR_CYAN-1].b);
 			else if(strcmp(lineType, "COLOR_RED") == 0)

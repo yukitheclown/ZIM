@@ -1103,6 +1103,11 @@ static void OpenFileZim(Thoth_Editor *t, Thoth_EditorCmd *c){
 	t->loggingText[strlen(t->fileBrowser.directory)] = 0;
 	StartLogging(t, THOTH_LOGMODE_OPEN);
 }
+static void HelpZim(Thoth_Editor *t, Thoth_EditorCmd *c){
+	EndLogging(t);
+
+	StartLogging(t, THOTH_LOGMODE_HELP);
+}
 static void SwitchFile(Thoth_Editor *t, Thoth_EditorCmd *c){
 	EndLogging(t);
 	t->logIndex = 0;
@@ -1681,7 +1686,9 @@ static void ToggleComment(Thoth_Editor *t, Thoth_EditorCmd *c){
 
 		int m;
 		for(m = startSelection; m < endSelection; m++){
-
+			
+			for(; (t->file->text[m] == '\t' || t->file->text[m] == ' ')
+			 && m < endSelection; m++);
 
 			if(strncmp(&t->file->text[m], "//", 2) == 0) {
 				t->cursors[k].pos = m+2;
@@ -2236,8 +2243,10 @@ static void RemoveCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
 	for(k = 0; k < t->nCursors; k++){
 
 		if(t->cursors[k].selection.len == 0){
-			AddSavedText(t, &t->file->text[t->cursors[k].pos-c->num], c->num, &k);
-			RemoveStrFromText(t, &k, c->num);
+			if(t->cursors[k].pos >= c->num){
+				AddSavedText(t, &t->file->text[t->cursors[k].pos-c->num], c->num, &k);
+				RemoveStrFromText(t, &k, c->num);
+			}
 		} else {
 
 			EraseAllSelectedText(t, &k, c);
@@ -2550,7 +2559,8 @@ static void AddCharacters(Thoth_Editor *t, Thoth_EditorCmd *c){
 	c->num = strlen(c->keys);
 
 	// make sure autocomplete only starts after a token, if canceled.
-	if(t->autoCompleteSearchLen > 0 || IsToken(t->file->text[t->cursors[0].pos-1])){
+	if(t->autoCompleteSearchLen > 0 || (t->cursors[0].pos > 0 &&
+		IsToken(t->file->text[t->cursors[0].pos-1]))){
 		for(k = 0; k < strlen(keys); k++){
 			if(!IsToken(keys[k])){
 				t->autoCompleteSearchLen++;
@@ -3037,6 +3047,7 @@ void Thoth_Editor_Init(Thoth_Editor *t, Thoth_Graphics *g, Thoth_Config *cfg){
 
 	AddCommand(t, CreateCommand((unsigned int[]){t->cfg->keybinds[THOTH_OpenFileBrowser]  , 0}, "", 0, SCR_NORM, OpenFileBrowser, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){t->cfg->keybinds[THOTH_OpenFileZim]  , 0}, "", 0, SCR_NORM, OpenFileZim, NULL));
+	AddCommand(t, CreateCommand((unsigned int[]){t->cfg->keybinds[THOTH_Help]  , 0}, "", 0, SCR_NORM, HelpZim, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){t->cfg->keybinds[THOTH_NewFile]  , 0}, "", 0, SCR_NORM, NewFile, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){t->cfg->keybinds[THOTH_CloseFile]  , 0}, "", 0, SCR_NORM, CloseFile, NULL));
 	AddCommand(t, CreateCommand((unsigned int[]){t->cfg->keybinds[THOTH_SwitchFile] , 0}, "", 0, SCR_NORM, SwitchFile, NULL));
@@ -3296,6 +3307,7 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
 		else if(t->logging == THOTH_LOGMODE_TEXT){ sprintf(buffer, "F: "); }        
 		else if(t->logging == THOTH_LOGMODE_TEXT_INSENSITIVE){ sprintf(buffer, "f: "); }        
 		else if(t->logging == THOTH_LOGMODE_OPEN){ sprintf(buffer, "o: "); }        
+		else if(t->logging == THOTH_LOGMODE_HELP){ sprintf(buffer, "default bindings: "); }        
 		else if(t->logging == THOTH_LOGMODE_SAVE){ sprintf(buffer, "w: "); }        
 		else if(t->logging == THOTH_LOGMODE_SWITCH_FILE){ sprintf(buffer, "p: "); }        
 		else if(t->logging == THOTH_LOGMODE_FILEBROWSER){ sprintf(buffer, "O: "); }        
@@ -3306,7 +3318,56 @@ void Thoth_Editor_Draw(Thoth_Editor *t){
 			Thoth_Graphics_mvprintw(t->graphics,strlen(buffer), 0, t->loggingText, strlen(t->loggingText));
 		}
 
-		if(t->logging == THOTH_LOGMODE_SWITCH_FILE || t->logging == THOTH_LOGMODE_FILEBROWSER){
+		if(t->logging == THOTH_LOGMODE_HELP){
+				char *help = "ctrl+a (select all)\n"
+					"ctrl+- (zoom out)\n"
+					"ctrl+= (zoom in)\n"
+					"ctrl+q (quit)\n"
+					"escape (closes find/goto/console, removes extra cursors/selections)\n"
+					"ctrl+b (compile (runs \"make\"))\n"
+					"ctrl+y (redo)\n"
+					"ctrl+z (undo)\n"
+					"ctrl+x (cut)\n"
+					"ctrl+c (copy)\n"
+					"ctrl+v (paste)\n"
+					"arrow keys (movement)\n"
+					"ctrl+h (move left) ctrl+l (move right) ctrl+j (move up) ctrl+k (move down)\n"
+					"shift+arrow up/down (scroll screen up/down)\n"
+					"ctrl+alt+arrow right/left (expand selection by words right/left)\n"
+					"ctrl+alt+[ (indent backward)\n"
+					"ctrl+alt+] (indent forward)\n"
+					"ctrl+alt+h (move by words left) ctrl+alt+l (move by words right)\n"
+					"ctrl+shift+l (expand selection by a line)\n"
+					"ctrl+shift+k (delete line)\n"
+					"ctrl+arrow up (add cursor up)\n"
+					"ctrl+arrow down (add cursor down)\n"
+					"ctrl+d (select word under cursor if no selection. continued pressing selects the next occurance of word or selection)\n"
+					"ctrl+g (goto line)\n"
+					"ctrl+f (search) (enter to search forward, ctrl+enter to search backward)\n"
+					"ctrl+F (case senstive search)\n"
+					"ctrl+m (move brackets) (moves cursor between the { }, ( ), [ ], of the current scope) (either to the end, or to the beginning if its at the end)\n"
+					"ctrl+shift+j (select brackets) (selects everything between the brackets)\n"
+					"ctrl+/ (toggle comment) (adds or removes // for the line to comment) (todo: mutli-line)\n"
+					"ctrl+shift+arrow up/down (move line up/down) (moves the entire line the cursors on, or every line in the selection by a line)\n"
+					"ctrl+o (open file)\n"
+					"ctrl+shift+o (file browser)\n"
+					"ctrl+s (save file)\n"
+					"ctrl+shift+s Save As file\n"
+					"ctrl+n New file\n"
+					"ctrl+p Switch file, (lists open files)\n"
+					"ctrl+w Close file\n";
+			int k;
+			int last = 0;
+			for(k = 0; k < strlen(help); k++){
+				if(help[k] == '\n'){
+
+						Thoth_Graphics_mvprintw(t->graphics,t->logX, t->logY, &help[last], k-last);
+						last = k;
+						t->logY++;
+				}
+			}
+		
+		}else if(t->logging == THOTH_LOGMODE_SWITCH_FILE || t->logging == THOTH_LOGMODE_FILEBROWSER){
 
 			t->logY = 1;
 
@@ -3942,7 +4003,7 @@ void Thoth_Editor_Event(Thoth_Editor *t, unsigned int key){
 			t->ttyPid = fork();
 			if (t->ttyPid == 0) {
 				chdir(t->fileBrowser.directory);
-				char *args[] = {"make",NULL};
+				char *args[] = {t->cfg->makecmd,NULL};
 				execvp(args[0], args);
 			}
 
@@ -3953,11 +4014,11 @@ void Thoth_Editor_Event(Thoth_Editor *t, unsigned int key){
 			chdir(t->fileBrowser.directory);
 			char *logpath = THOTH_LOGCOMPILEFILE;
 			char sys[512];
-			sprintf(sys, "make > %s  2>&1 &", logpath);
-#endif
-
+			sprintf(sys, "%s > %s  2>&1 &", t->cfg->makecmd, logpath);
+			system(sys);
 	// windows broken			
-			// StartLogging(t, THOTH_LOGMODE_CONSOLE);
+			StartLogging(t, THOTH_LOGMODE_CONSOLE);
+#endif
 			return;
 		}
 		if(key == ((( unsigned int)'=') | THOTH_CTRL_KEY)){
@@ -4094,20 +4155,20 @@ int Thoth_Editor_Destroy(Thoth_Editor *t){
 
 	}
 
-	if(fp){
-		int m; 
-		for(m = strlen(t->file->path); m > 0; m--){
-			if(t->file->path[m] == '/') break;
-		}
+	// if(fp){
+	// 	int m; 
+	// 	for(m = strlen(t->file->path); m > 0; m--){
+	// 		if(t->file->path[m] == '/') break;
+	// 	}
 
-		int len = m;//strlen(t->fileBrowser.directory);
-		if(len > 0){
-			fwrite(&len,sizeof(int),1,fp);
-			// fwrite(t->fileBrowser.directory,1,len,fp);
-			fwrite(t->file->path,1,len,fp);
-		}
-		fclose(fp);
-	}
+	// 	int len = m;//strlen(t->fileBrowser.directory);
+	// 	if(len > 0){
+	// 		fwrite(&len,sizeof(int),1,fp);
+	// 		// fwrite(t->fileBrowser.directory,1,len,fp);
+	// 		fwrite(t->file->path,1,len,fp);
+	// 	}
+	// 	fclose(fp);
+	// }
 
 	for(k = 0; k < t->nCommands; k++)
 		FreeCommand(t->commands[k]);
