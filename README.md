@@ -18,18 +18,13 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 ![Screenshot](Screenshots/Screenshot.gif)<br>
 <hr>
 <b>TODO</b>:<br>
-Fix newline bug<br>
-Fix windows version needing admin privs<br>
+
 convert spaces to tabs, macro. <br>
-Faster undoing: done. Needs testing <br>
-element rendering in graphics.c save gpu mem.<br>
-have only the active file in memory AND swap files<br>
+Have only the active file in memory AND swap files<br>
 minimap<br>
-keybindings config<br>
 highlighting for more languages than C, and general lua (function is a keyword)<br>
 } auto indent down <br>
 check for file change outside editor and reload on window focus event<br>
-find replace<br>
 code folding<br>
 <br>
 <br>
