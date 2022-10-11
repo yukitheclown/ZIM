@@ -34,7 +34,7 @@ void Thoth_Config_Read(Thoth_Config *cfg){
 	cfg->keybinds[THOTH_MoveLinesText_DOWN] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|THOTH_ARROW_DOWN;
 	cfg->keybinds[THOTH_OpenFileBrowser] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|'o';
 	cfg->keybinds[THOTH_OpenFileZim] = THOTH_CTRL_KEY|'o';
-	cfg->keybinds[THOTH_Help] = THOTH_CTRL_KEY|'m';
+	cfg->keybinds[THOTH_Help] = THOTH_CTRL_KEY|THOTH_SHIFT_KEY|'m';
 	cfg->keybinds[THOTH_NewFile] = THOTH_CTRL_KEY|'n';
 	cfg->keybinds[THOTH_CloseFile] = THOTH_CTRL_KEY|'w';
 	cfg->keybinds[THOTH_SwitchFile] = THOTH_CTRL_KEY|'p';
