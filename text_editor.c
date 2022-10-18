@@ -2848,6 +2848,7 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
 			++f->sHistory * sizeof(Thoth_EditorCmd *));
 		
 		
+		ClearAutoComplete(t);
 		t->lastCmd = &f->history[f->sHistory-1];
 		*t->lastCmd = CopyCommand(c);
 		(*t->lastCmd)->Execute(t,*t->lastCmd);
