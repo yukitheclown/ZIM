@@ -122,7 +122,7 @@ void Event(Thoth_t *t){
 	
 	if(ev.type == SDL_KEYDOWN){
 		
-		int key = t->key;
+		int key = t->key & THOTH_ENTER_KEY ? t->key ^ THOTH_ENTER_KEY : t->key;
 
 		if(ev.key.keysym.sym == SDLK_RETURN) key |= THOTH_ENTER_KEY;
 		else if(ev.key.keysym.sym == SDLK_TAB) key = 9;
