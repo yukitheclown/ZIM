@@ -132,7 +132,8 @@ const char *keywords[] = {
 	"abstract", "final", "from", "cast", "funcdef", "get", "import", "in", "inout", "interface", "is", "mixin", "not", "null", "or",
 	"out", "override", "private", "protected", "return", "set", "shared", "super", "switch", "this", "true", "typedef", "uint",
 	"uint8", "uint16", "uint32", "uint64", "void", "while", "xor", "end", "function", "local", "nil", "repeat", "then", "until",
-	"auto", "bool", "char", "class", "double", "float", "int", "enum", "const", "static", "include", "define", "ifndef", "endif", "ifdef", "struct",
+	"auto", "bool", "char", "class", "double", "float", "int", "enum", "const", "static", "include", "define", "ifndef", "endif", 
+	"ifdef", "struct",
 };
 
 static char *basename(char *path){
@@ -1887,13 +1888,24 @@ static void Copy(Thoth_Editor *t, Thoth_EditorCmd *c){
 
 
 		if(buffer){
-			bufferLen += (end-start)+1;
+			bufferLen += (end-start);
+			if(t->nCursors > 1){
+				bufferLen++;
+			}
 			buffer = realloc(buffer, bufferLen+1);
+			if(t->nCursors > 1){
+				buffer[bufferLen - 1] = '\n';
+				memcpy(&buffer[bufferLen-((end-start)+1)], &t->file->text[start], end-start);
+			} else {
+				memcpy(&buffer[bufferLen-((end-start))], &t->file->text[start], end-start);
+			}
 			buffer[bufferLen] = 0;
-			memcpy(&buffer[bufferLen-((end-start)+1)], &t->file->text[start], end-start);
-			if(t->nCursors > 1) buffer[bufferLen - 1] = '\n';
+
 		} else {
-			bufferLen = (end-start) + 1;
+			bufferLen += (end-start);
+			if(t->nCursors > 1){
+				bufferLen++;
+			}
 			buffer = malloc(bufferLen+1);
 			buffer[bufferLen] = 0;
 			if(t->nCursors > 1) buffer[bufferLen - 1] = '\n';
@@ -2068,6 +2080,7 @@ static void AddStrToText(Thoth_Editor *t, int *cursorIndex, char *text){
 
 		free(t->file->text);
 		t->file->text = (char *)malloc(textLen+len+1);
+		t->file->text[textLen+len] = 0;
 	
 		memcpy(t->file->text, text1, pos);
 
@@ -2081,7 +2094,7 @@ static void AddStrToText(Thoth_Editor *t, int *cursorIndex, char *text){
 	} else {
 		t->file->text = (char *)realloc(t->file->text,len+1);
 		memcpy(&t->file->text[0], text, len);
-
+		t->file->text[len] = 0;
 	}
 
 
@@ -2847,8 +2860,8 @@ static void ExecuteCommand(Thoth_Editor *t, Thoth_EditorCmd *c){
 		f->history = (Thoth_EditorCmd **)realloc(f->history, 
 			++f->sHistory * sizeof(Thoth_EditorCmd *));
 		
-		
 		ClearAutoComplete(t);
+		
 		t->lastCmd = &f->history[f->sHistory-1];
 		*t->lastCmd = CopyCommand(c);
 		(*t->lastCmd)->Execute(t,*t->lastCmd);
