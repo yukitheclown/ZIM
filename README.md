@@ -28,7 +28,7 @@ check for file change outside editor and reload on window focus event<br>
 code folding<br>
 <br>
 <br>
-Example thothconfig.cfg</b><br>
+Example zimconfig.cfg</b><br>
 # gruvbox <br>
 COLOR_CYAN 0x8e 0xc0 0x7c<br>
 COLOR_RED 0xfb 0x49 0x34<br>
