@@ -1,4 +1,5 @@
 ![Screenshot](Screenshots/thoth.bmp)<br>
+![Screenshot](Screenshots/2023-04-27 09-41-24.gif)<br>
 https://rotatedev.itch.io/zim BINARIES<br>
 New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 <b>font</b>: https://github.com/larsenwork/monoid<br>
