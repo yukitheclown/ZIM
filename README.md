@@ -1,5 +1,4 @@
 ![Screenshot](Screenshots/thoth.bmp)<br>
-![Screenshot](Screenshots/lib.gif)<br>
 https://rotatedev.itch.io/zim BINARIES<br>
 New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
 <b>font</b>: https://github.com/larsenwork/monoid<br>
@@ -17,7 +16,7 @@ New <b>colorscheme</b> is: https://github.com/morhetz/gruvbox<br>
     
     
 ![Screenshot](Screenshots/Screenshot.gif)<br>
-<hr>
+![Screenshot](Screenshots/lib.gif)<br><br>
 <b>TODO</b>:<br>
 
 convert spaces to tabs, macro. <br>
